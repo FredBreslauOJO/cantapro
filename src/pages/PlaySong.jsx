@@ -40,13 +40,12 @@ export default function PlaySong() {
         
       if (setlistData) setSetlistName(setlistData.event_name);
 
-      // 2. Busca as músicas usando a tabela relacional CORRETA (setlist_items)
-      // Ajustado de "lyrics" para "content" na requisição do banco
+      // 2. Busca as músicas trazendo TODAS (*) as colunas da tabela songs para evitar erro de nome
       const { data: pivotData, error } = await supabase
         .from('setlist_items')
         .select(`
           position,
-          songs ( id, title, artist, content, timecode )
+          songs ( * )
         `)
         .eq('setlist_id', id)
         .order('position', { ascending: true });
@@ -75,10 +74,10 @@ export default function PlaySong() {
   };
 
   const startAutoScroll = () => {
-    // Lógica básica de Autoscroll (pode ser ajustada para usar o timecode)
+    // Lógica básica de Autoscroll
     scrollIntervalRef.current = setInterval(() => {
       window.scrollBy({ top: 1, behavior: 'auto' });
-    }, 50); // Velocidade do scroll (quanto menor o número, mais rápido)
+    }, 50); 
   };
 
   const stopAutoScroll = () => {
@@ -122,6 +121,9 @@ export default function PlaySong() {
   const prevSong = songs[currentIndex - 1];
   const nextSong = songs[currentIndex + 1];
 
+  // Identifica automaticamente onde a letra da música está guardada
+  const songText = currentSong?.lyrics || currentSong?.content || currentSong?.text || currentSong?.body;
+
   return (
     <div className="min-h-screen bg-black text-white selection:bg-white selection:text-black">
       
@@ -148,9 +150,8 @@ export default function PlaySong() {
         ref={contentRef}
         className="pt-40 pb-40 px-6 max-w-3xl mx-auto"
       >
-        {/* Ajustado de lyrics para content na renderização da tela */}
         <pre className="whitespace-pre-wrap font-black text-2xl sm:text-4xl lg:text-5xl uppercase leading-relaxed tracking-tight text-white/90 font-sans">
-          {currentSong?.content || "NENHUMA LETRA CADASTRADA PARA ESTA MÚSICA."}
+          {songText || "NENHUMA LETRA CADASTRADA PARA ESTA MÚSICA."}
         </pre>
       </div>
 
