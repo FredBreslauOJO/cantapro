@@ -3,14 +3,16 @@ import { useNavigate } from "react-router-dom";
 import { Plus, Pencil, Search, ArrowLeft } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/AuthContext";
+import PaywallModal from "../components/PaywallModal";
 
 export default function Songs() {
   const [songs, setSongs] = useState([]);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("title");
   const [loading, setLoading] = useState(true);
+  const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, plan } = useAuth();
 
   useEffect(() => {
     if (user) loadSongs();
@@ -28,6 +30,15 @@ export default function Songs() {
       setSongs(data);
     }
     setLoading(false);
+  };
+
+  const handleCreateNew = () => {
+    // GUARDA-COSTAS: Se for Free e já tiver 10 ou mais músicas, barra e abre o Paywall!
+    if (plan === 'free' && songs.length >= 10) {
+      setIsPaywallOpen(true);
+      return;
+    }
+    navigate("/songs/new");
   };
 
   const filtered = songs.filter(s =>
@@ -60,10 +71,7 @@ export default function Songs() {
           <h1 className="text-2xl font-black tracking-tight uppercase text-foreground">Editar Letras</h1>
         </div>
         <div className="flex items-center gap-2 mt-8">
-          <button
-            onClick={() => navigate("/songs/new")}
-            className="w-12 h-12 bg-black rounded-full flex items-center justify-center text-white hover:opacity-80 transition-opacity active:scale-95 transition-transform"
-          >
+          <button onClick={handleCreateNew} className="w-12 h-12 bg-black rounded-full flex items-center justify-center text-white hover:opacity-80 transition-opacity active:scale-95">
             <Plus size={18} className="pointer-events-none" />
           </button>
         </div>
@@ -85,15 +93,15 @@ export default function Songs() {
       <div className="flex gap-1 mb-4 bg-gray-100 rounded-xl p-1 w-full max-w-[240px]">
         <button
           onClick={() => setSortBy("title")}
-          className={`flex-1 min-h-[44px] rounded-lg text-[10px] font-bold tracking-wide transition-all uppercase active:scale-95 ${sortBy === "title" ? "bg-white shadow-sm text-foreground" : "text-gray-400"}`}
+          className={`flex-1 min-h-[44px] rounded-lg text-[10px] font-bold tracking-wide transition-all uppercase ${sortBy === "title" ? "bg-white shadow-sm text-foreground" : "text-gray-400"}`}
         >
-          <span className="pointer-events-none">Por Título</span>
+          Por Título
         </button>
         <button
           onClick={() => setSortBy("artist")}
-          className={`flex-1 min-h-[44px] rounded-lg text-[10px] font-bold tracking-wide transition-all uppercase active:scale-95 ${sortBy === "artist" ? "bg-white shadow-sm text-foreground" : "text-gray-400"}`}
+          className={`flex-1 min-h-[44px] rounded-lg text-[10px] font-bold tracking-wide transition-all uppercase ${sortBy === "artist" ? "bg-white shadow-sm text-foreground" : "text-gray-400"}`}
         >
-          <span className="pointer-events-none">Por Artista</span>
+          Por Artista
         </button>
       </div>
 
@@ -104,10 +112,7 @@ export default function Songs() {
       ) : filtered.length === 0 ? (
         <div className="text-center py-16">
           <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-4">Nenhuma música encontrada.</p>
-          <button
-            onClick={() => navigate("/songs/new")}
-            className="px-6 py-4 bg-black text-white text-xs font-black uppercase tracking-widest rounded-xl hover:opacity-80 transition-opacity active:scale-95 transition-transform"
-          >
+          <button onClick={handleCreateNew} className="px-6 py-4 bg-black text-white text-xs font-black uppercase tracking-widest rounded-xl hover:opacity-80 transition-opacity active:scale-95">
             Adicionar primeira música
           </button>
         </div>
@@ -125,10 +130,10 @@ export default function Songs() {
                     <button
                       key={song.id}
                       onClick={() => navigate(`/songs/${song.id}`)}
-                      className="w-full flex items-center justify-between px-3 min-h-[52px] border-b-2 border-black/10 hover:bg-black hover:text-white transition-colors group cursor-pointer rounded-lg text-left active:scale-[0.99] transition-transform"
+                      className="w-full flex items-center justify-between px-3 min-h-[52px] border-b-2 border-black/10 hover:bg-black hover:text-white transition-colors group rounded-lg text-left active:scale-[0.99]"
                     >
                       <div className="min-w-0">
-                        <p className="font-black text-sm uppercase tracking-tight text-black group-hover:text-white truncate flex items-center gap-2">
+                        <p className="font-black text-sm uppercase tracking-tight text-black group-hover:text-white truncate">
                           {song.title}
                         </p>
                         <p className="text-[10px] font-bold uppercase tracking-widest text-black/50 group-hover:text-white/60 truncate mt-0.5">{song.artist}</p>
@@ -141,6 +146,8 @@ export default function Songs() {
           ))}
         </div>
       )}
+
+      <PaywallModal isOpen={isPaywallOpen} onClose={() => setIsPaywallOpen(false)} currentPlan={plan} />
     </div>
   );
 }

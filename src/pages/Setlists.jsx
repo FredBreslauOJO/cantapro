@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Pencil, Play, Users, ChevronDown } from "lucide-react";
+import { Plus, Pencil, Play } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/AuthContext";
+import PaywallModal from "../components/PaywallModal";
 
 export default function Setlists() {
   const [setlists, setSetlists] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showArchived, setShowArchived] = useState(false);
+  const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   const navigate = useNavigate();
-  const { user } = useAuth(); // Pegando o usuário do nosso novo sistema!
+  const { user, plan } = useAuth();
 
   useEffect(() => {
     if (user) loadSetlists();
@@ -23,7 +24,12 @@ export default function Setlists() {
   };
 
   const handleCreateNew = async () => {
-    // Supabase: Criando um novo setlist
+    // GUARDA-COSTAS: Se for Free e já tiver 1 ou mais setlists, bloqueia!
+    if (plan === 'free' && setlists.length >= 1) {
+      setIsPaywallOpen(true);
+      return;
+    }
+
     const { data, error } = await supabase
       .from('setlists')
       .insert([{ 
@@ -44,8 +50,6 @@ export default function Setlists() {
 
   const loadSetlists = async () => {
     setLoading(true);
-    
-    // Supabase: Buscando os setlists criados por este usuário
     const { data: ownSetlists, error } = await supabase
       .from('setlists')
       .select('*')
@@ -53,19 +57,17 @@ export default function Setlists() {
       .order('created_date', { ascending: false });
 
     if (!error && ownSetlists) {
-      // Adicionando contadores zerados provisórios (buscaremos as músicas depois)
       const enriched = ownSetlists.map(sl => ({ ...sl, songCount: 0, totalDurationSeconds: 0 }));
       setSetlists(enriched);
     }
-    
     setLoading(false);
   };
 
-  const SetlistCard = ({ sl, archived }) => (
-    <div className={`bg-white border-2 border-black rounded-3xl p-4 flex flex-col justify-between min-h-[150px] group relative shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${archived ? "grayscale" : ""}`}>
+  const SetlistCard = ({ sl }) => (
+    <div className="bg-white border-2 border-black rounded-3xl p-4 flex flex-col justify-between min-h-[150px] group relative shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
       <button
         onClick={(e) => { e.stopPropagation(); navigate(`/setlists/${sl.id}/edit`); }}
-        className="absolute top-2 right-2 w-10 h-10 flex items-center justify-center text-black/30 hover:text-black transition-colors active:scale-95 transition-transform"
+        className="absolute top-2 right-2 w-10 h-10 flex items-center justify-center text-black/30 hover:text-black transition-all active:scale-95"
       >
         <Pencil size={13} className="pointer-events-none" />
       </button>
@@ -78,7 +80,7 @@ export default function Setlists() {
       <div className="mt-3">
         {sl.date && (
           <span className="text-[10px] font-black text-black border border-black px-2 py-0.5 rounded-md block w-fit mb-2">
-            {new Date(sl.date).toLocaleDateString('pt-BR')}
+            {new Date(sl.date + 'T12:00:00').toLocaleDateString('pt-BR')}
           </span>
         )}
         <div className="flex items-center justify-between">
@@ -87,7 +89,7 @@ export default function Setlists() {
           </span>
           <button
             onClick={(e) => { e.stopPropagation(); navigate(`/setlists/${sl.id}/play/0`); }}
-            className="w-11 h-11 bg-black rounded-full flex items-center justify-center text-white hover:opacity-80 transition-opacity active:scale-95 transition-transform"
+            className="w-11 h-11 bg-black rounded-full flex items-center justify-center text-white hover:opacity-80 transition-opacity active:scale-95"
           >
             <Play size={13} fill="white" className="pointer-events-none" />
           </button>
@@ -104,7 +106,7 @@ export default function Setlists() {
           <h1 className="text-2xl font-black tracking-tight uppercase text-foreground">Setlists</h1>
         </div>
         <div className="flex items-center gap-2 mt-1">
-          <button onClick={handleCreateNew} className="w-12 h-12 bg-black rounded-full flex items-center justify-center text-white hover:opacity-80 transition-opacity active:scale-95 transition-transform">
+          <button onClick={handleCreateNew} className="w-12 h-12 bg-black rounded-full flex items-center justify-center text-white hover:opacity-80 transition-opacity active:scale-95">
             <Plus size={18} className="pointer-events-none" />
           </button>
         </div>
@@ -119,17 +121,19 @@ export default function Setlists() {
       ) : setlists.length === 0 ? (
         <div className="text-center py-16">
           <p className="text-gray-400 text-sm font-bold uppercase tracking-widest mb-4">Nenhum setlist ainda.</p>
-          <button onClick={handleCreateNew} className="px-6 py-4 bg-black text-white text-xs font-black tracking-widest uppercase rounded-xl hover:opacity-80 transition-opacity active:scale-95 transition-transform">
+          <button onClick={handleCreateNew} className="px-6 py-4 bg-black text-white text-xs font-black tracking-widest uppercase rounded-xl hover:opacity-80 transition-opacity active:scale-95">
             Criar primeiro setlist
           </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {setlists.filter(sl => !sl.archived).map(sl => (
+          {setlists.map(sl => (
             <SetlistCard key={sl.id} sl={sl} />
           ))}
         </div>
       )}
+
+      <PaywallModal isOpen={isPaywallOpen} onClose={() => setIsPaywallOpen(false)} currentPlan={plan} />
     </div>
   );
 }
