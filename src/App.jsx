@@ -115,7 +115,6 @@ const AuthenticatedApp = () => {
         />
       )}
       
-      {/* pb-24 garante que o conteúdo das páginas nunca fique por baixo do menu fixo do rodapé */}
       <div className={`w-full ${isAuthenticated && !hideNavigation ? 'pb-24' : ''}`}>
         <Routes>
           <Route path="/login" element={<Login />} />
@@ -134,6 +133,7 @@ const AuthenticatedApp = () => {
         </Routes>
       </div>
 
+      {/* Modais Globais */}
       <PaywallModal 
         isOpen={isPaywallOpen} 
         onClose={() => setIsPaywallOpen(false)} 
