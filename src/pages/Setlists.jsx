@@ -24,8 +24,11 @@ export default function Setlists() {
   };
 
   const handleCreateNew = async () => {
+    // Se por algum motivo o plano não carregar a tempo, assume free por segurança
+    const currentPlan = plan || 'free';
+
     // GUARDA-COSTAS: Se for Free e já tiver 1 ou mais setlists, bloqueia!
-    if (plan === 'free' && setlists.length >= 1) {
+    if (currentPlan === 'free' && setlists.length >= 1) {
       setIsPaywallOpen(true);
       return;
     }
@@ -33,16 +36,16 @@ export default function Setlists() {
     const { data, error } = await supabase
       .from('setlists')
       .insert([{ 
-        event_name: "Novo Setlist", 
+        event_name: "NOVO SETLIST", 
         band_name: "", 
-        created_by: user.email 
+        created_by: user.email
       }])
       .select()
       .single();
 
     if (error) {
       alert("Erro ao criar setlist");
-      console.error(error);
+      console.error("Erro detalhado do Supabase:", error);
       return;
     }
     navigate(`/setlists/${data.id}/edit`);
@@ -50,17 +53,21 @@ export default function Setlists() {
 
   const loadSetlists = async () => {
     setLoading(true);
-    const { data: ownSetlists, error } = await supabase
-      .from('setlists')
-      .select('*')
-      .eq('created_by', user.email)
-      .order('created_date', { ascending: false });
+    try {
+      const { data: ownSetlists, error } = await supabase
+        .from('setlists')
+        .select('*')
+        .eq('created_by', user.email);
 
-    if (!error && ownSetlists) {
-      const enriched = ownSetlists.map(sl => ({ ...sl, songCount: 0, totalDurationSeconds: 0 }));
-      setSetlists(enriched);
+      if (!error && ownSetlists) {
+        const enriched = ownSetlists.map(sl => ({ ...sl, songCount: 0, totalDurationSeconds: 0 }));
+        setSetlists(enriched);
+      }
+    } catch (err) {
+      console.error("Erro ao carregar setlists:", err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const SetlistCard = ({ sl }) => (
