@@ -1,15 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, LogOut, RefreshCw, Zap } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import Logo from './Logo';
 
 export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
-  if (!isOpen) return null;
+  const [render, setRender] = useState(isOpen);
+  const [animate, setAnimate] = useState(false);
 
   const { user, profile, plan, logout } = useAuth();
   const [name, setName] = useState(profile?.full_name || "");
   const [saving, setSaving] = useState(false);
+
+  // Lógica para sincronizar a animação de montagem e desmontagem do fade
+  useEffect(() => {
+    if (isOpen) {
+      setRender(true);
+      setTimeout(() => setAnimate(true), 10);
+    } else {
+      setAnimate(false);
+      const timer = setTimeout(() => setRender(false), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
+
+  if (!render) return null;
 
   const handleSaveName = async () => {
     setSaving(true);
@@ -21,18 +36,25 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-[90] flex justify-end" onClick={onClose}>
-      {/* Container que desliza */}
+    <div 
+      className={`fixed inset-0 z-[90] flex justify-end transition-colors duration-300 ${
+        animate ? 'bg-black/70 backdrop-blur-xs' : 'bg-black/0'
+      }`} 
+      onClick={onClose}
+    >
+      {/* Container Lateral Brutalista que desliza */}
       <div 
-        className="w-full max-w-md bg-white border-l-4 border-black h-full flex flex-col justify-between p-6 animate-slide-in select-none"
+        className={`w-full max-w-md bg-white border-l-4 border-black h-full flex flex-col justify-between p-6 select-none transition-transform duration-300 transform ${
+          animate ? 'translate-x-0' : 'translate-x-full'
+        }`}
         onClick={e => e.stopPropagation()}
       >
         
         {/* Topo do Menu */}
         <div>
-          {/* Header com a Logo Oficial vinda da pasta Public */}
+          {/* Header com a Logo Oficial Reduzida */}
           <div className="flex items-center justify-between mb-8">
-            <Logo className="h-7 text-black" />
+            <Logo className="h-5 text-black" />
             <button onClick={onClose} className="p-1 text-black/40 hover:text-black transition-colors">
               <X size={20} />
             </button>
