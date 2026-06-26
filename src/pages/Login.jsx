@@ -48,7 +48,7 @@ export default function Login() {
   return (
     <div className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden bg-black">
       
-      {/* Vídeo de Fundo com as tags de bypass dos navegadores */}
+      {/* Vídeo de Fundo */}
       <video
         autoPlay
         loop
@@ -59,13 +59,13 @@ export default function Login() {
         <source src="/videoBG/loginVid.webm" type="video/webm" />
       </video>
 
-      {/* Camada de Blur (Desfoque) + Opacidade do Layout Brutalista */}
-      <div className="absolute inset-0 bg-white/40 backdrop-blur-md z-0"></div>
+      {/* Camada de Overlay Escuro Sem Blur */}
+      <div className="absolute inset-0 bg-black/60 z-0"></div>
 
       {/* Card do Formulário */}
       <div className="relative z-10 bg-white border-4 border-black rounded-[2rem] w-full max-w-md p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] animate-fade-in">
         
-        {/* Header com a Logo Oficial da Public */}
+        {/* Header com a Logo */}
         <div className="text-center mb-8 flex flex-col items-center">
           <Logo className="h-9 text-black" />
           <p className="text-xs font-bold text-gray-400 tracking-widest uppercase mt-3">
