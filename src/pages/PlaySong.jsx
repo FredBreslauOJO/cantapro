@@ -40,15 +40,14 @@ export default function PlaySong() {
         
       if (setlistData) setSetlistName(setlistData.event_name);
 
-      // 2. Busca as músicas trazendo TODAS (*) as colunas da tabela songs para evitar erro de nome
+      // 2. Busca as músicas sem exigir a coluna 'position' que não existe no banco
       const { data: pivotData, error } = await supabase
         .from('setlist_items')
         .select(`
-          position,
           songs ( * )
         `)
-        .eq('setlist_id', id)
-        .order('position', { ascending: true });
+        .eq('setlist_id', id);
+        // Removida a ordenação que estava quebrando o código
 
       if (error) throw error;
 
@@ -74,10 +73,10 @@ export default function PlaySong() {
   };
 
   const startAutoScroll = () => {
-    // Lógica básica de Autoscroll
+    // Lógica básica de Autoscroll (pode ser ajustada para usar o timecode)
     scrollIntervalRef.current = setInterval(() => {
       window.scrollBy({ top: 1, behavior: 'auto' });
-    }, 50); 
+    }, 50); // Velocidade do scroll (quanto menor o número, mais rápido)
   };
 
   const stopAutoScroll = () => {
@@ -121,7 +120,7 @@ export default function PlaySong() {
   const prevSong = songs[currentIndex - 1];
   const nextSong = songs[currentIndex + 1];
 
-  // Identifica automaticamente onde a letra da música está guardada
+  // O "Coringa": busca a letra seja qual for o nome da coluna no seu banco
   const songText = currentSong?.lyrics || currentSong?.content || currentSong?.text || currentSong?.body;
 
   return (
