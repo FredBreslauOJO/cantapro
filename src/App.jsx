@@ -24,45 +24,39 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-// Menu de Navegação Global
+// Menu de Navegação Global (Cabeçalho Superior + Rodapé Fixo)
 const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
   const { plan } = useAuth();
   const location = useLocation();
 
-  // Função utilitária para checar se a aba está ativa e pintar o botão
   const isActive = (path) => location.pathname === path;
 
   return (
     <>
-      {/* BARRA SUPERIOR CONSTANTE */}
-      <div className="bg-white border-b-4 border-black px-4 py-3 flex items-center justify-between sticky top-0 z-50 select-none">
-        <div className="flex items-center gap-6">
-          {/* Logo Oficial Reduzida para 2/3 */}
-          <Link to="/" className="flex items-center hover:opacity-70 transition-opacity">
-             <Logo className="h-5 text-black" />
-          </Link>
-
-          {/* Abas invisíveis no Mobile, visíveis no Desktop */}
-          <div className="hidden sm:flex gap-4 border-l-2 border-black/10 pl-6">
-            <Link to="/" className={`flex items-center gap-2 font-black uppercase tracking-widest text-xs transition-colors ${isActive('/') ? 'text-black' : 'text-black/40 hover:text-black'}`}>
-              <List size={16} /> Setlists
-            </Link>
-            <Link to="/songs" className={`flex items-center gap-2 font-black uppercase tracking-widest text-xs transition-colors ${isActive('/songs') ? 'text-black' : 'text-black/40 hover:text-black'}`}>
-              <Music size={16} /> Letras
-            </Link>
-          </div>
-        </div>
+      {/* BARRA SUPERIOR (Logo Centralizada + Ações) */}
+      <div className="bg-white border-b-4 border-black px-4 py-3 flex items-center justify-between sticky top-0 z-50 select-none grid grid-cols-3">
         
-        <div className="flex items-center gap-3">
+        {/* Lado Esquerdo: Upgrade (Se não for PRO) */}
+        <div className="flex items-center justify-start">
           {plan !== 'pro' && (
             <button 
               onClick={onOpenPaywall}
               className="bg-yellow-400 border-2 border-black text-black font-black text-[10px] px-3 py-1.5 rounded-lg uppercase tracking-wider flex items-center gap-1 hover:bg-yellow-300 transition-colors active:scale-95 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
             >
-              <Zap size={10} fill="black" /> Assine Pro
+              <Zap size={10} fill="black" /> <span className="hidden xs:inline">Assine</span> Pro
             </button>
           )}
-          
+        </div>
+
+        {/* Centro: Logo Oficial Perfeitamente Centralizada */}
+        <div className="flex items-center justify-center">
+          <Link to="/" className="flex items-center hover:opacity-70 transition-opacity">
+             <Logo className="h-5 text-black" />
+          </Link>
+        </div>
+        
+        {/* Lado Direito: Menu Hamburger / Perfil */}
+        <div className="flex items-center justify-end">
           <button 
             onClick={onOpenSettings} 
             className="w-9 h-9 border-2 border-black rounded-lg flex items-center justify-center text-black hover:bg-gray-50 active:scale-95 transition-transform"
@@ -72,14 +66,14 @@ const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
         </div>
       </div>
 
-      {/* BARRA DE RODAPÉ FIXA (BOTTOM NAV) - Apenas Mobile */}
-      <div className="sm:hidden fixed bottom-0 left-0 right-0 bg-white border-t-4 border-black p-2 flex gap-2 z-40 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] select-none">
+      {/* BARRA DE RODAPÉ CONSTANTE (Estilo Brutalista Preto) */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t-4 border-black p-3 flex gap-3 z-40 select-none max-w-xl mx-auto sm:rounded-t-2xl sm:border-x-4">
         <Link 
           to="/" 
           className={`flex-1 min-h-[48px] rounded-xl flex items-center justify-center gap-2 text-xs font-black uppercase tracking-widest border-2 border-black transition-all active:scale-95 ${
             isActive('/') 
-              ? 'bg-black text-white shadow-none' 
-              : 'bg-white text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
+              ? 'bg-black text-white shadow-none translate-y-0.5' 
+              : 'bg-white text-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]'
           }`}
         >
           <List size={16} /> Setlists
@@ -88,8 +82,8 @@ const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
           to="/songs" 
           className={`flex-1 min-h-[48px] rounded-xl flex items-center justify-center gap-2 text-xs font-black uppercase tracking-widest border-2 border-black transition-all active:scale-95 ${
             isActive('/songs') 
-              ? 'bg-black text-white shadow-none' 
-              : 'bg-white text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
+              ? 'bg-black text-white shadow-none translate-y-0.5' 
+              : 'bg-white text-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]'
           }`}
         >
           <Music size={16} /> Letras
@@ -103,11 +97,9 @@ const AuthenticatedApp = () => {
   const { isAuthenticated, plan } = useAuth();
   const location = useLocation();
 
-  // Estados dos Modais
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
-  // Condicional estrita para ocultar menus no login e no modo de palco full screen
   const hideNavigation = 
     location.pathname === '/login' ||
     location.pathname.includes('/play/') || 
@@ -123,8 +115,8 @@ const AuthenticatedApp = () => {
         />
       )}
       
-      {/* Margem inferior adaptável no mobile para o conteúdo não ficar escondido atrás do rodapé fixo */}
-      <div className={`w-full ${isAuthenticated && !hideNavigation ? 'pb-20 sm:pb-0' : ''}`}>
+      {/* pb-24 garante que o conteúdo das páginas nunca fique por baixo do menu fixo do rodapé */}
+      <div className={`w-full ${isAuthenticated && !hideNavigation ? 'pb-24' : ''}`}>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/update-password" element={<UpdatePassword />} />
@@ -142,7 +134,6 @@ const AuthenticatedApp = () => {
         </Routes>
       </div>
 
-      {/* Modais Globais */}
       <PaywallModal 
         isOpen={isPaywallOpen} 
         onClose={() => setIsPaywallOpen(false)} 
@@ -151,4 +142,20 @@ const AuthenticatedApp = () => {
       <SettingsModal 
         isOpen={isSettingsOpen} 
         onClose={() => setIsSettingsOpen(false)} 
-        onOpenPaywall={() => setIs
+        onOpenPaywall={() => setIsPaywallOpen(true)}
+      />
+    </>
+  );
+};
+
+function App() {
+  return (
+    <AuthProvider>
+      <Router>
+        <AuthenticatedApp />
+      </Router>
+    </AuthProvider>
+  );
+}
+
+export default App;
