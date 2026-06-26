@@ -9,9 +9,9 @@ import SongEdit from './pages/SongEdit';
 import PlaySong from './pages/PlaySong';
 import TimecodeEditor from './pages/TimecodeEditor';
 import JoinSetlist from './pages/JoinSetlist';
+import UpdatePassword from './pages/UpdatePassword'; // IMPORTAMOS A TELA DE NOVA SENHA
 import { LogOut, Music, List, Menu, Zap } from 'lucide-react';
 
-// Importação dos novos Modais do SaaS
 import PaywallModal from './components/PaywallModal';
 import SettingsModal from './components/SettingsModal';
 
@@ -22,9 +22,8 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-// Menu de Navegação Global Atualizado
 const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
-  const { user, plan } = useAuth();
+  const { plan } = useAuth();
   return (
     <div className="bg-white border-b-4 border-black px-4 py-3 flex items-center justify-between sticky top-0 z-50 select-none">
       <div className="flex gap-4">
@@ -37,7 +36,6 @@ const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
       </div>
       
       <div className="flex items-center gap-3">
-        {/* Botão ASSINE PRO chamativo se o plano for free/basic */}
         {plan !== 'pro' && (
           <button 
             onClick={onOpenPaywall}
@@ -47,7 +45,6 @@ const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
           </button>
         )}
         
-        {/* Botão de abrir Menu de Definições */}
         <button 
           onClick={onOpenSettings} 
           className="w-9 h-9 border-2 border-black rounded-lg flex items-center justify-center text-black hover:bg-gray-50 active:scale-95 transition-transform"
@@ -63,7 +60,6 @@ const AuthenticatedApp = () => {
   const { isAuthenticated, plan } = useAuth();
   const location = useLocation();
 
-  // Estados dos Modais
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
@@ -83,6 +79,8 @@ const AuthenticatedApp = () => {
       
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/update-password" element={<UpdatePassword />} />
+        
         <Route path="/" element={<ProtectedRoute><Setlists /></ProtectedRoute>} />
         <Route path="/setlists/:id/edit" element={<ProtectedRoute><SetlistEdit /></ProtectedRoute>} />
         <Route path="/setlists/:id/play/:songIndex" element={<ProtectedRoute><PlaySong /></ProtectedRoute>} />
@@ -92,7 +90,6 @@ const AuthenticatedApp = () => {
         <Route path="/songs/:id/timecode" element={<ProtectedRoute><TimecodeEditor /></ProtectedRoute>} />
       </Routes>
 
-      {/* Modais Globais */}
       <PaywallModal 
         isOpen={isPaywallOpen} 
         onClose={() => setIsPaywallOpen(false)} 
