@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import Login from './pages/Login';
+import UpdatePassword from './pages/UpdatePassword';
 import Setlists from './pages/Setlists';
 import SetlistEdit from './pages/SetlistEdit';
 import Songs from './pages/Songs';
@@ -9,11 +10,12 @@ import SongEdit from './pages/SongEdit';
 import PlaySong from './pages/PlaySong';
 import TimecodeEditor from './pages/TimecodeEditor';
 import JoinSetlist from './pages/JoinSetlist';
-import UpdatePassword from './pages/UpdatePassword'; // IMPORTAMOS A TELA DE NOVA SENHA
-import { LogOut, Music, List, Menu, Zap } from 'lucide-react';
+import { Music, List, Menu, Zap } from 'lucide-react';
 
+// Importação dos Modais do SaaS e Componentes Visuais
 import PaywallModal from './components/PaywallModal';
 import SettingsModal from './components/SettingsModal';
+import Logo from './components/Logo';
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, isLoadingAuth } = useAuth();
@@ -22,20 +24,30 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
+// Menu de Navegação Global Atualizado (Buscando a logo da Public)
 const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
   const { plan } = useAuth();
   return (
     <div className="bg-white border-b-4 border-black px-4 py-3 flex items-center justify-between sticky top-0 z-50 select-none">
-      <div className="flex gap-4">
-        <Link to="/" className="flex items-center gap-2 font-black uppercase tracking-widest text-xs hover:text-black/60 transition-colors">
-          <List size={16} /> Setlists
+      <div className="flex items-center gap-6">
+        
+        {/* Logo oficial apontando para a Home */}
+        <Link to="/" className="flex items-center hover:opacity-70 transition-opacity">
+           <Logo className="h-7 text-black" />
         </Link>
-        <Link to="/songs" className="flex items-center gap-2 font-black uppercase tracking-widest text-xs hover:text-black/60 transition-colors">
-          <Music size={16} /> Letras
-        </Link>
+
+        <div className="hidden sm:flex gap-4 border-l-2 border-black/10 pl-6">
+          <Link to="/" className="flex items-center gap-2 font-black uppercase tracking-widest text-xs hover:text-black/60 transition-colors">
+            <List size={16} /> Setlists
+          </Link>
+          <Link to="/songs" className="flex items-center gap-2 font-black uppercase tracking-widest text-xs hover:text-black/60 transition-colors">
+            <Music size={16} /> Letras
+          </Link>
+        </div>
       </div>
       
       <div className="flex items-center gap-3">
+        {/* Botão ASSINE PRO chamativo se o plano for free/basic */}
         {plan !== 'pro' && (
           <button 
             onClick={onOpenPaywall}
@@ -45,6 +57,7 @@ const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
           </button>
         )}
         
+        {/* Botão de abrir Menu de Definições */}
         <button 
           onClick={onOpenSettings} 
           className="w-9 h-9 border-2 border-black rounded-lg flex items-center justify-center text-black hover:bg-gray-50 active:scale-95 transition-transform"
@@ -60,6 +73,7 @@ const AuthenticatedApp = () => {
   const { isAuthenticated, plan } = useAuth();
   const location = useLocation();
 
+  // Estados dos Modais
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
@@ -84,12 +98,15 @@ const AuthenticatedApp = () => {
         <Route path="/" element={<ProtectedRoute><Setlists /></ProtectedRoute>} />
         <Route path="/setlists/:id/edit" element={<ProtectedRoute><SetlistEdit /></ProtectedRoute>} />
         <Route path="/setlists/:id/play/:songIndex" element={<ProtectedRoute><PlaySong /></ProtectedRoute>} />
+        
         <Route path="/join-setlist/:id" element={<ProtectedRoute><JoinSetlist /></ProtectedRoute>} />
+        
         <Route path="/songs" element={<ProtectedRoute><Songs /></ProtectedRoute>} />
         <Route path="/songs/:id" element={<ProtectedRoute><SongEdit /></ProtectedRoute>} />
         <Route path="/songs/:id/timecode" element={<ProtectedRoute><TimecodeEditor /></ProtectedRoute>} />
       </Routes>
 
+      {/* Modais Globais */}
       <PaywallModal 
         isOpen={isPaywallOpen} 
         onClose={() => setIsPaywallOpen(false)} 

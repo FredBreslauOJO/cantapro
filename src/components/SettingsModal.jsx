@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, LogOut, RefreshCw, Zap } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
+import Logo from './Logo';
 
 export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
   if (!isOpen) return null;
@@ -29,10 +30,9 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
         
         {/* Topo do Menu */}
         <div>
-          {/* Header */}
+          {/* Header com a Logo Oficial vinda da pasta Public */}
           <div className="flex items-center justify-between mb-8">
-            <div className="w-4 h-1 bg-gray-200 rounded-full mx-auto hidden" /> {/* Indicador visual */}
-            <span className="text-xs font-black uppercase tracking-widest text-black/40">Minha Conta</span>
+            <Logo className="h-7 text-black" />
             <button onClick={onClose} className="p-1 text-black/40 hover:text-black transition-colors">
               <X size={20} />
             </button>
