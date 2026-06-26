@@ -1,167 +1,210 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { ChevronLeft, X, Zap, Square, Play as PlayIcon } from "lucide-react";
-import { supabase } from "../lib/supabase";
-import { useAuth } from "../lib/AuthContext";
-import PaywallModal from "../components/PaywallModal";
-
-const IconPlay = () => (
-  <svg viewBox="0 0 100 100" width="36" height="36" className="pointer-events-none"><g transform="matrix(1,0,0,1,0,-150)"><g transform="matrix(2.666667,0,0,2.666667,-4310,-5190.924981)"><circle cx="1635" cy="2021.597" r="15" fill="white"/></g><g transform="matrix(0,2.666667,-1.434735,0,2435.044252,-4278.666667)"><path d="M1678.702,1652.596C1678.908,1652.184 1679.197,1651.95 1679.5,1651.95C1679.803,1651.95 1680.092,1652.184 1680.298,1652.596C1681.834,1655.668 1685.232,1662.464 1687.298,1666.596C1687.593,1667.187 1687.672,1668.046 1687.499,1668.784C1687.326,1669.523 1686.934,1670 1686.5,1670C1682.86,1670 1676.14,1700 1672.5,1670C1672.066,1670 1671.674,1669.523 1671.501,1668.784C1671.328,1668.046 1671.407,1667.187 1671.702,1666.596C1673.768,1662.464 1677.166,1655.668 1678.702,1652.596Z" fill="currentColor"/></g></g></svg>
-);
-const IconPause = () => (
-  <svg viewBox="0 0 100 100" width="36" height="36" className="pointer-events-none"><g transform="matrix(2.666667,0,0,2.666667,-83.333333,-83.333333)"><g transform="matrix(1,0,0,1,-1585,-1971.596868)"><circle cx="1635" cy="2021.597" r="15" fill="white"/></g><g transform="matrix(1,0,0,1,-1495.055622,-1665)"><g transform="matrix(-1,0,0,1.015806,3166.111244,-27.106898)"><path d="M1619.69,1707.124C1619.861,1707.124 1620,1707.261 1620,1707.43C1620,1709.425 1620,1720.575 1620,1722.57C1620,1722.739 1619.861,1722.876 1619.69,1722.876C1618.944,1722.876 1617.056,1722.876 1616.31,1722.876C1616.139,1722.876 1616,1722.739 1616,1722.57C1616,1720.575 1616,1709.425 1616,1707.43C1616,1707.261 1616.139,1707.124 1616.31,1707.124C1617.056,1707.124 1618.944,1707.124 1619.69,1707.124Z" fill="currentColor"/></g><g transform="matrix(-1,0,0,1.015806,3160,-27.106898)"><path d="M1619.69,1707.124C1619.861,1707.124 1620,1707.261 1620,1707.43C1620,1709.425 1620,1720.575 1620,1722.57C1620,1722.739 1619.861,1722.876 1619.69,1722.876C1618.944,1722.876 1617.056,1722.876 1616.31,1722.876C1616.139,1722.876 1616,1722.739 1616,1722.57C1616,1720.575 1616,1709.425 1616,1707.43C1616,1707.261 1616.139,1707.124 1616.31,1707.124C1617.056,1707.124 1618.944,1707.124 1619.69,1707.124Z" fill="currentColor"/></g></g></g></svg>
-);
-const IconSetlist = () => (
-  <svg viewBox="0 0 100 100" width="36" height="36" className="pointer-events-none"><g transform="matrix(1,0,0,1,-300,0)"><g transform="matrix(2.666667,0,0,2.666667,-583.333333,-83.333333)"><g transform="matrix(1,0,0,1,-1285,-1971.596868)"><circle cx="1635" cy="2021.597" r="15" fill="white"/></g><g transform="matrix(1,0,0,1,-1223.5,-1665.5)"><g transform="matrix(-0,0.5,1.015806,-0,-167.106898,902)"><path d="M1619.379,1707.124C1619.722,1707.124 1620,1707.261 1620,1707.43C1620,1709.425 1620,1720.575 1620,1722.57C1620,1722.739 1619.722,1722.876 1619.379,1722.876C1618.629,1722.876 1617.371,1722.876 1616.621,1722.876C1616.278,1722.876 1616,1722.739 1616,1722.57C1616,1720.575 1616,1709.425 1616,1707.43C1616,1707.261 1616.278,1707.124 1616.621,1707.124C1617.371,1707.124 1618.629,1707.124 1619.379,1707.124Z" fill="black"/></g></g></g></g></svg>
-);
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Play, Pause, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 export default function PlaySong() {
   const { id, songIndex } = useParams();
   const navigate = useNavigate();
-  const { user, plan } = useAuth();
-
-  const [setlist, setSetlist] = useState(null);
-  const [items, setItems] = useState([]);
-  const [currentIdx, setCurrentIdx] = useState(parseInt(songIndex) || 0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [showList, setShowList] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-  const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   
-  const [fontSize] = useState(() => parseInt(localStorage.getItem("ls_fontSize") || "24"));
-  const [lineHeight] = useState(() => parseFloat(localStorage.getItem("ls_lineHeight") || "1.8"));
-  const [isAutoPlay, setIsAutoPlay] = useState(() => localStorage.getItem("ls_autoPlay") === "true");
-
-  const wakeLockRef = useRef(null);
-  const lyricsRef = useRef(null);
-  const scrollInterval = useRef(null);
-  const startTime = useRef(null);
-  const touchStartY = useRef(null);
-
-  const currentItem = items[currentIdx];
-  const isDivider = currentItem?.item_type === "divider";
-  const currentSong = isDivider ? null : currentItem;
+  const [songs, setSongs] = useState([]);
+  const [setlistName, setSetlistName] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
+  
+  const currentIndex = parseInt(songIndex, 10) || 0;
+  const contentRef = useRef(null);
+  const scrollIntervalRef = useRef(null);
 
   useEffect(() => {
-    if (user && id) loadData();
-  }, [id, user]);
+    loadSetlistAndSongs();
+    return () => stopAutoScroll(); // Limpa o scroll ao sair
+  }, [id]);
 
-  const loadData = async () => {
-    const { data: sl } = await supabase.from('setlists').select('*').eq('id', id).single();
-    setSetlist(sl);
-
-    const { data: setlistItems } = await supabase.from('setlist_items').select('*').eq('setlist_id', id).order('order_index', { ascending: true });
-    const songIds = (setlistItems || []).filter(i => i.item_type !== 'divider').map(i => i.song_id);
-    const { data: songsData } = await supabase.from('songs').select('*').in('id', songIds);
-    const songMap = Object.fromEntries((songsData || []).map(s => [s.id, s]));
-
-    const mixed = (setlistItems || []).map(item => {
-      if (item.item_type === "divider") return { item_type: "divider", id: item.id, content: item.content || "", performance_notes: item.performance_notes || "" };
-      const song = songMap[item.song_id];
-      return song ? { ...song, item_type: "song" } : null;
-    }).filter(Boolean);
-
-    setItems(mixed);
-  };
-
-  const stopScroll = useCallback(() => {
+  // Sempre que mudar de música, para o scroll e volta pro topo
+  useEffect(() => {
+    stopAutoScroll();
     setIsPlaying(false);
-    if (scrollInterval.current) { cancelAnimationFrame(scrollInterval.current); scrollInterval.current = null; }
-  }, []);
+    window.scrollTo(0, 0);
+  }, [currentIndex]);
 
-  const startScroll = useCallback(() => {
-    if (!lyricsRef.current || !currentSong || isDivider) return;
-    const container = lyricsRef.current;
-    const sh = container.scrollHeight - container.clientHeight;
-    if (sh <= 0) return;
+  const loadSetlistAndSongs = async () => {
+    setLoading(true);
+    try {
+      // 1. Busca os dados do Setlist
+      const { data: setlistData } = await supabase
+        .from('setlists')
+        .select('event_name')
+        .eq('id', id)
+        .single();
+        
+      if (setlistData) setSetlistName(setlistData.event_name);
 
-    const currentScroll = container.scrollTop;
-    if (!currentSong.duration_seconds) return;
-    const durationMs = currentSong.duration_seconds * 1000;
-    startTime.current = performance.now() - (currentScroll / sh * durationMs);
-    
-    const animate = (now) => {
-      const elapsedMs = now - startTime.current;
-      const progress = Math.min(elapsedMs / durationMs, 1);
-      container.scrollTop = sh * progress;
-      setElapsed(Math.floor(elapsedMs / 1000));
-      if (progress < 1) scrollInterval.current = requestAnimationFrame(animate);
-      else setIsPlaying(false);
-    };
-    scrollInterval.current = requestAnimationFrame(animate);
-    setIsPlaying(true);
-  }, [currentSong, isDivider]);
+      // 2. Busca as músicas atreladas a esse setlist (Ajuste a query conforme seu banco de dados)
+      // Aqui assumimos que você tem uma tabela setlist_songs ligando o setlist à tabela songs
+      const { data: pivotData, error } = await supabase
+        .from('setlist_songs')
+        .select(`
+          position,
+          songs ( id, title, artist, lyrics, timecode )
+        `)
+        .eq('setlist_id', id)
+        .order('position', { ascending: true });
 
-  const handlePlayStop = () => { if (isDivider) return; if (isPlaying) stopScroll(); else startScroll(); };
+      if (error) throw error;
 
-  const handleToggleAutoPlay = () => {
-    // GUARDA-COSTAS: Auto-play exige plano PRO!
-    if (plan !== 'pro') {
-      stopScroll();
-      setIsPaywallOpen(true);
-      return;
+      if (pivotData) {
+        const formattedSongs = pivotData.map(item => item.songs);
+        setSongs(formattedSongs);
+      }
+    } catch (error) {
+      console.error("Erro ao carregar o modo performance:", error);
+    } finally {
+      setLoading(false);
     }
-    const nextVal = !isAutoPlay;
-    setIsAutoPlay(nextVal);
-    localStorage.setItem("ls_autoPlay", String(nextVal));
   };
 
-  const goToSong = (idx) => {
-    stopScroll(); setCurrentIdx(idx); setElapsed(0); setShowList(false);
-    navigate(`/setlists/${id}/play/${idx}`, { replace: true });
+  const togglePlay = () => {
+    if (isPlaying) {
+      stopAutoScroll();
+    } else {
+      startAutoScroll();
+    }
+    setIsPlaying(!isPlaying);
   };
 
-  const formatTime = (secs) => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
-  const totalDuration = currentSong?.duration_seconds || 0;
+  const startAutoScroll = () => {
+    // Lógica básica de Autoscroll (pode ser ajustada para usar o timecode)
+    scrollIntervalRef.current = setInterval(() => {
+      window.scrollBy({ top: 1, behavior: 'auto' });
+    }, 50); // Velocidade do scroll (quanto menor o número, mais rápido)
+  };
 
-  useEffect(() => {
-    if (isAutoPlay && plan === 'pro' && !isDivider && totalDuration > 0 && elapsed >= totalDuration) {
-      if (currentIdx < items.length - 1) setTimeout(() => goToSong(currentIdx + 1), 1500);
+  const stopAutoScroll = () => {
+    if (scrollIntervalRef.current) {
+      clearInterval(scrollIntervalRef.current);
     }
-  }, [elapsed, totalDuration, isAutoPlay, plan, currentIdx, items, isDivider]);
+  };
+
+  const handleNavigate = (newIndex) => {
+    if (newIndex >= 0 && newIndex < songs.length) {
+      navigate(`/setlists/${id}/play/${newIndex}`);
+    }
+  };
+
+  // Função utilitária para formatar o nome no botão (Máx 6 letras + ..)
+  const formatNavName = (name) => {
+    if (!name) return "";
+    const cleaned = name.trim().toUpperCase();
+    if (cleaned.length <= 6) return cleaned;
+    return cleaned.substring(0, 6) + "..";
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-white/20 border-t-white rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (songs.length === 0) {
+    return (
+      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6">
+        <p className="font-black tracking-widest uppercase mb-4 text-white/50">Este setlist está vazio.</p>
+        <button onClick={() => navigate(-1)} className="px-6 py-3 bg-white text-black font-black uppercase tracking-widest rounded-xl">Voltar</button>
+      </div>
+    );
+  }
+
+  const currentSong = songs[currentIndex];
+  const prevSong = songs[currentIndex - 1];
+  const nextSong = songs[currentIndex + 1];
 
   return (
-    <div className="fixed inset-0 bg-black text-white flex flex-col overflow-hidden z-50">
-      <div className="flex-shrink-0 px-4">
-        <div className="flex items-center justify-between py-3">
-          <button onClick={() => { stopScroll(); navigate(-1); }} className="w-14 h-14 flex items-center justify-center text-white/50 hover:text-white"><ChevronLeft size={32} /></button>
-          <div className="flex items-center gap-3">
-            {!isDivider && <p className={`text-base font-black tabular-nums ${isPlaying ? 'text-[#00FF00]' : 'text-red-500'}`}>{formatTime(elapsed)} / {formatTime(totalDuration)}</p>}
-            <button onClick={handleToggleAutoPlay} className={`w-12 h-12 rounded-xl flex items-center justify-center ${isAutoPlay && plan === 'pro' ? 'bg-yellow-400 text-black' : 'bg-white/10 text-white/40'}`}><Zap size={20} /></button>
-            <button onClick={() => setShowList(!showList)} className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-black"><IconSetlist /></button>
-          </div>
+    <div className="min-h-screen bg-black text-white selection:bg-white selection:text-black">
+      
+      {/* Cabeçalho Fixo - Minimalista e Escuro */}
+      <div className="fixed top-0 left-0 right-0 bg-gradient-to-b from-black via-black/90 to-transparent pt-6 pb-12 px-6 z-40 flex items-start justify-between pointer-events-none">
+        <div>
+          <h1 className="text-2xl font-black uppercase tracking-tight text-white drop-shadow-lg leading-none">
+            {currentSong?.title}
+          </h1>
+          <p className="text-xs font-bold uppercase tracking-widest text-white/50 mt-1 drop-shadow-md">
+            {setlistName} • {currentIndex + 1}/{songs.length}
+          </p>
         </div>
-        <div className="border-b border-white/10" />
-        <div className="flex items-center justify-between py-3">
-          <h2 className="text-xl font-black uppercase truncate">{isDivider ? currentItem?.content : currentSong?.title}</h2>
-          <span className="text-sm text-white/40 font-bold">{currentIdx + 1}/{items.length}</span>
-        </div>
+        <button 
+          onClick={() => navigate(`/setlists/${id}/edit`)}
+          className="w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 text-white/60 hover:text-white transition-colors pointer-events-auto"
+        >
+          <X size={20} />
+        </button>
       </div>
 
-      {isDivider ? (
-        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-          <div className="border-4 border-white/20 rounded-3xl p-10 mb-8"><h2 className="text-4xl font-black uppercase">{currentItem?.content}</h2></div>
-          {currentItem?.performance_notes && <div className="max-w-2xl bg-white/5 border border-white/10 rounded-2xl p-6"><p className="text-white text-xl font-medium">{currentItem.performance_notes}</p></div>}
-        </div>
-      ) : (
-        <div ref={lyricsRef} className="flex-1 overflow-y-auto px-4 py-2 relative">
-          <div className="whitespace-pre-wrap font-sans text-white leading-relaxed pt-[64px] pb-[50vh]" style={{ fontSize: `${fontSize}px`, lineHeight: lineHeight }}>
-            {currentSong?.lyrics_text || "Sem letra cadastrada."}
-          </div>
-        </div>
-      )}
-
-      <div className="flex-shrink-0 px-4 pb-4">
-        <div className="flex items-center justify-between gap-3">
-          <button onClick={() => currentIdx > 0 && goToSong(currentIdx - 1)} disabled={currentIdx === 0} className="flex-1 min-h-[56px] bg-white/10 rounded-2xl text-xs font-bold disabled:opacity-20">VOLTAR</button>
-          <div className="w-20 flex-shrink-0 flex items-center justify-center">
-            {!isDivider && <button onClick={handlePlayStop} className={`w-full h-14 rounded-2xl flex items-center justify-center ${isPlaying ? 'bg-[#00FF00]' : 'bg-red-600'}`}>{isPlaying ? 'PAUSE' : 'PLAY'}</button>}
-          </div>
-          <button onClick={() => currentIdx < items.length - 1 && goToSong(currentIdx + 1)} disabled={currentIdx >= items.length - 1} className="flex-1 min-h-[56px] bg-white/10 rounded-2xl text-xs font-bold disabled:opacity-20">PRÓXIMA</button>
-        </div>
+      {/* Área da Letra (Teleprompter) */}
+      <div 
+        ref={contentRef}
+        className="pt-40 pb-40 px-6 max-w-3xl mx-auto"
+      >
+        <pre className="whitespace-pre-wrap font-black text-2xl sm:text-4xl lg:text-5xl uppercase leading-relaxed tracking-tight text-white/90 font-sans">
+          {currentSong?.lyrics || "NENHUMA LETRA CADASTRADA PARA ESTA MÚSICA."}
+        </pre>
       </div>
 
-      <PaywallModal isOpen={isPaywallOpen} onClose={() => setIsPaywallOpen(false)} currentPlan={plan} />
+      {/* Rodapé de Controles - Fixo e Preto com Nomes Curtos */}
+      <div className="fixed bottom-0 left-0 right-0 bg-[#0a0a0a] border-t border-white/10 p-3 pb-6 sm:pb-3 flex items-center justify-between gap-3 z-50">
+        
+        {/* Botão Anterior */}
+        <div className="flex-1">
+          {prevSong ? (
+            <button 
+              onClick={() => handleNavigate(currentIndex - 1)}
+              className="w-full h-14 bg-[#1a1a1a] text-white/50 hover:text-white hover:bg-[#2a2a2a] rounded-xl flex items-center justify-center gap-1 sm:gap-2 font-black text-sm sm:text-base tracking-widest uppercase transition-all active:scale-95 border border-white/5"
+            >
+              <ChevronLeft size={18} />
+              <span className="truncate">{formatNavName(prevSong.title)}</span>
+            </button>
+          ) : (
+            <button 
+              onClick={() => navigate(`/setlists/${id}/edit`)}
+              className="w-full h-14 bg-transparent text-white/20 hover:text-white/50 rounded-xl flex items-center justify-center gap-2 font-black text-xs tracking-widest uppercase transition-colors"
+            >
+              <X size={16} /> SAIR
+            </button>
+          )}
+        </div>
+
+        {/* Botão Central (Play/Pause) */}
+        <button 
+          onClick={togglePlay}
+          className="w-24 h-14 bg-red-600 text-white rounded-xl flex items-center justify-center hover:bg-red-500 transition-colors shadow-[0_0_20px_rgba(220,38,38,0.2)] active:scale-95 flex-shrink-0"
+        >
+          {isPlaying ? <Pause size={26} fill="currentColor" /> : <Play size={26} fill="currentColor" className="ml-1" />}
+        </button>
+
+        {/* Botão Próximo */}
+        <div className="flex-1">
+          {nextSong ? (
+            <button 
+              onClick={() => handleNavigate(currentIndex + 1)}
+              className="w-full h-14 bg-[#1a1a1a] text-white/50 hover:text-white hover:bg-[#2a2a2a] rounded-xl flex items-center justify-center gap-1 sm:gap-2 font-black text-sm sm:text-base tracking-widest uppercase transition-all active:scale-95 border border-white/5"
+            >
+              <span className="truncate">{formatNavName(nextSong.title)}</span>
+              <ChevronRight size={18} />
+            </button>
+          ) : (
+            <button 
+              onClick={() => navigate(`/setlists/${id}/edit`)}
+              className="w-full h-14 bg-transparent text-white/20 hover:text-white/50 rounded-xl flex items-center justify-center gap-2 font-black text-xs tracking-widest uppercase transition-colors"
+            >
+              FIM <X size={16} />
+            </button>
+          )}
+        </div>
+
+      </div>
+
     </div>
   );
 }
