@@ -40,10 +40,9 @@ export default function PlaySong() {
         
       if (setlistData) setSetlistName(setlistData.event_name);
 
-      // 2. Busca as músicas atreladas a esse setlist (Ajuste a query conforme seu banco de dados)
-      // Aqui assumimos que você tem uma tabela setlist_songs ligando o setlist à tabela songs
+      // 2. Busca as músicas usando a tabela relacional CORRETA (setlist_items)
       const { data: pivotData, error } = await supabase
-        .from('setlist_songs')
+        .from('setlist_items')
         .select(`
           position,
           songs ( id, title, artist, lyrics, timecode )
@@ -54,7 +53,8 @@ export default function PlaySong() {
       if (error) throw error;
 
       if (pivotData) {
-        const formattedSongs = pivotData.map(item => item.songs);
+        // Mapeia as músicas e filtra casos de músicas deletadas
+        const formattedSongs = pivotData.map(item => item.songs).filter(Boolean);
         setSongs(formattedSongs);
       }
     } catch (error) {
