@@ -40,7 +40,7 @@ export default function PlaySong() {
         
       if (setlistData) setSetlistName(setlistData.event_name);
 
-      // 2. Busca as músicas usando a tabela relacional CORRETA (setlist_items)
+      // 2. Busca as músicas usando a tabela relacional CORRETA ( setlist_items)
       const { data: pivotData, error } = await supabase
         .from('setlist_items')
         .select(`
