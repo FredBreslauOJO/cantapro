@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import Login from './pages/Login';
@@ -8,24 +8,25 @@ import Songs from './pages/Songs';
 import SongEdit from './pages/SongEdit';
 import PlaySong from './pages/PlaySong';
 import TimecodeEditor from './pages/TimecodeEditor';
-import JoinSetlist from './pages/JoinSetlist'; // IMPORTAMOS O CONVITE AQUI
-import { LogOut, Music, List } from 'lucide-react';
+import JoinSetlist from './pages/JoinSetlist';
+import { LogOut, Music, List, Menu, Zap } from 'lucide-react';
 
-// Componente para proteger telas privadas
+// Importação dos novos Modais do SaaS
+import PaywallModal from './components/PaywallModal';
+import SettingsModal from './components/SettingsModal';
+
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, isLoadingAuth } = useAuth();
-  
   if (isLoadingAuth) return <div className="min-h-screen flex items-center justify-center font-bold uppercase tracking-widest">Carregando...</div>;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  
   return children;
 };
 
-// Menu de Navegação Global
-const Navigation = () => {
-  const { logout, user } = useAuth();
+// Menu de Navegação Global Atualizado
+const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
+  const { user, plan } = useAuth();
   return (
-    <div className="bg-white border-b-4 border-black px-4 py-3 flex items-center justify-between sticky top-0 z-50">
+    <div className="bg-white border-b-4 border-black px-4 py-3 flex items-center justify-between sticky top-0 z-50 select-none">
       <div className="flex gap-4">
         <Link to="/" className="flex items-center gap-2 font-black uppercase tracking-widest text-xs hover:text-black/60 transition-colors">
           <List size={16} /> Setlists
@@ -34,10 +35,24 @@ const Navigation = () => {
           <Music size={16} /> Letras
         </Link>
       </div>
-      <div className="flex items-center gap-4">
-        <span className="text-[10px] font-bold text-black/40 truncate max-w-[100px] hidden md:block">{user?.email}</span>
-        <button onClick={logout} className="flex items-center gap-2 text-xs font-bold text-red-500 hover:text-red-700 transition-colors uppercase tracking-widest">
-          <LogOut size={14} /> Sair
+      
+      <div className="flex items-center gap-3">
+        {/* Botão ASSINE PRO chamativo se o plano for free/basic */}
+        {plan !== 'pro' && (
+          <button 
+            onClick={onOpenPaywall}
+            className="bg-yellow-400 border-2 border-black text-black font-black text-[10px] px-3 py-1.5 rounded-lg uppercase tracking-wider flex items-center gap-1 hover:bg-yellow-300 transition-colors active:scale-95 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+          >
+            <Zap size={10} fill="black" /> Assine Pro
+          </button>
+        )}
+        
+        {/* Botão de abrir Menu de Definições */}
+        <button 
+          onClick={onOpenSettings} 
+          className="w-9 h-9 border-2 border-black rounded-lg flex items-center justify-center text-black hover:bg-gray-50 active:scale-95 transition-transform"
+        >
+          <Menu size={16} />
         </button>
       </div>
     </div>
@@ -45,10 +60,13 @@ const Navigation = () => {
 };
 
 const AuthenticatedApp = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, plan } = useAuth();
   const location = useLocation();
+
+  // Estados dos Modais
+  const [isPaywallOpen, setIsPaywallOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
-  // Esconde o menu se estivermos na tela de apresentação, timecode ou aceitando convite
   const hideNavigation = 
     location.pathname.includes('/play/') || 
     location.pathname.includes('/timecode') ||
@@ -56,21 +74,35 @@ const AuthenticatedApp = () => {
 
   return (
     <>
-      {isAuthenticated && !hideNavigation && <Navigation />}
+      {isAuthenticated && !hideNavigation && (
+        <Navigation 
+          onOpenSettings={() => setIsSettingsOpen(true)} 
+          onOpenPaywall={() => setIsPaywallOpen(true)} 
+        />
+      )}
+      
       <Routes>
         <Route path="/login" element={<Login />} />
-        
         <Route path="/" element={<ProtectedRoute><Setlists /></ProtectedRoute>} />
         <Route path="/setlists/:id/edit" element={<ProtectedRoute><SetlistEdit /></ProtectedRoute>} />
         <Route path="/setlists/:id/play/:songIndex" element={<ProtectedRoute><PlaySong /></ProtectedRoute>} />
-        
-        {/* ROTA DE CONVITE */}
         <Route path="/join-setlist/:id" element={<ProtectedRoute><JoinSetlist /></ProtectedRoute>} />
-        
         <Route path="/songs" element={<ProtectedRoute><Songs /></ProtectedRoute>} />
         <Route path="/songs/:id" element={<ProtectedRoute><SongEdit /></ProtectedRoute>} />
         <Route path="/songs/:id/timecode" element={<ProtectedRoute><TimecodeEditor /></ProtectedRoute>} />
       </Routes>
+
+      {/* Modais Globais */}
+      <PaywallModal 
+        isOpen={isPaywallOpen} 
+        onClose={() => setIsPaywallOpen(false)} 
+        currentPlan={plan}
+      />
+      <SettingsModal 
+        isOpen={isSettingsOpen} 
+        onClose={() => setIsSettingsOpen(false)} 
+        onOpenPaywall={() => setIsPaywallOpen(true)}
+      />
     </>
   );
 };
