@@ -46,29 +46,29 @@ export default function Login() {
   };
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden">
+    <div className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden bg-black">
       
-      {/* Vídeo de Fundo */}
+      {/* Vídeo de Fundo com as tags de bypass dos navegadores */}
       <video
         autoPlay
         loop
         muted
         playsInline
-        className="absolute inset-0 w-full h-full object-cover"
+        className="absolute inset-0 w-full h-full object-cover pointer-events-none"
       >
         <source src="/videoBG/loginVid.webm" type="video/webm" />
       </video>
 
-      {/* Camada de Blur + Tintura Leve */}
-      <div className="absolute inset-0 bg-white/40 backdrop-blur-md"></div>
+      {/* Camada de Blur (Desfoque) + Opacidade do Layout Brutalista */}
+      <div className="absolute inset-0 bg-white/40 backdrop-blur-md z-0"></div>
 
-      {/* Container Principal do Login (Precisa de z-index para ficar em cima do vídeo) */}
-      <div className="relative z-10 bg-white border-4 border-black rounded-[2rem] w-full max-w-md p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+      {/* Card do Formulário */}
+      <div className="relative z-10 bg-white border-4 border-black rounded-[2rem] w-full max-w-md p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] animate-fade-in">
         
-        {/* Header com a nova LOGO */}
+        {/* Header com a Logo Oficial da Public */}
         <div className="text-center mb-8 flex flex-col items-center">
-          <Logo className="w-48 text-black mb-1" />
-          <p className="text-xs font-bold text-gray-400 tracking-widest uppercase mt-2">
+          <Logo className="h-9 text-black" />
+          <p className="text-xs font-bold text-gray-400 tracking-widest uppercase mt-3">
             {mode === 'login' ? 'Acesse seu palco' : mode === 'signup' ? 'Crie sua conta' : 'Recuperar Acesso'}
           </p>
         </div>
