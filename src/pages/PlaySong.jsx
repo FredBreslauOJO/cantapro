@@ -40,12 +40,13 @@ export default function PlaySong() {
         
       if (setlistData) setSetlistName(setlistData.event_name);
 
-      // 2. Busca as músicas usando a tabela relacional CORRETA ( setlist_items)
+      // 2. Busca as músicas usando a tabela relacional CORRETA (setlist_items)
+      // Ajustado de "lyrics" para "content" na requisição do banco
       const { data: pivotData, error } = await supabase
         .from('setlist_items')
         .select(`
           position,
-          songs ( id, title, artist, lyrics, timecode )
+          songs ( id, title, artist, content, timecode )
         `)
         .eq('setlist_id', id)
         .order('position', { ascending: true });
@@ -147,8 +148,9 @@ export default function PlaySong() {
         ref={contentRef}
         className="pt-40 pb-40 px-6 max-w-3xl mx-auto"
       >
+        {/* Ajustado de lyrics para content na renderização da tela */}
         <pre className="whitespace-pre-wrap font-black text-2xl sm:text-4xl lg:text-5xl uppercase leading-relaxed tracking-tight text-white/90 font-sans">
-          {currentSong?.lyrics || "NENHUMA LETRA CADASTRADA PARA ESTA MÚSICA."}
+          {currentSong?.content || "NENHUMA LETRA CADASTRADA PARA ESTA MÚSICA."}
         </pre>
       </div>
 
