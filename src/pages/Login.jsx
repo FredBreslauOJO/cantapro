@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../lib/AuthContext';
 import Logo from '../components/Logo';
 
 export default function Login() {
@@ -9,6 +11,16 @@ export default function Login() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [mode, setMode] = useState('login'); 
+  
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+
+  // Se o estado de autenticação mudar para verdadeiro, tira o usuário da tela de login imediatamente
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/', { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -31,11 +43,16 @@ export default function Login() {
         }
         setMessage('Falta pouco! Enviamos um link de confirmação para a sua caixa de entrada. Clique nele para ativar sua conta.');
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error, data } = await supabase.auth.signInWithPassword({ email, password });
         if (error) {
           if (error.message.includes('Email not confirmed')) throw new Error('Por favor, verifique sua caixa de entrada e confirme seu email antes de entrar.');
           if (error.message.includes('Invalid login')) throw new Error('Email ou senha incorretos.');
           throw error;
+        }
+        
+        // Força a navegação imediata após o sucesso
+        if (data?.user) {
+          navigate('/', { replace: true });
         }
       }
     } catch (err) {

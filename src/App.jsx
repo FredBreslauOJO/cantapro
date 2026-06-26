@@ -24,14 +24,12 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-// Menu de Navegação Global Atualizado (Buscando a logo da Public)
+// Menu de Navegação Global
 const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
   const { plan } = useAuth();
   return (
     <div className="bg-white border-b-4 border-black px-4 py-3 flex items-center justify-between sticky top-0 z-50 select-none">
       <div className="flex items-center gap-6">
-        
-        {/* Logo oficial apontando para a Home */}
         <Link to="/" className="flex items-center hover:opacity-70 transition-opacity">
            <Logo className="h-7 text-black" />
         </Link>
@@ -47,7 +45,6 @@ const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
       </div>
       
       <div className="flex items-center gap-3">
-        {/* Botão ASSINE PRO chamativo se o plano for free/basic */}
         {plan !== 'pro' && (
           <button 
             onClick={onOpenPaywall}
@@ -57,7 +54,6 @@ const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
           </button>
         )}
         
-        {/* Botão de abrir Menu de Definições */}
         <button 
           onClick={onOpenSettings} 
           className="w-9 h-9 border-2 border-black rounded-lg flex items-center justify-center text-black hover:bg-gray-50 active:scale-95 transition-transform"
@@ -73,11 +69,12 @@ const AuthenticatedApp = () => {
   const { isAuthenticated, plan } = useAuth();
   const location = useLocation();
 
-  // Estados dos Modais
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
+  // Condicional estrita para sumir com o menu de navegação em telas cheias e no login
   const hideNavigation = 
+    location.pathname === '/login' ||
     location.pathname.includes('/play/') || 
     location.pathname.includes('/timecode') ||
     location.pathname.includes('/join-setlist');
@@ -92,21 +89,23 @@ const AuthenticatedApp = () => {
       )}
       
       <Routes>
+        {/* Se o usuário já estiver logado e tentar acessar /login, o componente Login redireciona via useEffect */}
         <Route path="/login" element={<Login />} />
         <Route path="/update-password" element={<UpdatePassword />} />
         
         <Route path="/" element={<ProtectedRoute><Setlists /></ProtectedRoute>} />
         <Route path="/setlists/:id/edit" element={<ProtectedRoute><SetlistEdit /></ProtectedRoute>} />
         <Route path="/setlists/:id/play/:songIndex" element={<ProtectedRoute><PlaySong /></ProtectedRoute>} />
-        
         <Route path="/join-setlist/:id" element={<ProtectedRoute><JoinSetlist /></ProtectedRoute>} />
         
         <Route path="/songs" element={<ProtectedRoute><Songs /></ProtectedRoute>} />
         <Route path="/songs/:id" element={<ProtectedRoute><SongEdit /></ProtectedRoute>} />
         <Route path="/songs/:id/timecode" element={<ProtectedRoute><TimecodeEditor /></ProtectedRoute>} />
+        
+        {/* Rota Fallback caso digitem qualquer coisa errada dentro do app */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
-      {/* Modais Globais */}
       <PaywallModal 
         isOpen={isPaywallOpen} 
         onClose={() => setIsPaywallOpen(false)} 
