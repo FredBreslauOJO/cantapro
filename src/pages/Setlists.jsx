@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Pencil, Play } from "lucide-react";
+import { Plus, Settings, Play } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/AuthContext";
 import PaywallModal from "../components/PaywallModal";
@@ -74,9 +74,9 @@ export default function Setlists() {
     <div className="bg-white border-2 border-black rounded-3xl p-4 flex flex-col justify-between min-h-[150px] group relative shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
       <button
         onClick={(e) => { e.stopPropagation(); navigate(`/setlists/${sl.id}/edit`); }}
-        className="absolute top-2 right-2 w-10 h-10 flex items-center justify-center text-black/30 hover:text-black transition-all active:scale-95"
+        className="absolute top-2 right-2 w-12 h-12 flex items-center justify-center text-black/30 hover:text-black transition-all active:scale-95 z-10"
       >
-        <Pencil size={13} className="pointer-events-none" />
+        <Settings size={22} className="pointer-events-none" />
       </button>
       <button onClick={() => navigate(`/setlists/${sl.id}/play/0`)} className="flex-1 min-w-0 text-left">
         <p className="font-black text-sm uppercase tracking-tight text-black leading-tight line-clamp-2 flex items-start gap-1.5 pr-6">

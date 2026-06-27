@@ -3,16 +3,25 @@ import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Pencil, Download, Trash2, Check, Clock } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/AuthContext";
+import PaywallModal from "../components/PaywallModal";
 
 export default function SongEdit() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, plan } = useAuth();
   const isNew = id === "new";
   
   const [editing, setEditing] = useState(isNew);
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
+  const [isPaywallOpen, setIsPaywallOpen] = useState(false);
+  
+  // Sistema de Avisos (Toast)
+  const [toast, setToast] = useState({ show: false, message: "" });
+  const showToast = (message) => {
+    setToast({ show: true, message });
+    setTimeout(() => setToast({ show: false, message: "" }), 3000);
+  };
 
   const [title, setTitle] = useState("");
   const [artist, setArtist] = useState("");
@@ -75,6 +84,16 @@ export default function SongEdit() {
     a.download = `${title}.txt`;
     a.click();
     URL.revokeObjectURL(url);
+    showToast("LETRA BAIXADA COM SUCESSO!");
+  };
+
+  const goToTimecode = () => {
+    // GUARDA-COSTAS: Timecode exige plano PRO
+    if (plan !== 'pro') {
+      setIsPaywallOpen(true);
+      return;
+    }
+    navigate(`/songs/${id}/timecode`);
   };
 
   if (loading) {
@@ -86,37 +105,46 @@ export default function SongEdit() {
   }
 
   return (
-    <div className="py-4 max-w-2xl mx-auto px-4">
+    <div className="py-4 max-w-2xl mx-auto px-4 relative">
+      
+      {/* AVISO GIGANTE (TOAST) */}
+      {toast.show && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] border-4 border-black font-black uppercase tracking-widest text-sm text-center bg-green-400 text-black animate-fadeIn">
+          {toast.message}
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-4">
-        <button onClick={() => navigate(-1)} className="w-12 h-12 flex items-center justify-center -ml-3 text-foreground hover:opacity-60 active:opacity-40 transition-opacity">
+        <button onClick={() => navigate("/songs")} className="w-12 h-12 flex items-center justify-center -ml-3 text-foreground hover:opacity-60 active:opacity-40 transition-opacity">
           <ArrowLeft size={22} className="pointer-events-none" />
         </button>
         <div className="flex items-center gap-3">
           {!isNew && (
             <>
-              {/* BOTÃO SUPERIOR CORRIGIDO */}
               <button 
                 onClick={editing ? handleSave : () => setEditing(true)} 
                 disabled={saving || (editing && !title)}
-                className="p-2 transition-all active:scale-95 disabled:opacity-50"
+                className="w-11 h-11 flex items-center justify-center bg-gray-100 rounded-xl transition-all active:scale-95 disabled:opacity-50"
               >
                 {saving ? (
                   <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
                 ) : editing ? (
-                  <Check size={24} className="text-green-600 drop-shadow-sm" />
+                  <Check size={20} className="text-green-600 drop-shadow-sm" />
                 ) : (
-                  <Pencil size={20} className="text-foreground hover:opacity-60" />
+                  <Pencil size={20} className="text-black" />
                 )}
               </button>
               
-              <button onClick={() => navigate(`/songs/${id}/timecode`)} className="p-2 text-foreground hover:opacity-60 transition-opacity">
-                <Clock size={20} />
+              <button onClick={goToTimecode} className="w-11 h-11 flex items-center justify-center bg-yellow-100 text-yellow-700 rounded-xl hover:opacity-80 transition-opacity active:scale-95">
+                <Clock size={20} className="pointer-events-none" />
               </button>
-              <button onClick={handleDownload} className="p-2 text-foreground hover:opacity-60 transition-opacity">
-                <Download size={20} />
+              
+              <button onClick={handleDownload} className="w-11 h-11 flex items-center justify-center bg-gray-100 text-black rounded-xl hover:opacity-80 transition-opacity active:scale-95">
+                <Download size={20} className="pointer-events-none" />
               </button>
-              <button onClick={handleDelete} className="p-2 text-red-400 hover:opacity-60 transition-opacity">
-                <Trash2 size={20} />
+              
+              <button onClick={handleDelete} className="w-11 h-11 flex items-center justify-center hover:bg-red-50 text-red-400 rounded-xl transition-opacity active:scale-95">
+                <Trash2 size={20} className="pointer-events-none" />
               </button>
             </>
           )}
@@ -175,7 +203,7 @@ export default function SongEdit() {
         ) : (
           <div className="p-6">
             <p className="text-[10px] tracking-[0.2em] uppercase font-bold text-black/30 mb-3">LETRA</p>
-            <pre className="text-sm whitespace-pre-wrap font-sans font-bold leading-8 text-black">{lyrics || "Nenhuma letra adicionada."}</pre>
+            <pre className="text-sm whitespace-pre-wrap font-sans font-bold leading-8 text-black break-words overflow-hidden max-w-full">{lyrics || "Nenhuma letra adicionada."}</pre>
           </div>
         )}
       </div>
@@ -189,6 +217,8 @@ export default function SongEdit() {
           {saving ? "Salvando..." : isNew ? "Criar Música" : "Salvar Alterações"}
         </button>
       )}
+      
+      <PaywallModal isOpen={isPaywallOpen} onClose={() => setIsPaywallOpen(false)} currentPlan={plan} />
     </div>
   );
 }

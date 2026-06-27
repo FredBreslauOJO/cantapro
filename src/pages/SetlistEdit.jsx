@@ -27,8 +27,15 @@ export default function SetlistEdit() {
   
   const [editingNotesId, setEditingNotesId] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
+  
+  // Sistema de Avisos na Tela (Toasts)
+  const [toast, setToast] = useState({ show: false, message: "", type: "success" });
+
+  const showToast = (message, type = "success") => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast({ show: false, message: "", type: "success" }), 3500);
+  };
 
   useEffect(() => {
     if (user && id) loadData();
@@ -69,6 +76,12 @@ export default function SetlistEdit() {
   };
 
   const toggleSong = async (songId) => {
+    // GUARDA-COSTAS: Adicionar/Remover músicas requer plano BASE ou PRO
+    if (plan === 'free') {
+      setIsPaywallOpen(true);
+      return;
+    }
+
     const existingItem = orderedItems.find(i => i.song_id === songId && i.item_type !== "divider");
     if (existingItem) {
       await supabase.from('setlist_items').delete().eq('id', existingItem.id);
@@ -84,6 +97,12 @@ export default function SetlistEdit() {
   };
 
   const addDivider = async () => {
+    // GUARDA-COSTAS: Divisores requerem plano BASE ou PRO
+    if (plan === 'free') {
+      setIsPaywallOpen(true);
+      return;
+    }
+
     await supabase.from('setlist_items').insert([{
       setlist_id: id,
       order_index: orderedItems.length,
@@ -110,10 +129,12 @@ export default function SetlistEdit() {
   };
 
   const deleteDivider = async (itemId) => {
+    if (plan === 'free') { setIsPaywallOpen(true); return; }
     await supabase.from('setlist_items').delete().eq('id', itemId);
     loadItems();
   };
 
+  // Reordenação está liberada para TODOS (inclusive FREE)
   const onDragEnd = async (result) => {
     if (!result.destination) return;
     const newOrder = [...orderedItems];
@@ -135,15 +156,13 @@ export default function SetlistEdit() {
   };
 
   const handleShareClick = () => {
-    // GUARDA-COSTAS: Compartilhamento exige plano PRO
     if (plan !== 'pro') {
       setIsPaywallOpen(true);
       return;
     }
     const link = `${window.location.origin}/join-setlist/${id}`;
     navigator.clipboard.writeText(link).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      showToast("LINK DE CONVITE COPIADO!");
     });
   };
 
@@ -166,34 +185,49 @@ export default function SetlistEdit() {
   }
 
   return (
-    <div className="py-4 max-w-2xl mx-auto px-4">
+    <div className="py-4 max-w-2xl mx-auto px-4 relative">
+      
+      {/* AVISO GIGANTE (TOAST) */}
+      {toast.show && (
+        <div className={`fixed top-5 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] border-4 border-black font-black uppercase tracking-widest text-sm text-center animate-fadeIn ${
+          toast.type === 'success' ? 'bg-green-400 text-black' : 'bg-yellow-400 text-black'
+        }`}>
+          {toast.message}
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-4">
         <button onClick={() => navigate("/")} className="w-12 h-12 flex items-center justify-center -ml-3 text-foreground hover:opacity-60 active:scale-95 transition-all">
           <ArrowLeft size={22} className="pointer-events-none" />
         </button>
         <div className="flex items-center gap-2">
           
-          {/* GUARDA-COSTAS: Botão de PDF só renderiza o download real se for PRO, senão abre o paywall */}
           {plan === 'pro' ? (
             <PDFDownloadLink
               document={<SetlistPdfDocument eventName={eventName} bandName={bandName} date={date} orderedItems={orderedItems} songMap={songMap} />}
               fileName={`Setlist_${(eventName || 'setlist').replace(/\s+/g, '_')}.pdf`}
-              className="w-11 h-11 flex items-center justify-center text-foreground hover:opacity-60"
+              className="w-11 h-11 flex items-center justify-center text-foreground hover:opacity-60 bg-gray-100 rounded-xl"
             >
-              {({ loading: pdfLoading }) => <Printer size={20} className={pdfLoading ? 'opacity-40 animate-pulse' : ''} />}
+              {({ loading: pdfLoading }) => (
+                <button onClick={() => {
+                  if(pdfLoading) showToast("Aguarde, gerando PDF...", "warning");
+                  else showToast("PDF Baixado com sucesso!");
+                }}>
+                  <Printer size={20} className={pdfLoading ? 'opacity-40 animate-pulse' : ''} />
+                </button>
+              )}
             </PDFDownloadLink>
           ) : (
-            <button onClick={() => setIsPaywallOpen(true)} className="w-11 h-11 flex items-center justify-center text-foreground hover:opacity-60">
+            <button onClick={() => setIsPaywallOpen(true)} className="w-11 h-11 flex items-center justify-center text-foreground hover:opacity-60 bg-gray-100 rounded-xl">
               <Printer size={20} />
             </button>
           )}
           
-          <button onClick={handleShareClick} className="w-11 h-11 flex items-center justify-center text-foreground hover:opacity-60 relative">
+          <button onClick={handleShareClick} className="w-11 h-11 flex items-center justify-center text-foreground hover:opacity-60 bg-yellow-100 rounded-xl text-yellow-700">
             <Share2 size={20} className="pointer-events-none" />
-            {copied && <span className="absolute -top-7 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-2 py-1 rounded-lg">Copiado!</span>}
           </button>
           
-          <button onClick={handleDelete} className="w-11 h-11 flex items-center justify-center text-red-400 hover:opacity-60">
+          <button onClick={handleDelete} className="w-11 h-11 flex items-center justify-center text-red-400 hover:bg-red-50 rounded-xl">
             <Trash2 size={20} className="pointer-events-none" />
           </button>
         </div>
@@ -239,7 +273,7 @@ export default function SetlistEdit() {
                     <p className="font-black text-sm uppercase tracking-tight text-black truncate">{song.title}</p>
                     <p className="text-xs font-bold uppercase tracking-widest text-black/50 truncate">{song.artist}</p>
                   </div>
-                  <button onClick={() => toggleSong(song.id)} className={`w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 ml-3 ${added ? "bg-black/20 text-black border-2 border-black/20" : "bg-black text-white"}`}>
+                  <button onClick={() => toggleSong(song.id)} className={`w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 ml-3 transition-transform active:scale-95 ${added ? "bg-black/20 text-black border-2 border-black/20" : "bg-black text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,0.3)]"}`}>
                     {added ? <Minus size={16} /> : <Plus size={16} />}
                   </button>
                 </div>
@@ -251,7 +285,7 @@ export default function SetlistEdit() {
 
       {tab === "order" && (
         <div className="pb-20">
-          <button onClick={addDivider} className="w-full mb-4 flex items-center justify-center gap-2 min-h-[48px] border-2 border-dashed border-black/30 rounded-xl text-xs font-bold tracking-widest text-black/40">
+          <button onClick={addDivider} className="w-full mb-4 flex items-center justify-center gap-2 min-h-[48px] border-2 border-dashed border-black/30 rounded-xl text-xs font-bold tracking-widest text-black/40 hover:bg-gray-50 active:scale-95 transition-all">
             <SplitSquareVertical size={14} /> ADICIONAR DIVISOR
           </button>
           
@@ -267,13 +301,12 @@ export default function SetlistEdit() {
                         {(provided, snapshot) => (
                           isDivider ? (
                             <div ref={provided.innerRef} {...provided.draggableProps} className="flex flex-col items-center py-2 w-full gap-2">
-                              <div className="border-2 border-black rounded-full px-4 py-2 flex items-center gap-2 w-full group">
-                                <div {...provided.dragHandleProps} className="text-black/30 cursor-grab"><GripVertical size={14} /></div>
+                              <div className="border-2 border-black rounded-full px-4 py-2 flex items-center gap-2 w-full group shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                                <div {...provided.dragHandleProps} className="text-black/30 cursor-grab hover:text-black"><GripVertical size={14} /></div>
                                 <input type="text" maxLength={40} value={item.content || ""} onChange={e => handleDividerChange(item.id, e.target.value)} onBlur={e => commitDividerText(item.id, e.target.value)} className="bg-transparent text-center font-black text-xs uppercase flex-1 outline-none" />
-                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+                                <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                      <button
                                        onClick={() => {
-                                         // GUARDA-COSTAS: Notas de Divisor exigem pelo menos plano BASIC (bloqueia o free)
                                          if (plan === 'free') {
                                            setIsPaywallOpen(true);
                                            return;
@@ -285,28 +318,28 @@ export default function SetlistEdit() {
                                            setEditingNotesId(item.id);
                                          }
                                        }}
-                                       className={`w-10 h-10 flex items-center justify-center rounded-lg ${editingNotesId === item.id ? 'text-green-600 bg-green-50' : 'text-black/30'}`}
+                                       className={`w-8 h-8 flex items-center justify-center rounded-lg ${editingNotesId === item.id ? 'text-green-600 bg-green-50' : 'text-black/30 hover:bg-gray-100'}`}
                                      >
                                        {editingNotesId === item.id ? <Check size={14} /> : <Pencil size={14} />}
                                      </button>
-                                     <button onClick={() => { if (window.confirm("Remover este divisor?")) deleteDivider(item.id); }} className="w-10 h-10 flex items-center justify-center rounded-lg text-black/30 hover:text-red-500">
+                                     <button onClick={() => { if (window.confirm("Remover este divisor?")) deleteDivider(item.id); }} className="w-8 h-8 flex items-center justify-center rounded-lg text-black/30 hover:text-red-500 hover:bg-red-50">
                                        <Trash2 size={14} />
                                      </button>
                                 </div>
                               </div>
                               {editingNotesId === item.id && (
                                 <div className="w-full px-2">
-                                  <textarea rows={3} placeholder="Notas de performance (ex: Trocar guitarra...)" value={item.performance_notes || ""} onChange={e => handleNotesChange(item.id, e.target.value)} onBlur={e => commitNotes(item.id, e.target.value)} className="w-full bg-yellow-50 border-2 border-yellow-300 rounded-2xl px-4 py-3 text-sm outline-none resize-none" />
+                                  <textarea rows={3} placeholder="Notas de performance (ex: Trocar guitarra...)" value={item.performance_notes || ""} onChange={e => handleNotesChange(item.id, e.target.value)} onBlur={e => commitNotes(item.id, e.target.value)} className="w-full bg-yellow-50 border-2 border-yellow-300 rounded-2xl px-4 py-3 text-sm outline-none resize-none shadow-inner" />
                                 </div>
                               )}
                             </div>
                           ) : (
-                            <div ref={provided.innerRef} {...provided.draggableProps} className={`flex items-center gap-3 px-4 py-4 rounded-2xl border-b-2 ${snapshot.isDragging ? "bg-white border-black border-2" : "border-black/10"}`}>
+                            <div ref={provided.innerRef} {...provided.draggableProps} className={`flex items-center gap-3 px-4 py-4 rounded-2xl border-b-2 transition-colors ${snapshot.isDragging ? "bg-white border-black border-2 shadow-xl" : "border-black/10 bg-white"}`}>
                                <div className="flex-1 min-w-0">
                                  <p className="font-black text-sm uppercase text-black truncate">{song?.title || "Música Deletada"}</p>
                                  <p className="text-xs font-bold uppercase text-black/50 truncate">{song?.artist || "—"}</p>
                                </div>
-                               <div {...provided.dragHandleProps} className="p-1 text-black/20 cursor-grab"><GripVertical size={18} /></div>
+                               <div {...provided.dragHandleProps} className="p-2 text-black/20 cursor-grab hover:text-black"><GripVertical size={18} /></div>
                             </div>
                           )
                         )}
