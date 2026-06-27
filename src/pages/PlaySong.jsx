@@ -77,7 +77,10 @@ export default function PlaySong() {
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><div className="w-8 h-8 border-4 border-white/20 border-t-white rounded-full animate-spin" /></div>;
   if (songs.length === 0) return <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center"><button onClick={() => navigate(-1)} className="px-6 py-3 bg-white text-black font-black uppercase rounded-xl">Voltar</button></div>;
 
+  // VARIÁVEIS RESTAURADAS AQUI!
   const currentSong = songs[currentIndex];
+  const prevSong = songs[currentIndex - 1];
+  const nextSong = songs[currentIndex + 1];
   const songText = currentSong?.lyrics || currentSong?.content || currentSong?.text || currentSong?.body;
 
   return (
@@ -147,7 +150,7 @@ export default function PlaySong() {
         </pre>
       </div>
 
-      {/* Controles de Play/Navegação (Mantido como estava) */}
+      {/* Controles de Play/Navegação */}
       <div className="fixed bottom-0 left-0 right-0 bg-[#0a0a0a] border-t border-white/10 p-3 pb-6 sm:pb-3 flex items-center justify-between gap-3 z-40">
         <div className="flex-1">
           {prevSong ? (
