@@ -12,6 +12,7 @@ export default function PlaySong() {
   const [loading, setLoading] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isSetlistOpen, setIsSetlistOpen] = useState(false); // Novo estado para o Setlist Tela Cheia
   const [fontSize, setFontSize] = useState(48);
   
   const currentIndex = parseInt(songIndex, 10) || 0;
@@ -19,16 +20,14 @@ export default function PlaySong() {
   const scrollIntervalRef = useRef(null);
   const wakeLockRef = useRef(null);
 
-  // 1. WAKE LOCK (TELA LIGADA) - AGORA COM PROTEÇÃO EXTRA
+  // 1. WAKE LOCK (TELA LIGADA)
   useEffect(() => {
     const requestWakeLock = async () => {
       try {
         if ('wakeLock' in navigator) {
           wakeLockRef.current = await navigator.wakeLock.request('screen');
-          console.log('✅ Trava de tela ativada com sucesso!');
         }
       } catch (err) {
-        // Se o navegador bloquear (ex: aba em segundo plano), ignoramos e seguimos a vida.
         console.warn(`⚠️ Wake Lock ignorado pelo navegador: ${err.message}`);
       }
     };
@@ -55,19 +54,17 @@ export default function PlaySong() {
     stopAutoScroll();
     setIsPlaying(false);
     setIsMenuOpen(false);
+    setIsSetlistOpen(false); // Garante que a lista fecha ao mudar de música
     window.scrollTo(0, 0);
   }, [currentIndex]);
 
-  // 3. BUSCA DE DADOS (AGORA BLINDADA)
+  // 3. BUSCA DE DADOS
   useEffect(() => {
     const loadSetlistAndSongs = async () => {
-      console.log("⏳ Iniciando busca de dados do Setlist...");
       setLoading(true);
-      
       try {
         if (!id) throw new Error("ID do setlist não encontrado.");
 
-        // Busca o nome do setlist (usando maybeSingle para não dar erro fatal se não achar)
         const { data: setlistData } = await supabase
           .from('setlists')
           .select('event_name')
@@ -76,7 +73,6 @@ export default function PlaySong() {
           
         if (setlistData) setSetlistName(setlistData.event_name);
 
-        // Busca as músicas
         const { data: pivotData, error } = await supabase
           .from('setlist_items')
           .select(`songs ( * )`)
@@ -85,19 +81,14 @@ export default function PlaySong() {
         if (error) throw error;
 
         if (pivotData) {
-          // Filtra rigorosamente para evitar que um item vazio quebre o código
           const formattedSongs = pivotData
             .filter(item => item != null && item.songs != null)
             .map(item => item.songs);
-            
-          console.log(`🎵 ${formattedSongs.length} músicas carregadas.`);
           setSongs(formattedSongs);
         }
       } catch (error) {
         console.error("🚨 Erro ao carregar o modo performance:", error);
       } finally {
-        // O finally GARANTE que o spinner vai sumir, dando certo ou errado
-        console.log("✅ Finalizando tela de carregamento.");
         setLoading(false);
       }
     };
@@ -120,7 +111,9 @@ export default function PlaySong() {
   };
 
   const handleNavigate = (newIndex) => {
-    if (newIndex >= 0 && newIndex < songs.length) navigate(`/setlists/${id}/play/${newIndex}`);
+    if (newIndex >= 0 && newIndex < songs.length) {
+      navigate(`/setlists/${id}/play/${newIndex}`);
+    }
   };
 
   const formatNavName = (name) => {
@@ -164,19 +157,78 @@ export default function PlaySong() {
           <h1 className="text-2xl font-black uppercase tracking-tight drop-shadow-lg leading-none">{currentSong?.title}</h1>
           <p className="text-xs font-bold uppercase tracking-widest text-white/50 mt-1">{setlistName} • {currentIndex + 1}/{songs.length}</p>
         </div>
+        
+        {/* BOTÕES DE TOPO - AGORA COM SETLIST SEPARADO */}
         <div className="flex gap-2 pointer-events-auto">
-          <button onClick={() => setIsMenuOpen(true)} className="w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 text-white/60 hover:text-white transition-colors">
+          {/* Botão Repertório */}
+          <button 
+            onClick={() => setIsSetlistOpen(true)} 
+            className="w-10 h-10 bg-white text-black rounded-full flex items-center justify-center border border-transparent hover:bg-gray-200 transition-colors shadow-[0_0_15px_rgba(255,255,255,0.2)]"
+          >
+            <ListMusic size={18} className="ml-0.5" />
+          </button>
+
+          {/* Botão Fonte/Opções */}
+          <button 
+            onClick={() => setIsMenuOpen(true)} 
+            className="w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 text-white/60 hover:text-white transition-colors"
+          >
             <Settings size={18} />
           </button>
-          <button onClick={() => navigate('/setlists')} className="w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 text-white/60 hover:text-white transition-colors">
+          
+          <button 
+            onClick={() => navigate('/setlists')} 
+            className="w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 text-white/60 hover:text-white transition-colors"
+          >
             <X size={20} />
           </button>
         </div>
       </div>
 
-      {/* Menu Lateral de Configurações */}
+      {/* OVERLAY 1: SETLIST TELA CHEIA (Para visualização extrema e troca de música) */}
+      {isSetlistOpen && (
+        <div className="fixed inset-0 bg-black z-50 flex flex-col animate-fadeIn">
+          {/* Header do Modal */}
+          <div className="pt-8 pb-4 px-6 flex justify-between items-center border-b border-white/10 bg-black z-10 shadow-xl">
+            <div>
+              <h2 className="text-2xl font-black uppercase tracking-widest text-white leading-none">Repertório</h2>
+              <p className="text-xs font-bold uppercase tracking-widest text-white/50 mt-1">{setlistName}</p>
+            </div>
+            <button 
+              onClick={() => setIsSetlistOpen(false)} 
+              className="w-12 h-12 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 text-white transition-colors"
+            >
+              <X size={24} />
+            </button>
+          </div>
+          
+          {/* Lista Brutalista */}
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3 pb-24">
+            {songs.map((song, idx) => (
+              <button 
+                key={song.id || idx}
+                onClick={() => handleNavigate(idx)}
+                className={`w-full text-left p-5 sm:p-8 rounded-2xl flex items-center gap-4 transition-transform active:scale-95 ${
+                  idx === currentIndex 
+                    ? 'bg-white text-black shadow-[0_0_30px_rgba(255,255,255,0.2)]' 
+                    : 'bg-[#111] text-white hover:bg-[#1a1a1a] border border-white/5'
+                }`}
+              >
+                <span className={`text-xl sm:text-2xl font-black tracking-tighter ${idx === currentIndex ? 'text-black/30' : 'text-white/20'}`}>
+                  {(idx + 1).toString().padStart(2, '0')}
+                </span>
+                <span className="text-xl sm:text-3xl font-black uppercase tracking-tight truncate">
+                  {song.title}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* OVERLAY 2: Menu de Configurações (Apenas Fonte agora) */}
       {isMenuOpen && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex justify-end animate-fadeIn">
+        <div className="fixed inset-0 bg-black/80 z-40 flex justify-end animate-fadeIn">
           <div className="w-80 bg-neutral-900 h-full border-l border-white/10 p-6 flex flex-col">
             <div className="flex items-center justify-between mb-8">
               <h3 className="font-black uppercase tracking-widest text-sm">Opções de Palco</h3>
@@ -189,21 +241,6 @@ export default function PlaySong() {
                 <button onClick={() => setFontSize(prev => Math.max(20, prev - 4))} className="w-12 h-12 bg-neutral-800 rounded-xl font-black text-xl hover:bg-neutral-700 active:scale-95">-</button>
                 <div className="flex-1 text-center font-black text-xl">{fontSize}px</div>
                 <button onClick={() => setFontSize(prev => Math.min(100, prev + 4))} className="w-12 h-12 bg-neutral-800 rounded-xl font-black text-xl hover:bg-neutral-700 active:scale-95">+</button>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto">
-              <p className="text-xs font-bold uppercase tracking-widest text-white/50 mb-3 flex items-center gap-2"><ListMusic size={14}/> Repertório</p>
-              <div className="space-y-2">
-                {songs.map((song, idx) => (
-                  <button 
-                    key={song.id || idx}
-                    onClick={() => handleNavigate(idx)}
-                    className={`w-full text-left p-3 rounded-xl text-sm font-black uppercase tracking-wider transition-colors ${idx === currentIndex ? 'bg-white text-black' : 'bg-neutral-800 text-white hover:bg-neutral-700'}`}
-                  >
-                    {idx + 1}. {song.title}
-                  </button>
-                ))}
               </div>
             </div>
           </div>
@@ -221,7 +258,7 @@ export default function PlaySong() {
       </div>
 
       {/* Controles de Play/Navegação */}
-      <div className="fixed bottom-0 left-0 right-0 bg-[#0a0a0a] border-t border-white/10 p-3 pb-6 sm:pb-3 flex items-center justify-between gap-3 z-40">
+      <div className="fixed bottom-0 left-0 right-0 bg-[#0a0a0a] border-t border-white/10 p-3 pb-6 sm:pb-3 flex items-center justify-between gap-3 z-30">
         <div className="flex-1">
           {prevSong ? (
             <button onClick={() => handleNavigate(currentIndex - 1)} className="w-full h-14 bg-[#1a1a1a] text-white/50 hover:text-white hover:bg-[#2a2a2a] rounded-xl flex items-center justify-center gap-1 sm:gap-2 font-black text-sm sm:text-base tracking-widest uppercase border border-white/5">
