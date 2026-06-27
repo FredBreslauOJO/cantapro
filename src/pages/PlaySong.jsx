@@ -17,35 +17,32 @@ export default function PlaySong() {
   const currentIndex = parseInt(songIndex, 10) || 0;
   const contentRef = useRef(null);
   const scrollIntervalRef = useRef(null);
-  const wakeLockRef = useRef(null); // Referência para guardar a trava de tela
+  const wakeLockRef = useRef(null);
 
-  // 1. BLOCO DO WAKE LOCK (MANTÉM A TELA LIGADA)
+  // 1. WAKE LOCK (TELA LIGADA) - AGORA COM PROTEÇÃO EXTRA
   useEffect(() => {
     const requestWakeLock = async () => {
       try {
         if ('wakeLock' in navigator) {
           wakeLockRef.current = await navigator.wakeLock.request('screen');
-          console.log('Trava de tela ativada: O celular não vai apagar no show!');
+          console.log('✅ Trava de tela ativada com sucesso!');
         }
       } catch (err) {
-        console.error(`Erro no Wake Lock: ${err.name}, ${err.message}`);
+        // Se o navegador bloquear (ex: aba em segundo plano), ignoramos e seguimos a vida.
+        console.warn(`⚠️ Wake Lock ignorado pelo navegador: ${err.message}`);
       }
     };
 
     requestWakeLock();
 
-    // Se o músico minimizar o app e voltar, precisamos pedir a trava de novo
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        requestWakeLock();
-      }
+      if (document.visibilityState === 'visible') requestWakeLock();
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // Quando o músico sair da tela de performance, liberamos a trava para economizar bateria
     return () => {
       if (wakeLockRef.current) {
-        wakeLockRef.current.release();
+        wakeLockRef.current.release().catch(() => {});
         wakeLockRef.current = null;
       }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -53,7 +50,7 @@ export default function PlaySong() {
     };
   }, []);
 
-  // Sempre que mudar de música, para o scroll e volta pro topo
+  // 2. CONTROLE DE NAVEGAÇÃO INTERNA
   useEffect(() => {
     stopAutoScroll();
     setIsPlaying(false);
@@ -61,25 +58,52 @@ export default function PlaySong() {
     window.scrollTo(0, 0);
   }, [currentIndex]);
 
-  const loadSetlistAndSongs = async () => {
-    setLoading(true);
-    try {
-      const { data: setlistData } = await supabase.from('setlists').select('event_name').eq('id', id).single();
-      if (setlistData) setSetlistName(setlistData.event_name);
+  // 3. BUSCA DE DADOS (AGORA BLINDADA)
+  useEffect(() => {
+    const loadSetlistAndSongs = async () => {
+      console.log("⏳ Iniciando busca de dados do Setlist...");
+      setLoading(true);
+      
+      try {
+        if (!id) throw new Error("ID do setlist não encontrado.");
 
-      const { data: pivotData, error } = await supabase.from('setlist_items').select(`songs ( * )`).eq('setlist_id', id);
-      if (error) throw error;
+        // Busca o nome do setlist (usando maybeSingle para não dar erro fatal se não achar)
+        const { data: setlistData } = await supabase
+          .from('setlists')
+          .select('event_name')
+          .eq('id', id)
+          .maybeSingle();
+          
+        if (setlistData) setSetlistName(setlistData.event_name);
 
-      if (pivotData) {
-        const formattedSongs = pivotData.map(item => item.songs).filter(Boolean);
-        setSongs(formattedSongs);
+        // Busca as músicas
+        const { data: pivotData, error } = await supabase
+          .from('setlist_items')
+          .select(`songs ( * )`)
+          .eq('setlist_id', id);
+
+        if (error) throw error;
+
+        if (pivotData) {
+          // Filtra rigorosamente para evitar que um item vazio quebre o código
+          const formattedSongs = pivotData
+            .filter(item => item != null && item.songs != null)
+            .map(item => item.songs);
+            
+          console.log(`🎵 ${formattedSongs.length} músicas carregadas.`);
+          setSongs(formattedSongs);
+        }
+      } catch (error) {
+        console.error("🚨 Erro ao carregar o modo performance:", error);
+      } finally {
+        // O finally GARANTE que o spinner vai sumir, dando certo ou errado
+        console.log("✅ Finalizando tela de carregamento.");
+        setLoading(false);
       }
-    } catch (error) {
-      console.error("Erro:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+
+    loadSetlistAndSongs();
+  }, [id]);
 
   const togglePlay = () => {
     if (isPlaying) stopAutoScroll();
@@ -105,8 +129,26 @@ export default function PlaySong() {
     return cleaned.length <= 6 ? cleaned : cleaned.substring(0, 6) + "..";
   };
 
-  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><div className="w-8 h-8 border-4 border-white/20 border-t-white rounded-full animate-spin" /></div>;
-  if (songs.length === 0) return <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center"><button onClick={() => navigate('/setlists')} className="px-6 py-3 bg-white text-black font-black uppercase rounded-xl">Voltar aos Setlists</button></div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-white/20 border-t-white rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (songs.length === 0) {
+    return (
+      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center">
+        <p className="mb-6 font-bold text-white/50 uppercase tracking-widest text-sm">
+          Nenhuma música encontrada ou erro ao carregar.
+        </p>
+        <button onClick={() => navigate('/setlists')} className="px-6 py-3 bg-white text-black font-black uppercase rounded-xl">
+          Voltar aos Setlists
+        </button>
+      </div>
+    );
+  }
 
   const currentSong = songs[currentIndex];
   const prevSong = songs[currentIndex - 1];
@@ -126,7 +168,6 @@ export default function PlaySong() {
           <button onClick={() => setIsMenuOpen(true)} className="w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 text-white/60 hover:text-white transition-colors">
             <Settings size={18} />
           </button>
-          {/* BOTÃO X AGORA VAI PARA SETLISTS */}
           <button onClick={() => navigate('/setlists')} className="w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 text-white/60 hover:text-white transition-colors">
             <X size={20} />
           </button>
@@ -142,7 +183,6 @@ export default function PlaySong() {
               <button onClick={() => setIsMenuOpen(false)} className="text-white/50 hover:text-white"><X size={20}/></button>
             </div>
             
-            {/* Controle de Fonte */}
             <div className="mb-8">
               <p className="text-xs font-bold uppercase tracking-widest text-white/50 mb-3 flex items-center gap-2"><Type size={14}/> Tamanho da Letra</p>
               <div className="flex items-center gap-3">
@@ -152,13 +192,12 @@ export default function PlaySong() {
               </div>
             </div>
 
-            {/* Índice do Setlist */}
             <div className="flex-1 overflow-y-auto">
               <p className="text-xs font-bold uppercase tracking-widest text-white/50 mb-3 flex items-center gap-2"><ListMusic size={14}/> Repertório</p>
               <div className="space-y-2">
                 {songs.map((song, idx) => (
                   <button 
-                    key={song.id}
+                    key={song.id || idx}
                     onClick={() => handleNavigate(idx)}
                     className={`w-full text-left p-3 rounded-xl text-sm font-black uppercase tracking-wider transition-colors ${idx === currentIndex ? 'bg-white text-black' : 'bg-neutral-800 text-white hover:bg-neutral-700'}`}
                   >
@@ -189,7 +228,6 @@ export default function PlaySong() {
               <ChevronLeft size={18} /> <span className="truncate">{formatNavName(prevSong.title)}</span>
             </button>
           ) : (
-            // BOTÃO SAIR (PRIMEIRA MÚSICA) VAI PARA SETLISTS
             <button onClick={() => navigate('/setlists')} className="w-full h-14 bg-transparent text-white/20 hover:text-white/50 rounded-xl flex items-center justify-center gap-2 font-black text-xs tracking-widest uppercase">
               <X size={16} /> SAIR
             </button>
@@ -204,7 +242,6 @@ export default function PlaySong() {
               <span className="truncate">{formatNavName(nextSong.title)}</span> <ChevronRight size={18} />
             </button>
           ) : (
-            // BOTÃO FIM (ÚLTIMA MÚSICA) VAI PARA SETLISTS
             <button onClick={() => navigate('/setlists')} className="w-full h-14 bg-transparent text-white/20 hover:text-white/50 rounded-xl flex items-center justify-center gap-2 font-black text-xs tracking-widest uppercase">
               FIM <X size={16} />
             </button>
