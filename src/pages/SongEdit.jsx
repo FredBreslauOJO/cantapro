@@ -94,9 +94,21 @@ export default function SongEdit() {
         <div className="flex items-center gap-3">
           {!isNew && (
             <>
-              <button onClick={() => setEditing(!editing)} className="p-2 text-foreground hover:opacity-60 transition-opacity">
-                {editing ? <Check size={20} /> : <Pencil size={20} />}
+              {/* BOTÃO SUPERIOR CORRIGIDO */}
+              <button 
+                onClick={editing ? handleSave : () => setEditing(true)} 
+                disabled={saving || (editing && !title)}
+                className="p-2 transition-all active:scale-95 disabled:opacity-50"
+              >
+                {saving ? (
+                  <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+                ) : editing ? (
+                  <Check size={24} className="text-green-600 drop-shadow-sm" />
+                ) : (
+                  <Pencil size={20} className="text-foreground hover:opacity-60" />
+                )}
               </button>
+              
               <button onClick={() => navigate(`/songs/${id}/timecode`)} className="p-2 text-foreground hover:opacity-60 transition-opacity">
                 <Clock size={20} />
               </button>

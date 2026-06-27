@@ -81,8 +81,7 @@ export default function PlaySong() {
   const currentSong = songs[currentIndex];
   const prevSong = songs[currentIndex - 1];
   const nextSong = songs[currentIndex + 1];
-  const songText = currentSong?.lyrics || currentSong?.content || currentSong?.text || currentSong?.body;
-
+  const songText = currentSong?.lyrics_text || currentSong?.lyrics || currentSong?.content || currentSong?.text || currentSong?.body;
   return (
     <div className="min-h-screen bg-black text-white selection:bg-white selection:text-black font-sans">
       
