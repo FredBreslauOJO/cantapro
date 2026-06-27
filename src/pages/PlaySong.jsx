@@ -12,21 +12,52 @@ export default function PlaySong() {
   const [loading, setLoading] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [fontSize, setFontSize] = useState(48); // Tamanho da fonte padrão em px
+  const [fontSize, setFontSize] = useState(48);
   
   const currentIndex = parseInt(songIndex, 10) || 0;
   const contentRef = useRef(null);
   const scrollIntervalRef = useRef(null);
+  const wakeLockRef = useRef(null); // Referência para guardar a trava de tela
 
+  // 1. BLOCO DO WAKE LOCK (MANTÉM A TELA LIGADA)
   useEffect(() => {
-    loadSetlistAndSongs();
-    return () => stopAutoScroll();
-  }, [id]);
+    const requestWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLockRef.current = await navigator.wakeLock.request('screen');
+          console.log('Trava de tela ativada: O celular não vai apagar no show!');
+        }
+      } catch (err) {
+        console.error(`Erro no Wake Lock: ${err.name}, ${err.message}`);
+      }
+    };
 
+    requestWakeLock();
+
+    // Se o músico minimizar o app e voltar, precisamos pedir a trava de novo
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        requestWakeLock();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Quando o músico sair da tela de performance, liberamos a trava para economizar bateria
+    return () => {
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release();
+        wakeLockRef.current = null;
+      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      stopAutoScroll();
+    };
+  }, []);
+
+  // Sempre que mudar de música, para o scroll e volta pro topo
   useEffect(() => {
     stopAutoScroll();
     setIsPlaying(false);
-    setIsMenuOpen(false); // Fecha o menu ao mudar de música
+    setIsMenuOpen(false);
     window.scrollTo(0, 0);
   }, [currentIndex]);
 
@@ -75,13 +106,13 @@ export default function PlaySong() {
   };
 
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><div className="w-8 h-8 border-4 border-white/20 border-t-white rounded-full animate-spin" /></div>;
-  if (songs.length === 0) return <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center"><button onClick={() => navigate(-1)} className="px-6 py-3 bg-white text-black font-black uppercase rounded-xl">Voltar</button></div>;
+  if (songs.length === 0) return <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center"><button onClick={() => navigate('/setlists')} className="px-6 py-3 bg-white text-black font-black uppercase rounded-xl">Voltar aos Setlists</button></div>;
 
-  // VARIÁVEIS RESTAURADAS AQUI!
   const currentSong = songs[currentIndex];
   const prevSong = songs[currentIndex - 1];
   const nextSong = songs[currentIndex + 1];
   const songText = currentSong?.lyrics_text || currentSong?.lyrics || currentSong?.content || currentSong?.text || currentSong?.body;
+
   return (
     <div className="min-h-screen bg-black text-white selection:bg-white selection:text-black font-sans">
       
@@ -95,7 +126,8 @@ export default function PlaySong() {
           <button onClick={() => setIsMenuOpen(true)} className="w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 text-white/60 hover:text-white transition-colors">
             <Settings size={18} />
           </button>
-          <button onClick={() => navigate(`/setlists/${id}/edit`)} className="w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 text-white/60 hover:text-white transition-colors">
+          {/* BOTÃO X AGORA VAI PARA SETLISTS */}
+          <button onClick={() => navigate('/setlists')} className="w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 text-white/60 hover:text-white transition-colors">
             <X size={20} />
           </button>
         </div>
@@ -157,7 +189,8 @@ export default function PlaySong() {
               <ChevronLeft size={18} /> <span className="truncate">{formatNavName(prevSong.title)}</span>
             </button>
           ) : (
-            <button onClick={() => navigate(`/setlists/${id}/edit`)} className="w-full h-14 bg-transparent text-white/20 hover:text-white/50 rounded-xl flex items-center justify-center gap-2 font-black text-xs tracking-widest uppercase">
+            // BOTÃO SAIR (PRIMEIRA MÚSICA) VAI PARA SETLISTS
+            <button onClick={() => navigate('/setlists')} className="w-full h-14 bg-transparent text-white/20 hover:text-white/50 rounded-xl flex items-center justify-center gap-2 font-black text-xs tracking-widest uppercase">
               <X size={16} /> SAIR
             </button>
           )}
@@ -171,7 +204,8 @@ export default function PlaySong() {
               <span className="truncate">{formatNavName(nextSong.title)}</span> <ChevronRight size={18} />
             </button>
           ) : (
-            <button onClick={() => navigate(`/setlists/${id}/edit`)} className="w-full h-14 bg-transparent text-white/20 hover:text-white/50 rounded-xl flex items-center justify-center gap-2 font-black text-xs tracking-widest uppercase">
+            // BOTÃO FIM (ÚLTIMA MÚSICA) VAI PARA SETLISTS
+            <button onClick={() => navigate('/setlists')} className="w-full h-14 bg-transparent text-white/20 hover:text-white/50 rounded-xl flex items-center justify-center gap-2 font-black text-xs tracking-widest uppercase">
               FIM <X size={16} />
             </button>
           )}
