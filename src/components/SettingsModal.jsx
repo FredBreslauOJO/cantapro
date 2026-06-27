@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, LogOut, RefreshCw, Zap } from 'lucide-react';
+import { X, LogOut, RefreshCw, Zap, CreditCard } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import Logo from './Logo';
@@ -83,12 +83,28 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
 
           {/* Botões Principais de Ação */}
           <div className="space-y-3">
-            <button 
-              onClick={() => { onClose(); onOpenPaywall(); }}
-              className="w-full py-4 bg-black text-white text-xs font-black uppercase tracking-widest rounded-2xl hover:opacity-80 transition-all flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] active:scale-95"
-            >
-              <Zap size={14} fill="white" /> Fazer Upgrade
-            </button>
+            
+            {/* SÓ MOSTRA UPGRADE SE FOR FREE */}
+            {plan === 'free' && (
+              <button 
+                onClick={() => { onClose(); onOpenPaywall(); }}
+                className="w-full py-4 bg-black text-white text-xs font-black uppercase tracking-widest rounded-2xl hover:opacity-80 transition-all flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] active:scale-95"
+              >
+                <Zap size={14} fill="white" /> Fazer Upgrade
+              </button>
+            )}
+
+            {/* SÓ MOSTRA GERENCIAR ASSINATURA SE FOR BASE OU PRO */}
+            {plan !== 'free' && (
+              <a 
+                href="https://billing.stripe.com/p/login/test_bJe28r4VTboafjVeP567S00" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="w-full py-4 bg-yellow-400 border-2 border-black text-black text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-yellow-300 transition-all flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:scale-95"
+              >
+                <CreditCard size={14} /> Gerenciar Assinatura
+              </a>
+            )}
 
             <button 
               onClick={() => window.location.reload()}
@@ -105,7 +121,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
             <a href="#" className="block hover:text-black transition-colors">Atendimento</a>
           </div>
         </div>
-
+        
         {/* Rodapé do Menu */}
         <div>
           <button 
@@ -117,10 +133,9 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
 
           <div className="border-t border-gray-100 mt-4 pt-4 text-[9px] font-bold text-black/30 uppercase tracking-wider space-y-0.5">
             <p className="font-black text-black/40">OJO STUDIO EXPERIÊNCIAS DIGITAIS LTDA</p>
-            <p>NOME FANTASIA: OJO STUDIO</p>
-            <p>CNPJ: 58.505.369/0001-36</p>
+            <p>Feito com ❤︎ por OJO STUDIO</p>
             <p>TODOS OS DIREITOS RESERVADOS.</p>
-            <p>WWW.OJO-STUDIO.COM</p>
+            <p><a href="http://ojo-studio.com">ojo-studio.com</a></p>
           </div>
         </div>
 
