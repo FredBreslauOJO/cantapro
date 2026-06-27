@@ -132,8 +132,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
           </button>
 
           <div className="border-t border-gray-100 mt-4 pt-4 text-[9px] font-bold text-black/30 uppercase tracking-wider space-y-0.5">
-            <p className="font-black text-black/40">OJO STUDIO EXPERIÊNCIAS DIGITAIS LTDA</p>
-            <p>Feito com ❤︎ por OJO STUDIO</p>
+            <p className="font-black text-black/40">Feito com ❤︎ por OJO STUDIO</p>
             <p>TODOS OS DIREITOS RESERVADOS.</p>
             <p><a href="http://ojo-studio.com">ojo-studio.com</a></p>
           </div>
