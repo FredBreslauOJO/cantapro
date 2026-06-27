@@ -61,11 +61,11 @@ export default async function handler(req, res) {
         newPlan = 'base';
       }
 
-      // Invade o banco de dados usando a chave mestra (para contornar as regras de segurança normais do app)
+      // Invade o banco de dados usando a chave mestra e a coluna correta (user_email)
       const { error } = await supabase
         .from('user_subscriptions')
         .update({ plan_type: newPlan })
-        .eq('email', customerEmail); // Tenta atualizar pela coluna email (ajuste se a sua coluna se chamar user_email)
+        .eq('user_email', customerEmail); 
 
       if (error) {
         console.error('❌ Erro ao atualizar plano no Supabase:', error);
