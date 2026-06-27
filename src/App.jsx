@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Pencil, Play } from "lucide-react";
-import { supabase } from "../lib/supabase";
-import { useAuth } from "../lib/AuthContext";
-import PaywallModal from "../components/PaywallModal";
+import { supabase } from "./lib/supabase";
+import { useAuth } from "./lib/AuthContext";
+import PaywallModal from "./components/PaywallModal";
 
 export default function Setlists() {
   const [setlists, setSetlists] = useState([]);
