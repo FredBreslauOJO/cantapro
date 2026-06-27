@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Settings, Play } from "lucide-react";
+import { Plus, Settings, Play, Archive, ArchiveRestore } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/AuthContext";
 import PaywallModal from "../components/PaywallModal";
@@ -8,6 +8,7 @@ import PaywallModal from "../components/PaywallModal";
 export default function Setlists() {
   const [setlists, setSetlists] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showArchived, setShowArchived] = useState(false);
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   const navigate = useNavigate();
   const { user, plan } = useAuth();
@@ -24,7 +25,6 @@ export default function Setlists() {
   };
 
   const handleCreateNew = async () => {
-    // Se por algum motivo o plano não carregar a tempo, assume free por segurança
     const currentPlan = plan || 'free';
 
     // GUARDA-COSTAS: Se for Free e já tiver 1 ou mais setlists, bloqueia!
@@ -38,7 +38,8 @@ export default function Setlists() {
       .insert([{ 
         event_name: "NOVO SETLIST", 
         band_name: "", 
-        created_by: user.email
+        created_by: user.email,
+        archived: false
       }])
       .select()
       .single();
@@ -70,20 +71,53 @@ export default function Setlists() {
     }
   };
 
+  const toggleArchive = async (e, id, currentStatus) => {
+    e.stopPropagation();
+    const newStatus = !currentStatus;
+    
+    // Atualização otimista na tela (parece instantâneo pro usuário)
+    setSetlists(prev => prev.map(sl => sl.id === id ? { ...sl, archived: newStatus } : sl));
+
+    const { error } = await supabase
+      .from('setlists')
+      .update({ archived: newStatus })
+      .eq('id', id);
+
+    if (error) {
+      console.error("Erro ao arquivar:", error);
+      loadSetlists(); // Reverte se der erro no banco
+    }
+  };
+
+  // Filtra a lista com base na aba selecionada (Ativos vs Arquivados)
+  const visibleSetlists = setlists.filter(sl => showArchived ? sl.archived === true : !sl.archived);
+
   const SetlistCard = ({ sl }) => (
-    <div className="bg-white border-2 border-black rounded-3xl p-4 flex flex-col justify-between min-h-[150px] group relative shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-      <button
-        onClick={(e) => { e.stopPropagation(); navigate(`/setlists/${sl.id}/edit`); }}
-        className="absolute top-2 right-2 w-12 h-12 flex items-center justify-center text-black/30 hover:text-black transition-all active:scale-95 z-10"
-      >
-        <Settings size={22} className="pointer-events-none" />
-      </button>
-      <button onClick={() => navigate(`/setlists/${sl.id}/play/0`)} className="flex-1 min-w-0 text-left">
-        <p className="font-black text-sm uppercase tracking-tight text-black leading-tight line-clamp-2 flex items-start gap-1.5 pr-6">
+    <div className={`bg-white border-2 border-black rounded-3xl p-4 flex flex-col justify-between min-h-[150px] group relative shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${sl.archived ? 'opacity-60 grayscale' : ''}`}>
+      
+      {/* Botões de Ação no Canto Superior Direito */}
+      <div className="absolute top-2 right-2 flex items-center z-10">
+        <button
+          onClick={(e) => toggleArchive(e, sl.id, sl.archived)}
+          className="w-12 h-12 flex items-center justify-center text-black/30 hover:text-black transition-all active:scale-95"
+        >
+          {sl.archived ? <ArchiveRestore size={22} className="pointer-events-none" /> : <Archive size={22} className="pointer-events-none" />}
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); navigate(`/setlists/${sl.id}/edit`); }}
+          className="w-12 h-12 flex items-center justify-center text-black/30 hover:text-black transition-all active:scale-95"
+        >
+          <Settings size={22} className="pointer-events-none" />
+        </button>
+      </div>
+
+      <button onClick={() => navigate(`/setlists/${sl.id}/play/0`)} className="flex-1 min-w-0 text-left pt-2">
+        <p className="font-black text-sm uppercase tracking-tight text-black leading-tight line-clamp-2 flex items-start gap-1.5 pr-24">
           {sl.event_name}
         </p>
         {sl.band_name && <p className="text-[10px] font-bold uppercase tracking-widest text-black/50 truncate mt-0.5">{sl.band_name}</p>}
       </button>
+
       <div className="mt-3">
         {sl.date && (
           <span className="text-[10px] font-black text-black border border-black px-2 py-0.5 rounded-md block w-fit mb-2">
@@ -113,7 +147,7 @@ export default function Setlists() {
           <h1 className="text-2xl font-black tracking-tight uppercase text-foreground">Setlists</h1>
         </div>
         <div className="flex items-center gap-2 mt-1">
-          <button onClick={handleCreateNew} className="w-12 h-12 bg-black rounded-full flex items-center justify-center text-white hover:opacity-80 transition-opacity active:scale-95">
+          <button onClick={handleCreateNew} className="w-12 h-12 bg-black rounded-full flex items-center justify-center text-white hover:opacity-80 transition-opacity active:scale-95 shadow-[2px_2px_0px_0px_rgba(0,0,0,0.3)]">
             <Plus size={18} className="pointer-events-none" />
           </button>
         </div>
@@ -121,20 +155,40 @@ export default function Setlists() {
 
       <div className="border-b border-gray-200 mb-5 mt-3" />
 
+      {/* ABAS ATIVOS / ARQUIVADOS */}
+      <div className="flex gap-1 mb-6 bg-gray-100 rounded-xl p-1 w-full max-w-[240px]">
+        <button
+          onClick={() => setShowArchived(false)}
+          className={`flex-1 min-h-[44px] rounded-lg text-[10px] font-bold tracking-wide transition-all uppercase ${!showArchived ? "bg-white shadow-sm text-foreground" : "text-gray-400"}`}
+        >
+          Ativos
+        </button>
+        <button
+          onClick={() => setShowArchived(true)}
+          className={`flex-1 min-h-[44px] rounded-lg text-[10px] font-bold tracking-wide transition-all uppercase ${showArchived ? "bg-white shadow-sm text-foreground" : "text-gray-400"}`}
+        >
+          Arquivados
+        </button>
+      </div>
+
       {loading ? (
         <div className="flex justify-center py-16">
           <div className="w-6 h-6 border-2 border-gray-200 border-t-black rounded-full animate-spin" />
         </div>
-      ) : setlists.length === 0 ? (
+      ) : visibleSetlists.length === 0 ? (
         <div className="text-center py-16">
-          <p className="text-gray-400 text-sm font-bold uppercase tracking-widest mb-4">Nenhum setlist ainda.</p>
-          <button onClick={handleCreateNew} className="px-6 py-4 bg-black text-white text-xs font-black tracking-widest uppercase rounded-xl hover:opacity-80 transition-opacity active:scale-95">
-            Criar primeiro setlist
-          </button>
+          <p className="text-gray-400 text-sm font-bold uppercase tracking-widest mb-4">
+            {showArchived ? "Nenhum setlist arquivado." : "Nenhum setlist ativo."}
+          </p>
+          {!showArchived && (
+            <button onClick={handleCreateNew} className="px-6 py-4 bg-black text-white text-xs font-black tracking-widest uppercase rounded-xl hover:opacity-80 transition-opacity active:scale-95">
+              Criar primeiro setlist
+            </button>
+          )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {setlists.map(sl => (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-20">
+          {visibleSetlists.map(sl => (
             <SetlistCard key={sl.id} sl={sl} />
           ))}
         </div>
