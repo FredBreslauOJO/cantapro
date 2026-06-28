@@ -76,7 +76,6 @@ export default function SetlistEdit() {
   };
 
   const toggleSong = async (songId) => {
-    // GUARDA-COSTAS: Adicionar/Remover músicas requer plano BASE ou PRO
     if (plan === 'free') {
       setIsPaywallOpen(true);
       return;
@@ -97,7 +96,6 @@ export default function SetlistEdit() {
   };
 
   const addDivider = async () => {
-    // GUARDA-COSTAS: Divisores requerem plano BASE ou PRO
     if (plan === 'free') {
       setIsPaywallOpen(true);
       return;
@@ -134,7 +132,6 @@ export default function SetlistEdit() {
     loadItems();
   };
 
-  // Reordenação está liberada para TODOS (inclusive FREE)
   const onDragEnd = async (result) => {
     if (!result.destination) return;
     const newOrder = [...orderedItems];
@@ -160,9 +157,16 @@ export default function SetlistEdit() {
       setIsPaywallOpen(true);
       return;
     }
+    
     const link = `${window.location.origin}/join-setlist/${id}`;
-    navigator.clipboard.writeText(link).then(() => {
-      showToast("LINK DE CONVITE COPIADO!");
+    
+    // Tenta usar o nome da banda, se não tiver, usa o começo do email do usuário
+    const remetente = bandName ? bandName.toUpperCase() : (user?.email?.split('@')[0] || "Um músico");
+    
+    const textoCompartilhamento = `${remetente} compartilhou um setlist com você.\n\nAcesse ${link} e adicione ao seu app CANTA.PRO.\n\nCrie sua conta agora e seja a estrela do palco.`;
+
+    navigator.clipboard.writeText(textoCompartilhamento).then(() => {
+      showToast("MENSAGEM COPIADA COM SUCESSO!");
     });
   };
 
