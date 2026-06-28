@@ -386,24 +386,22 @@ export default function PlaySong() {
         </div>
       )}
 
-      {/* ÁREA DA LETRA (Renderização Condicional: Timecode vs Linear) */}
+      {/* ÁREA DA LETRA */}
       <div ref={contentRef} className="pt-40 pb-40 px-6 max-w-4xl mx-auto w-full min-h-screen flex flex-col justify-center">
         {hasTimecodes ? (
-          <div className="w-full flex flex-col items-center gap-12 pb-[50vh]">
+          <div className="w-full flex flex-col gap-12 pb-[50vh]">
             {timecodes.map((tc, idx) => {
               const isActive = activeBlockIndex === idx;
-              
-              // O CAÇADOR DE TEXTOS (IGNORANDO O 'ID' e 'BLOCK_')
               const textContent = extractBlockText(tc);
               
               return (
                 <div 
                   key={tc.id || idx} 
                   id={`block-${idx}`} 
-                  className={`w-full transition-all duration-300 ${isActive ? 'text-white scale-105 drop-shadow-[0_0_15px_rgba(255,255,255,0.4)] opacity-100' : 'text-white/20 opacity-40 blur-[1px]'}`}
+                  className={`w-full transition-all duration-300 origin-left ${isActive ? 'text-white scale-105 drop-shadow-[0_0_15px_rgba(255,255,255,0.4)] opacity-100' : 'text-white/50 blur-[1px]'}`}
                 >
                   <pre 
-                    className="whitespace-pre-wrap break-words font-black uppercase leading-relaxed tracking-tight text-center"
+                    className="whitespace-pre-wrap break-words font-black uppercase leading-relaxed tracking-tight text-left"
                     style={{ fontSize: `${fontSize}px`, wordBreak: 'break-word', overflowWrap: 'anywhere', fontFamily: 'inherit' }}
                   >
                     {textContent}
@@ -414,7 +412,7 @@ export default function PlaySong() {
           </div>
         ) : (
           <pre 
-            className={`whitespace-pre-wrap break-words font-black uppercase leading-relaxed tracking-tight w-full flex flex-col justify-center items-center ${currentSong.isSeparator ? 'text-yellow-400 text-center min-h-[40vh]' : 'text-white/90'}`}
+            className={`whitespace-pre-wrap break-words font-black uppercase leading-relaxed tracking-tight w-full flex flex-col justify-center ${currentSong.isSeparator ? 'text-yellow-400 text-center items-center min-h-[40vh]' : 'text-white/90 text-left items-start'}`}
             style={{ fontSize: `${fontSize}px`, wordBreak: 'break-word', overflowWrap: 'anywhere' }}
           >
             {songText || (currentSong.isSeparator ? "" : "NENHUMA LETRA CADASTRADA PARA ESTA MÚSICA.")}
