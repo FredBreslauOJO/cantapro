@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import Login from './pages/Login';
 import UpdatePassword from './pages/UpdatePassword';
@@ -10,9 +10,10 @@ import SongEdit from './pages/SongEdit';
 import PlaySong from './pages/PlaySong';
 import TimecodeEditor from './pages/TimecodeEditor';
 import JoinSetlist from './pages/JoinSetlist';
+import Onboarding from './pages/Onboarding'; // <--- NOVA TELA DE TUTORIAL
 import { Music, List, Menu, Zap } from 'lucide-react';
 
-// Importação dos Modais do SaaS e Componentes Visuais (Caminhos Corrigidos)
+// Importação dos Modais do SaaS e Componentes Visuais
 import PaywallModal from './components/PaywallModal';
 import SettingsModal from './components/SettingsModal';
 import Logo from './components/Logo';
@@ -34,7 +35,6 @@ const SplashScreen = () => (
     </style>
     <div className="flex flex-col items-center">
       <div className="mb-8 opacity-90 animate-pulse">
-        {/* Aplica um filtro branco caso sua logo em SVG seja originalmente preta */}
         <Logo className="h-8 text-white filter invert brightness-0 saturate-100" />
       </div>
       <div className="w-48 h-1 bg-white/10 rounded-full overflow-hidden relative">
@@ -57,13 +57,12 @@ const ProRoute = ({ children }) => {
   if (isLoadingAuth) return <SplashScreen />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   
-  // Se tentar acessar e não for PRO, chuta de volta para a listagem inicial
   if (plan !== 'pro') return <Navigate to="/" replace />; 
   
   return children;
 };
 
-// Menu de Navegação Global (Cabeçalho Superior + Rodapé Fixo)
+// Menu de Navegação Global
 const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
   const { plan } = useAuth();
   const location = useLocation();
@@ -72,10 +71,7 @@ const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
 
   return (
     <>
-      {/* BARRA SUPERIOR (Logo Centralizada + Ações) */}
       <div className="bg-white border-b-4 border-black px-4 py-3 flex items-center justify-between sticky top-0 z-50 select-none grid grid-cols-3">
-        
-        {/* Lado Esquerdo: Upgrade (Se não for PRO) */}
         <div className="flex items-center justify-start">
           {plan !== 'pro' && (
             <button 
@@ -86,15 +82,11 @@ const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
             </button>
           )}
         </div>
-
-        {/* Centro: Logo Oficial Perfeitamente Centralizada */}
         <div className="flex items-center justify-center">
           <Link to="/" className="flex items-center hover:opacity-70 transition-opacity">
              <Logo className="h-5 text-black" />
           </Link>
         </div>
-        
-        {/* Lado Direito: Menu Hamburger / Perfil */}
         <div className="flex items-center justify-end">
           <button 
             onClick={onOpenSettings} 
@@ -105,14 +97,11 @@ const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
         </div>
       </div>
 
-      {/* BARRA DE RODAPÉ CONSTANTE (Estilo Brutalista Preto) */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t-4 border-black p-3 flex gap-3 z-40 select-none max-w-xl mx-auto sm:rounded-t-2xl sm:border-x-4">
         <Link 
           to="/" 
           className={`flex-1 min-h-[48px] rounded-xl flex items-center justify-center gap-2 text-xs font-black uppercase tracking-widest border-2 border-black transition-all active:scale-95 ${
-            isActive('/') 
-              ? 'bg-black text-white shadow-none translate-y-0.5' 
-              : 'bg-white text-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]'
+            isActive('/') ? 'bg-black text-white shadow-none translate-y-0.5' : 'bg-white text-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]'
           }`}
         >
           <List size={16} /> Setlists
@@ -120,9 +109,7 @@ const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
         <Link 
           to="/songs" 
           className={`flex-1 min-h-[48px] rounded-xl flex items-center justify-center gap-2 text-xs font-black uppercase tracking-widest border-2 border-black transition-all active:scale-95 ${
-            isActive('/songs') 
-              ? 'bg-black text-white shadow-none translate-y-0.5' 
-              : 'bg-white text-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]'
+            isActive('/songs') ? 'bg-black text-white shadow-none translate-y-0.5' : 'bg-white text-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]'
           }`}
         >
           <Music size={16} /> Letras
@@ -135,13 +122,23 @@ const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
 const AuthenticatedApp = () => {
   const { isAuthenticated, plan } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
+  // VERIFICA SE É A PRIMEIRA VEZ E CHAMA O TUTORIAL
+  useEffect(() => {
+    const hasSeen = localStorage.getItem('hasSeenTutorial');
+    if (isAuthenticated && !hasSeen && location.pathname !== '/tutorial') {
+      navigate('/tutorial');
+    }
+  }, [isAuthenticated, location.pathname, navigate]);
+  
   const hideNavigation = 
     location.pathname === '/login' ||
     location.pathname === '/sucesso' ||
+    location.pathname === '/tutorial' || // <--- ESCONDE O MENU NO TUTORIAL
     location.pathname.includes('/play/') || 
     location.pathname.includes('/timecode') ||
     location.pathname.includes('/join-setlist');
@@ -157,6 +154,9 @@ const AuthenticatedApp = () => {
       
       <div className={`w-full ${isAuthenticated && !hideNavigation ? 'pb-24' : ''}`}>
         <Routes>
+          {/* ROTA DO TUTORIAL */}
+          <Route path="/tutorial" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
+
           <Route path="/login" element={<Login />} />
           <Route path="/update-password" element={<UpdatePassword />} />
           <Route path="/sucesso" element={<Success />} />
@@ -169,14 +169,12 @@ const AuthenticatedApp = () => {
           <Route path="/songs" element={<ProtectedRoute><Songs /></ProtectedRoute>} />
           <Route path="/songs/:id" element={<ProtectedRoute><SongEdit /></ProtectedRoute>} />
           
-          {/* ROTA TRANCADA: SÓ ENTRA SE FOR PRO */}
           <Route path="/songs/:id/timecode" element={<ProRoute><TimecodeEditor /></ProRoute>} />
           
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
 
-      {/* Modais Globais do Sistema */}
       <PaywallModal 
         isOpen={isPaywallOpen} 
         onClose={() => setIsPaywallOpen(false)} 
@@ -202,4 +200,3 @@ function App() {
 }
 
 export default App;
-// forçando o git a ver a mudança

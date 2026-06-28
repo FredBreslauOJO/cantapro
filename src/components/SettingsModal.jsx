@@ -1,38 +1,57 @@
 import React, { useState, useEffect } from 'react';
-import { X, LogOut, RefreshCw, Zap, CreditCard } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { X, LogOut, RefreshCw, Zap, CreditCard, Check, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import Logo from './Logo';
 
 export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
+  const navigate = useNavigate();
   const [render, setRender] = useState(isOpen);
   const [animate, setAnimate] = useState(false);
 
   const { user, profile, plan, logout } = useAuth();
   const [name, setName] = useState(profile?.full_name || "");
-  const [saving, setSaving] = useState(false);
+  const [savingStatus, setSavingStatus] = useState('idle'); // 'idle' | 'saving' | 'saved'
 
   // Lógica para sincronizar a animação de montagem e desmontagem do fade
   useEffect(() => {
     if (isOpen) {
       setRender(true);
       setTimeout(() => setAnimate(true), 10);
+      setName(profile?.full_name || ""); // Puxa o nome atualizado sempre que abre
     } else {
       setAnimate(false);
       const timer = setTimeout(() => setRender(false), 300);
       return () => clearTimeout(timer);
     }
-  }, [isOpen]);
+  }, [isOpen, profile]);
 
   if (!render) return null;
 
   const handleSaveName = async () => {
-    setSaving(true);
-    await supabase
+    // Se o nome estiver vazio ou não mudou, não faz nada
+    if (!name || name === profile?.full_name) return;
+    
+    setSavingStatus('saving');
+    
+    // Upsert: Cria a linha se não existir, atualiza se já existir
+    const { error } = await supabase
       .from('profiles')
-      .update({ full_name: name })
-      .eq('id', user.id);
-    setSaving(false);
+      .upsert({ 
+        id: user.id, 
+        full_name: name,
+        updated_at: new Date()
+      });
+
+    if (!error) {
+      setSavingStatus('saved');
+      // Volta ao normal depois de 2 segundos
+      setTimeout(() => setSavingStatus('idle'), 2000);
+    } else {
+      console.error("Erro ao salvar nome:", error);
+      setSavingStatus('idle');
+    }
   };
 
   return (
@@ -65,15 +84,20 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
             <div className="w-14 h-14 bg-black border-2 border-black text-white font-black text-xl rounded-2xl flex items-center justify-center shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] uppercase">
               {name ? name.charAt(0) : user?.email?.charAt(0)}
             </div>
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 relative">
               <input 
                 type="text" 
                 value={name} 
                 onChange={e => setName(e.target.value)}
                 onBlur={handleSaveName}
                 placeholder="SEU NOME / BANDA"
-                className="font-black text-base uppercase bg-transparent outline-none border-b-2 border-transparent focus:border-black w-full placeholder-black/20"
+                className="font-black text-base uppercase bg-transparent outline-none border-b-2 border-transparent focus:border-black w-full placeholder-black/20 pr-6"
               />
+              {/* Feedback Visual de Salvamento */}
+              <div className="absolute right-0 top-1/2 -translate-y-1/2">
+                {savingStatus === 'saving' && <Loader2 size={14} className="animate-spin text-black/20" />}
+                {savingStatus === 'saved' && <Check size={14} className="text-green-500" />}
+              </div>
               <p className="text-xs font-bold text-black/40 truncate mt-0.5">{user?.email}</p>
             </div>
             <span className="px-2 py-1 bg-black/5 border border-black/10 text-[9px] font-black uppercase tracking-widest rounded-md text-black/60">
@@ -107,7 +131,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
             )}
 
             <button 
-              onClick={() => window.location.reload()}
+              onClick={() => { onClose(); navigate('/tutorial'); }}
               className="w-full py-4 border-2 border-black text-black text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-gray-50 transition-all flex items-center justify-center gap-2 active:scale-95"
             >
               <RefreshCw size={14} /> Refazer Tutorial
