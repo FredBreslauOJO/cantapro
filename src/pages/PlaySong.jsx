@@ -58,7 +58,7 @@ export default function PlaySong() {
     window.scrollTo(0, 0);
   }, [currentIndex]);
 
-  // BUSCA DE DADOS (AGORA INCLUINDO SEPARADORES)
+  // BUSCA DE DADOS (CORRIGIDO: 'divider' em vez de 'separator')
   useEffect(() => {
     const loadSetlistAndSongs = async () => {
       setLoading(true);
@@ -76,7 +76,7 @@ export default function PlaySong() {
         // Busca todos os itens ordenados (músicas e separadores)
         const { data: pivotData, error } = await supabase
           .from('setlist_items')
-          .select(`id, item_type, content, order_index, songs ( * )`)
+          .select(`id, item_type, content, performance_notes, order_index, songs ( * )`)
           .eq('setlist_id', id)
           .order('order_index', { ascending: true });
 
@@ -84,17 +84,25 @@ export default function PlaySong() {
 
         if (pivotData) {
           const formattedItems = pivotData.map(item => {
-            // Se for separador, cria uma "música falsa" visual
-            if (item.item_type === 'separator') {
+            // AQUI ESTAVA O BUG: O nome correto salvo no banco é 'divider'
+            if (item.item_type === 'divider') {
+              
+              // Monta o texto do divisor incluindo as notas (se existirem)
+              let dividerText = `\n\n--- PAUSA / AVISO ---\n\n${item.content || 'DIVISOR'}`;
+              if (item.performance_notes) {
+                dividerText += `\n\n[ NOTA: ${item.performance_notes} ]`;
+              }
+              dividerText += `\n\n---------------------\n\n`;
+
               return {
                 id: item.id,
-                title: `[ ${item.content || 'SEPARADOR'} ]`,
+                title: `[ ${item.content || 'DIVISOR'} ]`,
                 isSeparator: true,
-                lyrics_text: `\n\n--- PAUSA NO SHOW ---\n\n${item.content || 'SEPARADOR'}\n\n---------------------\n\n`
+                lyrics_text: dividerText
               };
             } 
             // Se for música real
-            else if (item.songs) {
+            else if (item.item_type === 'song' && item.songs) {
               return item.songs;
             }
             return null;
@@ -263,7 +271,7 @@ export default function PlaySong() {
         </div>
       )}
 
-      {/* Área da Letra - CORRIGIDO: QUEBRA DE LINHA E LARGURA MÁXIMA */}
+      {/* Área da Letra */}
       <div ref={contentRef} className="pt-40 pb-40 px-6 max-w-4xl mx-auto w-full">
         <pre 
           className={`whitespace-pre-wrap break-words font-black uppercase leading-relaxed tracking-tight w-full ${currentSong.isSeparator ? 'text-yellow-400/80 text-center' : 'text-white/90'}`}
