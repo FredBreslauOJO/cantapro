@@ -20,7 +20,6 @@ export default function PlaySong() {
   const scrollIntervalRef = useRef(null);
   const wakeLockRef = useRef(null);
 
-  // WAKE LOCK (TELA LIGADA)
   useEffect(() => {
     const requestWakeLock = async () => {
       try {
@@ -49,7 +48,6 @@ export default function PlaySong() {
     };
   }, []);
 
-  // CONTROLE DE NAVEGAÇÃO INTERNA
   useEffect(() => {
     stopAutoScroll();
     setIsPlaying(false);
@@ -58,7 +56,6 @@ export default function PlaySong() {
     window.scrollTo(0, 0);
   }, [currentIndex]);
 
-  // BUSCA DE DADOS (CORRIGIDO: 'divider' em vez de 'separator')
   useEffect(() => {
     const loadSetlistAndSongs = async () => {
       setLoading(true);
@@ -73,7 +70,6 @@ export default function PlaySong() {
           
         if (setlistData) setSetlistName(setlistData.event_name);
 
-        // Busca todos os itens ordenados (músicas e separadores)
         const { data: pivotData, error } = await supabase
           .from('setlist_items')
           .select(`id, item_type, content, performance_notes, order_index, songs ( * )`)
@@ -84,15 +80,13 @@ export default function PlaySong() {
 
         if (pivotData) {
           const formattedItems = pivotData.map(item => {
-            // AQUI ESTAVA O BUG: O nome correto salvo no banco é 'divider'
             if (item.item_type === 'divider') {
               
-              // Monta o texto do divisor incluindo as notas (se existirem)
-              let dividerText = `\n\n--- PAUSA / AVISO ---\n\n${item.content || 'DIVISOR'}`;
+              // VISUAL LIMPO PARA O DIVISOR
+              let dividerText = `[ ${item.content || 'PAUSA'} ]`;
               if (item.performance_notes) {
-                dividerText += `\n\n[ NOTA: ${item.performance_notes} ]`;
+                dividerText += `\n\n${item.performance_notes}`;
               }
-              dividerText += `\n\n---------------------\n\n`;
 
               return {
                 id: item.id,
@@ -101,12 +95,11 @@ export default function PlaySong() {
                 lyrics_text: dividerText
               };
             } 
-            // Se for música real
             else if (item.item_type === 'song' && item.songs) {
               return item.songs;
             }
             return null;
-          }).filter(Boolean); // Remove nulos
+          }).filter(Boolean);
           
           setSongs(formattedItems);
         }
@@ -274,7 +267,7 @@ export default function PlaySong() {
       {/* Área da Letra */}
       <div ref={contentRef} className="pt-40 pb-40 px-6 max-w-4xl mx-auto w-full">
         <pre 
-          className={`whitespace-pre-wrap break-words font-black uppercase leading-relaxed tracking-tight w-full ${currentSong.isSeparator ? 'text-yellow-400/80 text-center' : 'text-white/90'}`}
+          className={`whitespace-pre-wrap break-words font-black uppercase leading-relaxed tracking-tight w-full flex flex-col justify-center items-center ${currentSong.isSeparator ? 'text-yellow-400 text-center min-h-[40vh]' : 'text-white/90'}`}
           style={{ fontSize: `${fontSize}px`, wordBreak: 'break-word', overflowWrap: 'anywhere' }}
         >
           {songText || (currentSong.isSeparator ? "" : "NENHUMA LETRA CADASTRADA PARA ESTA MÚSICA.")}
@@ -295,7 +288,6 @@ export default function PlaySong() {
           )}
         </div>
         
-        {/* Play escondido se for separador */}
         {!currentSong.isSeparator ? (
           <button onClick={togglePlay} className="w-24 h-14 bg-red-600 text-white rounded-xl flex items-center justify-center hover:bg-red-500 shadow-[0_0_20px_rgba(220,38,38,0.2)] active:scale-95 flex-shrink-0">
             {isPlaying ? <Pause size={26} fill="currentColor" /> : <Play size={26} fill="currentColor" className="ml-1" />}

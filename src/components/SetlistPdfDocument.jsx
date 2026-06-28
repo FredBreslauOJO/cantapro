@@ -1,156 +1,136 @@
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
 
+// Estilos padronizados para o PDF
 const styles = StyleSheet.create({
   page: {
-    padding: 40,
-    backgroundColor: '#ffffff',
+    padding: 30,
     fontFamily: 'Helvetica',
+    backgroundColor: '#ffffff'
   },
   header: {
-    borderBottomWidth: 3,
-    borderBottomColor: '#000000',
-    paddingBottom: 12,
     marginBottom: 20,
+    borderBottomWidth: 4,
+    borderBottomColor: '#000000',
+    paddingBottom: 10,
+  },
+  eventName: {
+    fontSize: 28,
+    fontWeight: 'extrabold',
+    textTransform: 'uppercase',
+    fontFamily: 'Helvetica-Bold',
+  },
+  bandDateRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-end',
-  },
-  headerLeft: {
-    flexDirection: 'column',
-    gap: 2,
-  },
-  title: {
-    fontSize: 22,
-    fontFamily: 'Helvetica-Bold',
-    textTransform: 'uppercase',
+    marginTop: 6,
   },
   subtitle: {
-    fontSize: 11,
-    fontFamily: 'Helvetica-Bold',
-    color: '#555555',
-    textTransform: 'uppercase',
-  },
-  dateText: {
-    fontSize: 10,
-    fontFamily: 'Helvetica-Bold',
+    fontSize: 12,
     color: '#666666',
+    textTransform: 'uppercase',
+    fontFamily: 'Helvetica-Bold',
   },
-  songRow: {
+  // Container Flex para as duas colunas
+  grid: {
     flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e5e5',
-    paddingVertical: 10,
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  // Item de Música (47% de largura para caberem 2 por linha com espaçamento)
+  songItem: {
+    width: '47%',
+    flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eeeeee',
   },
   songIndex: {
-    width: '10%',
-    fontSize: 13,
+    fontSize: 16,
+    color: '#999999',
+    width: 28,
     fontFamily: 'Helvetica-Bold',
-    color: '#aaaaaa',
-    textAlign: 'right',
-    paddingRight: 8,
   },
   songTitle: {
-    width: '75%',
-    fontSize: 14,
-    fontFamily: 'Helvetica-Bold',
+    fontSize: 16,
+    color: '#000000',
     textTransform: 'uppercase',
-    paddingRight: 8,
-  },
-  songDuration: {
-    width: '15%',
-    fontSize: 11,
-    textAlign: 'right',
-    color: '#888888',
-  },
-  divisorRow: {
-    backgroundColor: '#f4f4f4',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    marginTop: 8,
-    marginBottom: 4,
-    borderRadius: 4,
-  },
-  divisorText: {
-    fontSize: 9,
     fontFamily: 'Helvetica-Bold',
-    color: '#666666',
+    flex: 1,
+  },
+  // Divisores de Sessão
+  dividerItem: {
+    width: '47%',
+    marginBottom: 16,
+    paddingBottom: 4,
+    justifyContent: 'center',
+  },
+  dividerText: {
+    fontSize: 12,
+    color: '#000000',
+    backgroundColor: '#eeeeee',
+    padding: 6,
+    textAlign: 'center',
     textTransform: 'uppercase',
-    textAlign: 'center',
-    letterSpacing: 2,
-  },
-  footer: {
-    position: 'absolute',
-    bottom: 25,
-    left: 40,
-    right: 40,
-    fontSize: 9,
-    textAlign: 'center',
-    color: '#aaaaaa',
-    borderTopWidth: 1,
-    borderTopColor: '#e5e5e5',
-    paddingTop: 8,
-  },
+    fontFamily: 'Helvetica-Bold',
+  }
 });
 
-const formatDuration = (seconds) => {
-  if (!seconds) return '';
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${String(s).padStart(2, '0')}`;
+// Função para cortar strings muito longas (limite de caracteres)
+const truncate = (str, max) => {
+  if (!str) return "";
+  return str.length > max ? str.substring(0, max - 2) + ".." : str;
 };
 
-export function SetlistPdfDocument({ eventName, bandName, date, orderedItems, songMap }) {
-  let songNum = 0;
+export const SetlistPdfDocument = ({ eventName, bandName, date, orderedItems, songMap }) => {
+  let songCounter = 1;
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        {/* Header */}
+        
+        {/* Cabeçalho do Evento */}
         <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.title}>{eventName || 'SETLIST'}</Text>
-            {bandName ? <Text style={styles.subtitle}>{bandName}</Text> : null}
-          </View>
-          {date ? (
-            <Text style={styles.dateText}>
-              {new Date(date + 'T12:00:00').toLocaleDateString('pt-BR')}
+          <Text style={styles.eventName}>{eventName || "MEU SETLIST"}</Text>
+          <View style={styles.bandDateRow}>
+            <Text style={styles.subtitle}>{bandName || "Banda / Artista"}</Text>
+            <Text style={styles.subtitle}>
+              {date ? new Date(date + 'T12:00:00').toLocaleDateString('pt-BR') : ""}
             </Text>
-          ) : null}
+          </View>
         </View>
 
-        {/* Items */}
-        {orderedItems.map((item, idx) => {
-          if (item.item_type === 'divider') {
+        {/* Grade de 2 Colunas */}
+        <View style={styles.grid}>
+          {orderedItems.map((item, idx) => {
+            
+            // Renderiza o Divisor
+            if (item.item_type === 'divider') {
+              return (
+                <View key={item.id || idx} style={styles.dividerItem}>
+                  <Text style={styles.dividerText}>{truncate(item.content || "---", 25)}</Text>
+                </View>
+              );
+            }
+
+            // Renderiza a Música Real
+            const song = songMap[item.song_id];
+            const currentIndex = songCounter++;
+            const title = song ? song.title : "Música Deletada";
+
             return (
-              <View key={item.id || idx} style={styles.divisorRow}>
-                <Text style={styles.divisorText}>{item.content || ''}</Text>
+              <View key={item.id || idx} style={styles.songItem}>
+                <Text style={styles.songIndex}>{currentIndex.toString().padStart(2, '0')}</Text>
+                {/* Limita o nome da música a 22 caracteres para não estourar a coluna */}
+                <Text style={styles.songTitle}>{truncate(title, 22)}</Text>
               </View>
             );
-          }
+          })}
+        </View>
 
-          songNum++;
-          const song = songMap[item.song_id];
-          if (!song) return null;
-
-          return (
-            <View key={item.id || idx} style={styles.songRow} wrap={false}>
-              <Text style={styles.songIndex}>{songNum}.</Text>
-              <Text style={styles.songTitle}>{song.title}</Text>
-              <Text style={styles.songDuration}>{formatDuration(song.duration_seconds)}</Text>
-            </View>
-          );
-        })}
-
-        {/* Footer */}
-        <Text
-          style={styles.footer}
-          render={({ pageNumber, totalPages }) =>
-            `Gerado por canta.pro  —  Página ${pageNumber} de ${totalPages}`
-          }
-          fixed
-        />
       </Page>
     </Document>
   );
-}
+};
