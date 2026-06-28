@@ -124,6 +124,43 @@ export default function PlaySong() {
     return Array.isArray(raw) ? raw : [];
   };
 
+  // EXTRATOR PROFUNDO DE TEXTO BLINDADO
+  const extractBlockText = (block) => {
+    if (!block) return "[ BLOCO VAZIO ]";
+    
+    // Se for uma string direta
+    if (typeof block === 'string') {
+      return block.startsWith('BLOCK_') ? "[ BLOCO SEM TEXTO ]" : block;
+    }
+
+    // Busca nas propriedades comuns garantindo que não é um ID
+    const commonKeys = ['text', 'content', 'lyrics', 'line', 'words', 'lyric', 'phrase', 'value'];
+    for (let key of commonKeys) {
+      if (block[key] && typeof block[key] === 'string' && !block[key].startsWith('BLOCK_')) {
+        return block[key];
+      }
+    }
+
+    // Busca profunda: Entra no objeto e pega a MAIOR string que não seja ID
+    let bestString = "";
+    const searchDeep = (obj) => {
+      if (!obj) return;
+      Object.entries(obj).forEach(([k, v]) => {
+        if (typeof v === 'string') {
+          if (v.trim() !== '' && !v.startsWith('BLOCK_') && k !== 'id' && k !== 'type') {
+            if (v.length > bestString.length) bestString = v;
+          }
+        } else if (typeof v === 'object') {
+          searchDeep(v);
+        }
+      });
+    };
+    searchDeep(block);
+
+    return bestString || "[ BLOCO SEM TEXTO ]";
+  };
+
+  // MOTOR DE ROLAGEM INTELIGENTE
   const startAutoScroll = () => {
     const currentSong = songs[currentIndex];
     if (!currentSong) return;
@@ -349,7 +386,7 @@ export default function PlaySong() {
         </div>
       )}
 
-      {/* ÁREA DA LETRA */}
+      {/* ÁREA DA LETRA (Renderização Condicional: Timecode vs Linear) */}
       <div ref={contentRef} className="pt-40 pb-40 px-6 max-w-4xl mx-auto w-full min-h-screen flex flex-col justify-center">
         {hasTimecodes ? (
           <div className="w-full flex flex-col items-center gap-12 pb-[50vh]">
@@ -357,16 +394,7 @@ export default function PlaySong() {
               const isActive = activeBlockIndex === idx;
               
               // O CAÇADOR DE TEXTOS (IGNORANDO O 'ID' e 'BLOCK_')
-              let textContent = tc.text || tc.content || tc.lyrics || tc.line || tc.words || "";
-              if (!textContent) {
-                const found = Object.entries(tc).find(([k, v]) => 
-                  typeof v === 'string' && 
-                  v.trim() !== '' && 
-                  k !== 'id' && 
-                  !v.startsWith('BLOCK_')
-                );
-                textContent = found ? found[1] : "[ BLOCO SEM TEXTO ]";
-              }
+              const textContent = extractBlockText(tc);
               
               return (
                 <div 
