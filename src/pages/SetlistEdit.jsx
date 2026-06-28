@@ -29,7 +29,6 @@ export default function SetlistEdit() {
   const [loading, setLoading] = useState(true);
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   
-  // Sistema de Avisos na Tela (Toasts)
   const [toast, setToast] = useState({ show: false, message: "", type: "success" });
 
   const showToast = (message, type = "success") => {
@@ -50,12 +49,19 @@ export default function SetlistEdit() {
       setDate(sl.date || "");
     }
 
-    const { data: dbItems } = await supabase.from('setlist_items').select('*').eq('setlist_id', id).order('order_index', { ascending: true });
+    // CORREÇÃO: Fazendo o Join com a tabela songs para buscar os dados das músicas compartilhadas
+    const { data: dbItems } = await supabase
+      .from('setlist_items')
+      .select('*, songs(*)')
+      .eq('setlist_id', id)
+      .order('order_index', { ascending: true });
+      
     if (dbItems) {
       setOrderedItems(dbItems);
       setAddedSongIds(new Set(dbItems.filter(i => i.item_type !== "divider").map(i => i.song_id)));
     }
 
+    // Busca a biblioteca pessoal do usuário para a aba de "SELECIONAR"
     const { data: ownSongs } = await supabase.from('songs').select('*').eq('created_by', user.email);
     if (ownSongs) {
       setSongs(ownSongs.sort((a, b) => a.title.localeCompare(b.title)));
@@ -64,7 +70,12 @@ export default function SetlistEdit() {
   };
 
   const loadItems = async () => {
-    const { data: dbItems } = await supabase.from('setlist_items').select('*').eq('setlist_id', id).order('order_index', { ascending: true });
+    const { data: dbItems } = await supabase
+      .from('setlist_items')
+      .select('*, songs(*)')
+      .eq('setlist_id', id)
+      .order('order_index', { ascending: true });
+      
     if (dbItems) {
       setOrderedItems(dbItems);
       setAddedSongIds(new Set(dbItems.filter(i => i.item_type !== "divider").map(i => i.song_id)));
@@ -159,10 +170,7 @@ export default function SetlistEdit() {
     }
     
     const link = `${window.location.origin}/join-setlist/${id}`;
-    
-    // Tenta usar o nome da banda, se não tiver, usa o começo do email do usuário
     const remetente = bandName ? bandName.toUpperCase() : (user?.email?.split('@')[0] || "Um músico");
-    
     const textoCompartilhamento = `${remetente} compartilhou um setlist com você.\n\nAcesse ${link} e adicione ao seu app CANTA.PRO.\n\nCrie sua conta agora e seja a estrela do palco.`;
 
     navigator.clipboard.writeText(textoCompartilhamento).then(() => {
@@ -170,7 +178,6 @@ export default function SetlistEdit() {
     });
   };
 
-  const songCount = orderedItems.filter(i => i.item_type !== "divider").length;
   const songMap = Object.fromEntries(songs.map(s => [s.id, s]));
 
   const filteredSongs = songs.filter(s => {
@@ -191,7 +198,6 @@ export default function SetlistEdit() {
   return (
     <div className="py-4 max-w-2xl mx-auto px-4 relative">
       
-      {/* AVISO GIGANTE (TOAST) */}
       {toast.show && (
         <div className={`fixed top-5 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] border-4 border-black font-black uppercase tracking-widest text-sm text-center animate-fadeIn ${
           toast.type === 'success' ? 'bg-green-400 text-black' : 'bg-yellow-400 text-black'
@@ -208,7 +214,7 @@ export default function SetlistEdit() {
           
           {plan === 'pro' ? (
             <PDFDownloadLink
-              document={<SetlistPdfDocument eventName={eventName} bandName={bandName} date={date} orderedItems={orderedItems} songMap={songMap} />}
+              document={<SetlistPdfDocument eventName={eventName} bandName={bandName} date={date} orderedItems={orderedItems} />}
               fileName={`Setlist_${(eventName || 'setlist').replace(/\s+/g, '_')}.pdf`}
               className="w-11 h-11 flex items-center justify-center text-foreground hover:opacity-60 bg-gray-100 rounded-xl"
             >
@@ -261,7 +267,7 @@ export default function SetlistEdit() {
         <>
           <div className="relative mb-3">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40" />
-            <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="BUSCAR MÚSICA" className="w-full pl-9 pr-4 py-2.5 bg-transparent border-2 border-black/20 rounded-xl text-xs font-bold outline-none" />
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="SUAS MÚSICAS" className="w-full pl-9 pr-4 py-2.5 bg-transparent border-2 border-black/20 rounded-xl text-xs font-bold outline-none" />
           </div>
           <div className="flex items-center justify-between mb-4">
             <button onClick={() => setShowOnlyAdded(!showOnlyAdded)} className="flex items-center gap-2 text-xs font-bold text-foreground">
@@ -299,7 +305,8 @@ export default function SetlistEdit() {
                 <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-2">
                   {orderedItems.map((item, idx) => {
                     const isDivider = item.item_type === "divider";
-                    const song = isDivider ? null : songMap[item.song_id];
+                    // AQUI ESTÁ A MÁGICA: Prioriza os dados da música vindos do banco no Join (item.songs)
+                    const song = isDivider ? null : (item.songs || songMap[item.song_id]);
                     return (
                       <Draggable key={item.id} draggableId={item.id} index={idx}>
                         {(provided, snapshot) => (

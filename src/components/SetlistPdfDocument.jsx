@@ -1,7 +1,6 @@
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
 
-// Estilos padronizados para o PDF
 const styles = StyleSheet.create({
   page: {
     padding: 30,
@@ -31,13 +30,11 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     fontFamily: 'Helvetica-Bold',
   },
-  // Container Flex para as duas colunas
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
   },
-  // Item de Música (47% de largura para caberem 2 por linha com espaçamento)
   songItem: {
     width: '47%',
     flexDirection: 'row',
@@ -60,7 +57,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica-Bold',
     flex: 1,
   },
-  // Divisores de Sessão
   dividerItem: {
     width: '47%',
     marginBottom: 16,
@@ -78,20 +74,18 @@ const styles = StyleSheet.create({
   }
 });
 
-// Função para cortar strings muito longas (limite de caracteres)
 const truncate = (str, max) => {
   if (!str) return "";
   return str.length > max ? str.substring(0, max - 2) + ".." : str;
 };
 
-export const SetlistPdfDocument = ({ eventName, bandName, date, orderedItems, songMap }) => {
+export const SetlistPdfDocument = ({ eventName, bandName, date, orderedItems }) => {
   let songCounter = 1;
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         
-        {/* Cabeçalho do Evento */}
         <View style={styles.header}>
           <Text style={styles.eventName}>{eventName || "MEU SETLIST"}</Text>
           <View style={styles.bandDateRow}>
@@ -102,11 +96,9 @@ export const SetlistPdfDocument = ({ eventName, bandName, date, orderedItems, so
           </View>
         </View>
 
-        {/* Grade de 2 Colunas */}
         <View style={styles.grid}>
           {orderedItems.map((item, idx) => {
             
-            // Renderiza o Divisor
             if (item.item_type === 'divider') {
               return (
                 <View key={item.id || idx} style={styles.dividerItem}>
@@ -115,15 +107,14 @@ export const SetlistPdfDocument = ({ eventName, bandName, date, orderedItems, so
               );
             }
 
-            // Renderiza a Música Real
-            const song = songMap[item.song_id];
+            // CORREÇÃO AQUI: Usa a música que veio junto do Join no banco de dados
+            const song = item.songs;
             const currentIndex = songCounter++;
             const title = song ? song.title : "Música Deletada";
 
             return (
               <View key={item.id || idx} style={styles.songItem}>
                 <Text style={styles.songIndex}>{currentIndex.toString().padStart(2, '0')}</Text>
-                {/* Limita o nome da música a 22 caracteres para não estourar a coluna */}
                 <Text style={styles.songTitle}>{truncate(title, 22)}</Text>
               </View>
             );
