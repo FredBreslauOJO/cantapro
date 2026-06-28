@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
-import { ArrowLeft, Plus, Minus, GripVertical, Trash2, Search, ToggleLeft, ToggleRight, Share2, Printer, SplitSquareVertical, Pencil, Check } from "lucide-react";
+import { ArrowLeft, Plus, Minus, GripVertical, Trash2, Search, ToggleLeft, ToggleRight, Share2, Printer, SplitSquareVertical, Pencil, Check, Users, LogOut } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/AuthContext";
 import { PDFDownloadLink } from '@react-pdf/renderer';
@@ -28,6 +28,7 @@ export default function SetlistEdit() {
   const [editingNotesId, setEditingNotesId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
+  const [isOwner, setIsOwner] = useState(true); // NOVO: Flag de Dono vs Convidado
   
   const [toast, setToast] = useState({ show: false, message: "", type: "success" });
 
@@ -47,9 +48,9 @@ export default function SetlistEdit() {
       setEventName(sl.event_name || "");
       setBandName(sl.band_name || "");
       setDate(sl.date || "");
+      setIsOwner(sl.created_by === user.email); // Define quem manda
     }
 
-    // CORREÇÃO: Fazendo o Join com a tabela songs para buscar os dados das músicas compartilhadas
     const { data: dbItems } = await supabase
       .from('setlist_items')
       .select('*, songs(*)')
@@ -61,7 +62,6 @@ export default function SetlistEdit() {
       setAddedSongIds(new Set(dbItems.filter(i => i.item_type !== "divider").map(i => i.song_id)));
     }
 
-    // Busca a biblioteca pessoal do usuário para a aba de "SELECIONAR"
     const { data: ownSongs } = await supabase.from('songs').select('*').eq('created_by', user.email);
     if (ownSongs) {
       setSongs(ownSongs.sort((a, b) => a.title.localeCompare(b.title)));
@@ -91,17 +91,11 @@ export default function SetlistEdit() {
       setIsPaywallOpen(true);
       return;
     }
-
     const existingItem = orderedItems.find(i => i.song_id === songId && i.item_type !== "divider");
     if (existingItem) {
       await supabase.from('setlist_items').delete().eq('id', existingItem.id);
     } else {
-      await supabase.from('setlist_items').insert([{
-        setlist_id: id,
-        song_id: songId,
-        order_index: orderedItems.length,
-        item_type: "song"
-      }]);
+      await supabase.from('setlist_items').insert([{ setlist_id: id, song_id: songId, order_index: orderedItems.length, item_type: "song" }]);
     }
     loadItems();
   };
@@ -111,13 +105,7 @@ export default function SetlistEdit() {
       setIsPaywallOpen(true);
       return;
     }
-
-    await supabase.from('setlist_items').insert([{
-      setlist_id: id,
-      order_index: orderedItems.length,
-      item_type: "divider",
-      content: "NOVA SESSÃO"
-    }]);
+    await supabase.from('setlist_items').insert([{ setlist_id: id, order_index: orderedItems.length, item_type: "divider", content: "NOVA SESSÃO" }]);
     loadItems();
   };
 
@@ -157,9 +145,15 @@ export default function SetlistEdit() {
     }
   };
 
-  const handleDelete = async () => {
-    if (!window.confirm("Remover este setlist definitivamente?")) return;
-    await supabase.from('setlists').delete().eq('id', id);
+  // NOVA LÓGICA DE DELETAR (DONO = DELETA TUDO | CONVIDADO = SÓ SAI DA LISTA)
+  const handleDeleteOrLeave = async () => {
+    if (isOwner) {
+      if (!window.confirm("Atenção: Você é o dono. Remover este setlist apagará ele para todos os convidados também. Continuar?")) return;
+      await supabase.from('setlists').delete().eq('id', id);
+    } else {
+      if (!window.confirm("Sair deste setlist compartilhado? Ele não será apagado para o criador original.")) return;
+      await supabase.from('setlist_members').delete().match({ setlist_id: id, member_email: user.email });
+    }
     navigate("/");
   };
 
@@ -168,7 +162,6 @@ export default function SetlistEdit() {
       setIsPaywallOpen(true);
       return;
     }
-    
     const link = `${window.location.origin}/join-setlist/${id}`;
     const remetente = bandName ? bandName.toUpperCase() : (user?.email?.split('@')[0] || "Um músico");
     const textoCompartilhamento = `${remetente} compartilhou um setlist com você.\n\nAcesse ${link} e adicione ao seu app CANTA.PRO.\n\nCrie sua conta agora e seja a estrela do palco.`;
@@ -206,6 +199,13 @@ export default function SetlistEdit() {
         </div>
       )}
 
+      {/* AVISO DE COMPARTILHADO NO TOPO */}
+      {!isOwner && (
+        <div className="mb-4 bg-green-100 border border-green-300 text-green-800 text-xs font-black uppercase tracking-widest p-3 rounded-xl flex items-center justify-center gap-2">
+          <Users size={16} /> Setlist Compartilhado com você
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-4">
         <button onClick={() => navigate("/")} className="w-12 h-12 flex items-center justify-center -ml-3 text-foreground hover:opacity-60 active:scale-95 transition-all">
           <ArrowLeft size={22} className="pointer-events-none" />
@@ -237,8 +237,9 @@ export default function SetlistEdit() {
             <Share2 size={20} className="pointer-events-none" />
           </button>
           
-          <button onClick={handleDelete} className="w-11 h-11 flex items-center justify-center text-red-400 hover:bg-red-50 rounded-xl">
-            <Trash2 size={20} className="pointer-events-none" />
+          {/* BOTÃO INTELIGENTE: DELETA OU SÓ SAI DA LISTA */}
+          <button onClick={handleDeleteOrLeave} className={`w-11 h-11 flex items-center justify-center rounded-xl ${isOwner ? 'text-red-400 hover:bg-red-50' : 'text-gray-400 hover:bg-gray-100'}`}>
+            {isOwner ? <Trash2 size={20} className="pointer-events-none" /> : <LogOut size={20} className="pointer-events-none" />}
           </button>
         </div>
       </div>
@@ -246,15 +247,15 @@ export default function SetlistEdit() {
       <div className="mb-5 space-y-2">
         <input
           type="text" value={eventName} onChange={e => setEventName(e.target.value)} onBlur={e => handleUpdateField('event_name', e.target.value)}
-          placeholder="NOME DO EVENTO" className="w-full text-xl font-black uppercase tracking-tight bg-transparent border-b-4 border-black py-1 outline-none"
+          placeholder="NOME DO EVENTO" disabled={!isOwner} className={`w-full text-xl font-black uppercase tracking-tight bg-transparent border-b-4 py-1 outline-none ${isOwner ? 'border-black' : 'border-black/20 text-black/50'}`}
         />
         <input
           type="text" value={bandName} onChange={e => setBandName(e.target.value)} onBlur={e => handleUpdateField('band_name', e.target.value)}
-          placeholder="Nome da Banda" className="w-full text-sm font-bold uppercase tracking-widest bg-transparent border-b-2 border-black/30 py-1 outline-none"
+          placeholder="Nome da Banda" disabled={!isOwner} className={`w-full text-sm font-bold uppercase tracking-widest bg-transparent border-b-2 py-1 outline-none ${isOwner ? 'border-black/30' : 'border-black/10 text-black/40'}`}
         />
         <input
           type="date" value={date} onChange={e => { setDate(e.target.value); handleUpdateField('date', e.target.value); }}
-          className="text-xs font-bold text-black/50 bg-transparent border-b-2 border-black/20 py-1 outline-none"
+          disabled={!isOwner} className={`text-xs font-bold bg-transparent border-b-2 py-1 outline-none ${isOwner ? 'text-black/50 border-black/20' : 'text-black/30 border-black/10'}`}
         />
       </div>
 
@@ -305,7 +306,6 @@ export default function SetlistEdit() {
                 <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-2">
                   {orderedItems.map((item, idx) => {
                     const isDivider = item.item_type === "divider";
-                    // AQUI ESTÁ A MÁGICA: Prioriza os dados da música vindos do banco no Join (item.songs)
                     const song = isDivider ? null : (item.songs || songMap[item.song_id]);
                     return (
                       <Draggable key={item.id} draggableId={item.id} index={idx}>
@@ -318,10 +318,7 @@ export default function SetlistEdit() {
                                 <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                      <button
                                        onClick={() => {
-                                         if (plan === 'free') {
-                                           setIsPaywallOpen(true);
-                                           return;
-                                         }
+                                         if (plan === 'free') { setIsPaywallOpen(true); return; }
                                          if (editingNotesId === item.id) {
                                            commitNotes(item.id, item.performance_notes || "");
                                            setEditingNotesId(null);

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Settings, Play, Archive, ArchiveRestore } from "lucide-react";
+import { Plus, Settings, Play, Archive, ArchiveRestore, Users } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/AuthContext";
 import PaywallModal from "../components/PaywallModal";
@@ -27,7 +27,6 @@ export default function Setlists() {
   const handleCreateNew = async () => {
     const currentPlan = plan || 'free';
 
-    // GUARDA-COSTAS: Se for Free e já tiver 1 ou mais setlists, bloqueia!
     if (currentPlan === 'free' && setlists.length >= 1) {
       setIsPaywallOpen(true);
       return;
@@ -55,13 +54,31 @@ export default function Setlists() {
   const loadSetlists = async () => {
     setLoading(true);
     try {
-      const { data: ownSetlists, error } = await supabase
-        .from('setlists')
-        .select('*')
-        .eq('created_by', user.email);
+      // 1. Busca os IDs dos setlists que o usuário foi convidado
+      const { data: memberData } = await supabase
+        .from('setlist_members')
+        .select('setlist_id')
+        .eq('member_email', user.email);
 
-      if (!error && ownSetlists) {
-        const enriched = ownSetlists.map(sl => ({ ...sl, songCount: 0, totalDurationSeconds: 0 }));
+      const sharedIds = memberData ? memberData.map(m => m.setlist_id) : [];
+
+      // 2. Busca todos os setlists (Meus OU Compartilhados Comigo)
+      let query = supabase.from('setlists').select('*');
+      if (sharedIds.length > 0) {
+        query = query.or(`created_by.eq.${user.email},id.in.(${sharedIds.join(',')})`);
+      } else {
+        query = query.eq('created_by', user.email);
+      }
+
+      const { data: allSetlists, error } = await query;
+
+      if (!error && allSetlists) {
+        const enriched = allSetlists.map(sl => ({ 
+          ...sl, 
+          songCount: 0, 
+          totalDurationSeconds: 0,
+          isShared: sl.created_by !== user.email // Descobre se é de fora
+        }));
         setSetlists(enriched);
       }
     } catch (err) {
@@ -75,7 +92,6 @@ export default function Setlists() {
     e.stopPropagation();
     const newStatus = !currentStatus;
     
-    // Atualização otimista na tela (parece instantâneo pro usuário)
     setSetlists(prev => prev.map(sl => sl.id === id ? { ...sl, archived: newStatus } : sl));
 
     const { error } = await supabase
@@ -85,11 +101,10 @@ export default function Setlists() {
 
     if (error) {
       console.error("Erro ao arquivar:", error);
-      loadSetlists(); // Reverte se der erro no banco
+      loadSetlists();
     }
   };
 
-  // Filtra a lista com base na aba selecionada (Ativos vs Arquivados)
   const visibleSetlists = setlists.filter(sl => showArchived ? sl.archived === true : !sl.archived);
 
   const SetlistCard = ({ sl }) => (
@@ -115,18 +130,28 @@ export default function Setlists() {
         <p className="font-black text-sm uppercase tracking-tight text-black leading-tight line-clamp-2 flex items-start gap-1.5 pr-24">
           {sl.event_name}
         </p>
-        {sl.band_name && <p className="text-[10px] font-bold uppercase tracking-widest text-black/50 truncate mt-0.5">{sl.band_name}</p>}
+        
+        {/* SELO DE COMPARTILHADO AQUI */}
+        {sl.isShared ? (
+          <div className="flex items-center gap-1 mt-1">
+            <span className="bg-green-100 text-green-700 border border-green-200 text-[8px] px-1.5 py-0.5 rounded uppercase font-black tracking-widest flex items-center gap-1 w-fit">
+              <Users size={10} /> Compartilhado
+            </span>
+          </div>
+        ) : (
+          sl.band_name && <p className="text-[10px] font-bold uppercase tracking-widest text-black/50 truncate mt-0.5">{sl.band_name}</p>
+        )}
       </button>
 
       <div className="mt-3">
-        {sl.date && (
+        {sl.date && !sl.isShared && (
           <span className="text-[10px] font-black text-black border border-black px-2 py-0.5 rounded-md block w-fit mb-2">
             {new Date(sl.date + 'T12:00:00').toLocaleDateString('pt-BR')}
           </span>
         )}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mt-2">
           <span className="text-[9px] text-black/50 font-bold uppercase tracking-widest">
-            {sl.songCount || 0} • {formatTotalDuration(sl.totalDurationSeconds)}
+            {sl.songCount || 0} MÚSICAS
           </span>
           <button
             onClick={(e) => { e.stopPropagation(); navigate(`/setlists/${sl.id}/play/0`); }}
@@ -155,7 +180,6 @@ export default function Setlists() {
 
       <div className="border-b border-gray-200 mb-5 mt-3" />
 
-      {/* ABAS ATIVOS / ARQUIVADOS */}
       <div className="flex gap-1 mb-6 bg-gray-100 rounded-xl p-1 w-full max-w-[240px]">
         <button
           onClick={() => setShowArchived(false)}
@@ -178,7 +202,7 @@ export default function Setlists() {
       ) : visibleSetlists.length === 0 ? (
         <div className="text-center py-16">
           <p className="text-gray-400 text-sm font-bold uppercase tracking-widest mb-4">
-            {showArchived ? "Nenhum setlist arquivado." : "Nenhum setlist ativo."}
+            {showArchived ? "Nenhum setlist arquivado." : "Nenhum setlist encontrado."}
           </p>
           {!showArchived && (
             <button onClick={handleCreateNew} className="px-6 py-4 bg-black text-white text-xs font-black tracking-widest uppercase rounded-xl hover:opacity-80 transition-opacity active:scale-95">
