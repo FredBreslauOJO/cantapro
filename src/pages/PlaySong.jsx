@@ -124,7 +124,6 @@ export default function PlaySong() {
     const currentSong = songs[currentIndex];
     if (!currentSong) return;
 
-    // Detecta os blocos de timecode (Trata diferentes nomenclaturas que você possa ter usado no banco)
     const timecodes = currentSong.timecodes || currentSong.blocks || currentSong.timecode_blocks || [];
     const hasTimecodes = Array.isArray(timecodes) && timecodes.length > 0;
 
@@ -143,17 +142,14 @@ export default function PlaySong() {
       // ========================================================
       if (hasTimecodes) {
         
-        // Acha qual bloco deveria estar tocando neste exato milissegundo
         const currentBlockIdx = timecodes.findIndex(tc => {
           const startMs = (tc.start_time ?? tc.startTime ?? tc.start ?? 0) * 1000;
           const endMs = (tc.end_time ?? tc.endTime ?? tc.end ?? 0) * 1000;
           return elapsed >= startMs && elapsed <= endMs;
         });
 
-        // Atualiza a tela APENAS se o bloco mudou (Performance)
         setActiveIndex(prev => prev !== currentBlockIdx ? currentBlockIdx : prev);
 
-        // Se houver um bloco ativo na tela, faz o Scroll cravado no tempo dele
         if (currentBlockIdx !== -1) {
           const blockElement = document.getElementById(`block-${currentBlockIdx}`);
           if (blockElement) {
@@ -163,7 +159,6 @@ export default function PlaySong() {
             const duration = endMs - startMs;
             const progress = duration > 0 ? (elapsed - startMs) / duration : 0;
             
-            // Matemática: O topo do bloco começa no centro, e o final do bloco termina no centro.
             const blockTop = blockElement.offsetTop;
             const blockHeight = blockElement.offsetHeight;
             const viewportHeight = window.innerHeight;
@@ -171,14 +166,11 @@ export default function PlaySong() {
             const alignTop = blockTop - (viewportHeight / 2);
             const alignBottom = (blockTop + blockHeight) - (viewportHeight / 2);
             
-            // Interpola a rolagem exatamente dentro daquele bloco
             const targetY = alignTop + ((alignBottom - alignTop) * progress);
             window.scrollTo(0, targetY);
           }
         }
-        // *Nota: Se currentBlockIdx for -1 (Buraco/Pausa), ele não roda o scrollTo, a tela fica cravada aguardando.*
 
-        // Descobre se a música inteira já acabou
         const lastBlock = timecodes[timecodes.length - 1];
         const maxTimeMs = (lastBlock.end_time ?? lastBlock.endTime ?? lastBlock.end ?? 0) * 1000;
         
@@ -195,7 +187,7 @@ export default function PlaySong() {
       // ========================================================
       else {
         const durationSec = currentSong.duration_seconds || 0;
-        const durationMs = durationSec > 0 ? durationSec * 1000 : 30000; // 30s de segurança se for zero
+        const durationMs = durationSec > 0 ? durationSec * 1000 : 30000; 
         
         const startScrollY = 0;
         const totalHeight = document.documentElement.scrollHeight;
@@ -358,8 +350,9 @@ export default function PlaySong() {
         {hasTimecodes ? (
           <div className="w-full flex flex-col items-center gap-12 pb-[50vh]">
             {timecodes.map((tc, idx) => {
-              const isActive = activeIndex === idx;
-              // Ajusta a nomenclatura da propriedade texto caso varie no banco
+              // CORREÇÃO: Usando a variável com o nome correto: activeBlockIndex
+              const isActive = activeBlockIndex === idx;
+              
               const textContent = tc.text || tc.content || tc.lyrics || "";
               
               return (
