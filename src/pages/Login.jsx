@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import Logo from '../components/Logo';
+import TermsOfServiceModal from '../components/TermsOfServiceModal'; // <--- IMPORT NOVO
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -11,11 +12,11 @@ export default function Login() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [mode, setMode] = useState('login'); 
+  const [isTermsOpen, setIsTermsOpen] = useState(false); // <--- ESTADO NOVO
   
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
 
-  // Se o estado de autenticação mudar para verdadeiro, tira o usuário da tela de login imediatamente
   useEffect(() => {
     if (isAuthenticated) {
       navigate('/', { replace: true });
@@ -50,7 +51,6 @@ export default function Login() {
           throw error;
         }
         
-        // Força a navegação imediata após o sucesso
         if (data?.user) {
           navigate('/', { replace: true });
         }
@@ -149,7 +149,12 @@ export default function Login() {
           </button>
         </form>
 
-        <div className="mt-8 text-center border-t-2 border-gray-100 pt-6">
+        {/* TEXTO LEGAL INJETADO AQUI */}
+        <p className="text-[10px] text-center text-gray-500 mt-6 font-bold uppercase tracking-wide px-4 leading-relaxed">
+          Ao continuar você confirma que leu e aceita os <button type="button" onClick={() => setIsTermsOpen(true)} className="text-black underline hover:text-gray-600 transition-colors">termos de serviço</button> do aplicativo.
+        </p>
+
+        <div className="mt-6 text-center border-t-2 border-gray-100 pt-6">
           {mode === 'login' ? (
             <button onClick={() => { setMode('signup'); setError(''); setMessage(''); }} className="text-[10px] font-black text-gray-400 hover:text-black uppercase tracking-widest transition-colors">
               Não tem conta? Cadastre-se.
@@ -162,6 +167,9 @@ export default function Login() {
         </div>
 
       </div>
+
+      {/* RENDERIZA O MODAL DOS TERMOS */}
+      <TermsOfServiceModal isOpen={isTermsOpen} onClose={() => setIsTermsOpen(false)} />
     </div>
   );
 }

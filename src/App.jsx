@@ -10,14 +10,15 @@ import SongEdit from './pages/SongEdit';
 import PlaySong from './pages/PlaySong';
 import TimecodeEditor from './pages/TimecodeEditor';
 import JoinSetlist from './pages/JoinSetlist';
-import Onboarding from './pages/Onboarding'; // <--- NOVA TELA DE TUTORIAL
+import Onboarding from './pages/Onboarding'; 
 import { Music, List, Menu, Zap } from 'lucide-react';
 
-// Importação dos Modais do SaaS e Componentes Visuais
+// Importação dos Modais e Componentes Visuais
 import PaywallModal from './components/PaywallModal';
 import SettingsModal from './components/SettingsModal';
 import Logo from './components/Logo';
 import Success from './pages/Success';
+import ForceTerms, { CURRENT_TERMS_VERSION } from './components/ForceTerms'; // <--- IMPORT NOVO
 
 // TELA DE CARREGAMENTO IMPONENTE (SPLASH SCREEN)
 const SplashScreen = () => (
@@ -56,9 +57,7 @@ const ProRoute = ({ children }) => {
   const { isAuthenticated, isLoadingAuth, plan } = useAuth();
   if (isLoadingAuth) return <SplashScreen />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  
   if (plan !== 'pro') return <Navigate to="/" replace />; 
-  
   return children;
 };
 
@@ -66,7 +65,6 @@ const ProRoute = ({ children }) => {
 const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
   const { plan } = useAuth();
   const location = useLocation();
-
   const isActive = (path) => location.pathname === path;
 
   return (
@@ -120,12 +118,13 @@ const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
 };
 
 const AuthenticatedApp = () => {
-  const { isAuthenticated, plan } = useAuth();
+  const { isAuthenticated, plan, profile, user } = useAuth(); // <--- PROFILE E USER ADICIONADOS
   const location = useLocation();
   const navigate = useNavigate();
 
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [hasAcceptedTerms, setHasAcceptedTerms] = useState(true); // <--- ESTADO NOVO
   
   // VERIFICA SE É A PRIMEIRA VEZ E CHAMA O TUTORIAL
   useEffect(() => {
@@ -134,14 +133,28 @@ const AuthenticatedApp = () => {
       navigate('/tutorial');
     }
   }, [isAuthenticated, location.pathname, navigate]);
+
+  // VERIFICA SE O USUÁRIO ACEITOU A VERSÃO MAIS RECENTE DOS TERMOS
+  useEffect(() => {
+    if (isAuthenticated && profile && profile.accepted_terms_version !== CURRENT_TERMS_VERSION) {
+      setHasAcceptedTerms(false);
+    } else {
+      setHasAcceptedTerms(true);
+    }
+  }, [isAuthenticated, profile]);
   
   const hideNavigation = 
     location.pathname === '/login' ||
     location.pathname === '/sucesso' ||
-    location.pathname === '/tutorial' || // <--- ESCONDE O MENU NO TUTORIAL
+    location.pathname === '/tutorial' || 
     location.pathname.includes('/play/') || 
     location.pathname.includes('/timecode') ||
     location.pathname.includes('/join-setlist');
+
+  // TRAVA A TELA SE OS TERMOS NÃO FORAM ACEITOS AINDA
+  if (!hasAcceptedTerms) {
+    return <ForceTerms user={user} onAccepted={() => setHasAcceptedTerms(true)} />;
+  }
 
   return (
     <>
@@ -154,9 +167,7 @@ const AuthenticatedApp = () => {
       
       <div className={`w-full ${isAuthenticated && !hideNavigation ? 'pb-24' : ''}`}>
         <Routes>
-          {/* ROTA DO TUTORIAL */}
           <Route path="/tutorial" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
-
           <Route path="/login" element={<Login />} />
           <Route path="/update-password" element={<UpdatePassword />} />
           <Route path="/sucesso" element={<Success />} />
@@ -168,23 +179,13 @@ const AuthenticatedApp = () => {
           
           <Route path="/songs" element={<ProtectedRoute><Songs /></ProtectedRoute>} />
           <Route path="/songs/:id" element={<ProtectedRoute><SongEdit /></ProtectedRoute>} />
-          
           <Route path="/songs/:id/timecode" element={<ProRoute><TimecodeEditor /></ProRoute>} />
-          
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
 
-      <PaywallModal 
-        isOpen={isPaywallOpen} 
-        onClose={() => setIsPaywallOpen(false)} 
-        currentPlan={plan}
-      />
-      <SettingsModal 
-        isOpen={isSettingsOpen} 
-        onClose={() => setIsSettingsOpen(false)} 
-        onOpenPaywall={() => setIsPaywallOpen(true)}
-      />
+      <PaywallModal isOpen={isPaywallOpen} onClose={() => setIsPaywallOpen(false)} currentPlan={plan} />
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} onOpenPaywall={() => setIsPaywallOpen(true)} />
     </>
   );
 };
