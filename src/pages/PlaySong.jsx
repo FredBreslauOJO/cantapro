@@ -14,7 +14,9 @@ export default function PlaySong() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSetlistOpen, setIsSetlistOpen] = useState(false);
   
-  // 1. FONTE PERSISTENTE (Salva e lê do LocalStorage, Padrão: 24)
+  // Controle do Bloco Ativo do Timecode
+  const [activeBlockIndex, setActiveIndex] = useState(-1);
+  
   const [fontSize, setFontSize] = useState(() => {
     const savedSize = localStorage.getItem('cantapro_fontSize');
     return savedSize ? parseInt(savedSize, 10) : 24;
@@ -22,10 +24,17 @@ export default function PlaySong() {
   
   const currentIndex = parseInt(songIndex, 10) || 0;
   const contentRef = useRef(null);
-  const scrollIntervalRef = useRef(null);
   const wakeLockRef = useRef(null);
 
-  // WAKE LOCK (TELA LIGADA)
+  // Motor de Reprodução (Mantém o estado mesmo sem re-renderizar o React inteiro)
+  const playbackRef = useRef({
+    playing: false,
+    startTime: 0,
+    elapsed: 0,
+    animationId: null
+  });
+
+  // WAKE LOCK (TELA LIGADA NO SHOW)
   useEffect(() => {
     const requestWakeLock = async () => {
       try {
@@ -33,15 +42,11 @@ export default function PlaySong() {
           wakeLockRef.current = await navigator.wakeLock.request('screen');
         }
       } catch (err) {
-        console.warn(`⚠️ Wake Lock ignorado pelo navegador: ${err.message}`);
+        console.warn(`Wake Lock ignorado: ${err.message}`);
       }
     };
-
     requestWakeLock();
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') requestWakeLock();
-    };
+    const handleVisibilityChange = () => { if (document.visibilityState === 'visible') requestWakeLock(); };
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
@@ -54,54 +59,38 @@ export default function PlaySong() {
     };
   }, []);
 
-  // CONTROLE DE NAVEGAÇÃO INTERNA
+  // ZERA TUDO QUANDO TROCA DE MÚSICA
   useEffect(() => {
     stopAutoScroll();
+    playbackRef.current = { playing: false, startTime: 0, elapsed: 0, animationId: null };
+    setActiveIndex(-1);
     setIsPlaying(false);
     setIsMenuOpen(false);
     setIsSetlistOpen(false);
     window.scrollTo(0, 0);
   }, [currentIndex]);
 
-  // BUSCA DE DADOS
+  // BUSCA DADOS DO BANCO
   useEffect(() => {
     const loadSetlistAndSongs = async () => {
       setLoading(true);
       try {
-        if (!id) throw new Error("ID do setlist não encontrado.");
-
-        const { data: setlistData } = await supabase
-          .from('setlists')
-          .select('event_name')
-          .eq('id', id)
-          .maybeSingle();
-          
+        if (!id) return;
+        const { data: setlistData } = await supabase.from('setlists').select('event_name').eq('id', id).maybeSingle();
         if (setlistData) setSetlistName(setlistData.event_name);
 
-        const { data: pivotData, error } = await supabase
+        const { data: pivotData } = await supabase
           .from('setlist_items')
           .select(`id, item_type, content, performance_notes, order_index, songs ( * )`)
           .eq('setlist_id', id)
           .order('order_index', { ascending: true });
 
-        if (error) throw error;
-
         if (pivotData) {
           const formattedItems = pivotData.map(item => {
             if (item.item_type === 'divider') {
-              
-              // 2. FIM DOS COLCHETES: VISUAL LIMPO PARA O DIVISOR
               let dividerText = item.content || 'PAUSA';
-              if (item.performance_notes) {
-                dividerText += `\n\n${item.performance_notes}`;
-              }
-
-              return {
-                id: item.id,
-                title: item.content || 'DIVISOR',
-                isSeparator: true,
-                lyrics_text: dividerText
-              };
+              if (item.performance_notes) dividerText += `\n\n${item.performance_notes}`;
+              return { id: item.id, title: item.content || 'DIVISOR', isSeparator: true, lyrics_text: dividerText };
             } 
             else if (item.item_type === 'song' && item.songs) {
               return item.songs;
@@ -112,12 +101,11 @@ export default function PlaySong() {
           setSongs(formattedItems);
         }
       } catch (error) {
-        console.error("🚨 Erro ao carregar o modo performance:", error);
+        console.error("Erro no performance mode:", error);
       } finally {
         setLoading(false);
       }
     };
-
     loadSetlistAndSongs();
   }, [id]);
 
@@ -131,49 +119,114 @@ export default function PlaySong() {
     }
   };
 
-  // 3. ROLAGEM INTELIGENTE ABSOLUTA (Blindada contra frações de pixel)
+  // MOTOR DE ROLAGEM INTELIGENTE
   const startAutoScroll = () => {
     const currentSong = songs[currentIndex];
-    const durationSec = currentSong?.duration_seconds || 0;
-    
-    // Padrão de 30 segundos se a música estiver com o tempo zerado
-    const durationMs = durationSec > 0 ? durationSec * 1000 : 30000; 
+    if (!currentSong) return;
 
-    // Posicionamento inicial
-    const startScrollY = window.scrollY;
-    const totalHeight = document.documentElement.scrollHeight;
-    const viewportHeight = window.innerHeight;
-    
-    // O quanto falta rolar até o fim da página
-    const distanceToScroll = totalHeight - viewportHeight - startScrollY;
+    // Detecta os blocos de timecode (Trata diferentes nomenclaturas que você possa ter usado no banco)
+    const timecodes = currentSong.timecodes || currentSong.blocks || currentSong.timecode_blocks || [];
+    const hasTimecodes = Array.isArray(timecodes) && timecodes.length > 0;
 
-    // Se já estiver no fim ou não tiver rolagem, não faz nada
-    if (distanceToScroll <= 0) return;
+    playbackRef.current.playing = true;
+    playbackRef.current.startTime = Date.now() - playbackRef.current.elapsed;
 
-    const startTime = Date.now();
-    const intervalMs = 50; // Roda a cada 50ms para suavidade
+    const loop = () => {
+      if (!playbackRef.current.playing) return;
+      
+      const now = Date.now();
+      const elapsed = now - playbackRef.current.startTime;
+      playbackRef.current.elapsed = elapsed;
 
-    scrollIntervalRef.current = setInterval(() => {
-        const elapsed = Date.now() - startTime;
-        let progressPercent = elapsed / durationMs;
+      // ========================================================
+      // MODO 1: MÚSICA TEM BLOCOS DE TIMECODE CUSTOMIZADOS
+      // ========================================================
+      if (hasTimecodes) {
         
-        // Garante que não passe de 100%
-        if (progressPercent > 1) progressPercent = 1;
+        // Acha qual bloco deveria estar tocando neste exato milissegundo
+        const currentBlockIdx = timecodes.findIndex(tc => {
+          const startMs = (tc.start_time ?? tc.startTime ?? tc.start ?? 0) * 1000;
+          const endMs = (tc.end_time ?? tc.endTime ?? tc.end ?? 0) * 1000;
+          return elapsed >= startMs && elapsed <= endMs;
+        });
 
-        // Define a posição exata (absoluta) que a tela deve estar neste momento
-        const nextScrollY = startScrollY + (distanceToScroll * progressPercent);
-        window.scrollTo(0, nextScrollY);
+        // Atualiza a tela APENAS se o bloco mudou (Performance)
+        setActiveIndex(prev => prev !== currentBlockIdx ? currentBlockIdx : prev);
 
-        // Para se atingir o tempo ou se chegar fisicamente no fim do scroll
-        if (progressPercent === 1 || Math.ceil(window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight) {
+        // Se houver um bloco ativo na tela, faz o Scroll cravado no tempo dele
+        if (currentBlockIdx !== -1) {
+          const blockElement = document.getElementById(`block-${currentBlockIdx}`);
+          if (blockElement) {
+            const tc = timecodes[currentBlockIdx];
+            const startMs = (tc.start_time ?? tc.startTime ?? tc.start ?? 0) * 1000;
+            const endMs = (tc.end_time ?? tc.endTime ?? tc.end ?? 0) * 1000;
+            const duration = endMs - startMs;
+            const progress = duration > 0 ? (elapsed - startMs) / duration : 0;
+            
+            // Matemática: O topo do bloco começa no centro, e o final do bloco termina no centro.
+            const blockTop = blockElement.offsetTop;
+            const blockHeight = blockElement.offsetHeight;
+            const viewportHeight = window.innerHeight;
+            
+            const alignTop = blockTop - (viewportHeight / 2);
+            const alignBottom = (blockTop + blockHeight) - (viewportHeight / 2);
+            
+            // Interpola a rolagem exatamente dentro daquele bloco
+            const targetY = alignTop + ((alignBottom - alignTop) * progress);
+            window.scrollTo(0, targetY);
+          }
+        }
+        // *Nota: Se currentBlockIdx for -1 (Buraco/Pausa), ele não roda o scrollTo, a tela fica cravada aguardando.*
+
+        // Descobre se a música inteira já acabou
+        const lastBlock = timecodes[timecodes.length - 1];
+        const maxTimeMs = (lastBlock.end_time ?? lastBlock.endTime ?? lastBlock.end ?? 0) * 1000;
+        
+        if (elapsed < maxTimeMs) {
+          playbackRef.current.animationId = requestAnimationFrame(loop);
+        } else {
           stopAutoScroll();
           setIsPlaying(false);
         }
-    }, intervalMs);
+
+      } 
+      // ========================================================
+      // MODO 2: TEXTO LINEAR (QUANDO NÃO HOUVER TIMECODE)
+      // ========================================================
+      else {
+        const durationSec = currentSong.duration_seconds || 0;
+        const durationMs = durationSec > 0 ? durationSec * 1000 : 30000; // 30s de segurança se for zero
+        
+        const startScrollY = 0;
+        const totalHeight = document.documentElement.scrollHeight;
+        const viewportHeight = window.innerHeight;
+        const distanceToScroll = totalHeight - viewportHeight;
+
+        if (distanceToScroll > 0) {
+          let progressPercent = elapsed / durationMs;
+          if (progressPercent > 1) progressPercent = 1;
+
+          const targetScrollPos = startScrollY + (distanceToScroll * progressPercent);
+          window.scrollTo(0, targetScrollPos);
+        }
+
+        if (elapsed < durationMs && (Math.ceil(window.innerHeight + window.scrollY) < document.documentElement.scrollHeight)) {
+          playbackRef.current.animationId = requestAnimationFrame(loop);
+        } else {
+          stopAutoScroll();
+          setIsPlaying(false);
+        }
+      }
+    };
+
+    playbackRef.current.animationId = requestAnimationFrame(loop);
   };
 
   const stopAutoScroll = () => {
-    if (scrollIntervalRef.current) clearInterval(scrollIntervalRef.current);
+    playbackRef.current.playing = false;
+    if (playbackRef.current.animationId) {
+      cancelAnimationFrame(playbackRef.current.animationId);
+    }
   };
 
   const handleNavigate = (newIndex) => {
@@ -182,13 +235,6 @@ export default function PlaySong() {
     }
   };
 
-  const formatNavName = (name) => {
-    if (!name) return "";
-    const cleaned = name.trim().toUpperCase();
-    return cleaned.length <= 6 ? cleaned : cleaned.substring(0, 6) + "..";
-  };
-
-  // Salva o novo tamanho de fonte no estado e no navegador
   const changeFontSize = (delta) => {
     setFontSize(prev => {
       const newSize = Math.max(16, Math.min(100, prev + delta));
@@ -209,10 +255,10 @@ export default function PlaySong() {
     return (
       <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center">
         <p className="mb-6 font-bold text-white/50 uppercase tracking-widest text-sm">
-          Nenhuma música encontrada ou erro ao carregar.
+          Nenhum conteúdo carregado.
         </p>
         <button onClick={() => navigate('/setlists')} className="px-6 py-3 bg-white text-black font-black uppercase rounded-xl">
-          Voltar aos Setlists
+          Voltar
         </button>
       </div>
     );
@@ -221,6 +267,10 @@ export default function PlaySong() {
   const currentSong = songs[currentIndex];
   const prevSong = songs[currentIndex - 1];
   const nextSong = songs[currentIndex + 1];
+  
+  // Tratamento dos Blocos
+  const timecodes = currentSong?.timecodes || currentSong?.blocks || currentSong?.timecode_blocks || [];
+  const hasTimecodes = Array.isArray(timecodes) && timecodes.length > 0;
   const songText = currentSong?.lyrics_text || currentSong?.lyrics || currentSong?.content || currentSong?.text || currentSong?.body;
 
   return (
@@ -235,32 +285,20 @@ export default function PlaySong() {
           <p className="text-xs font-bold uppercase tracking-widest text-white/50 mt-1 truncate">{setlistName} • {currentIndex + 1}/{songs.length}</p>
         </div>
         
-        {/* BOTÕES DE TOPO */}
         <div className="flex gap-2 pointer-events-auto shrink-0">
-          <button 
-            onClick={() => setIsSetlistOpen(true)} 
-            className="w-10 h-10 bg-white text-black rounded-full flex items-center justify-center border border-transparent hover:bg-gray-200 transition-colors shadow-[0_0_15px_rgba(255,255,255,0.2)]"
-          >
+          <button onClick={() => setIsSetlistOpen(true)} className="w-10 h-10 bg-white text-black rounded-full flex items-center justify-center border border-transparent hover:bg-gray-200 shadow-[0_0_15px_rgba(255,255,255,0.2)]">
             <ListMusic size={18} className="ml-0.5" />
           </button>
-
-          <button 
-            onClick={() => setIsMenuOpen(true)} 
-            className="w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 text-white/60 hover:text-white transition-colors"
-          >
+          <button onClick={() => setIsMenuOpen(true)} className="w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 text-white/60 hover:text-white">
             <Settings size={18} />
           </button>
-          
-          <button 
-            onClick={() => navigate('/setlists')} 
-            className="w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 text-white/60 hover:text-white transition-colors"
-          >
+          <button onClick={() => navigate('/setlists')} className="w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 text-white/60 hover:text-white">
             <X size={20} />
           </button>
         </div>
       </div>
 
-      {/* OVERLAY 1: SETLIST TELA CHEIA */}
+      {/* OVERLAY SETLIST */}
       {isSetlistOpen && (
         <div className="fixed inset-0 bg-black z-50 flex flex-col animate-fadeIn">
           <div className="pt-8 pb-4 px-6 flex justify-between items-center border-b border-white/10 bg-black z-10 shadow-xl">
@@ -268,14 +306,10 @@ export default function PlaySong() {
               <h2 className="text-2xl font-black uppercase tracking-widest text-white leading-none">Repertório</h2>
               <p className="text-xs font-bold uppercase tracking-widest text-white/50 mt-1 truncate">{setlistName}</p>
             </div>
-            <button 
-              onClick={() => setIsSetlistOpen(false)} 
-              className="w-12 h-12 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 text-white transition-colors shrink-0"
-            >
+            <button onClick={() => setIsSetlistOpen(false)} className="w-12 h-12 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 text-white shrink-0">
               <X size={24} />
             </button>
           </div>
-          
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3 pb-24">
             {songs.map((song, idx) => (
               <button 
@@ -286,22 +320,20 @@ export default function PlaySong() {
                     ? 'bg-white text-black shadow-[0_0_30px_rgba(255,255,255,0.2)]' 
                     : song.isSeparator 
                       ? 'bg-yellow-900/20 text-yellow-500 border border-yellow-500/20'
-                      : 'bg-[#111] text-white hover:bg-[#1a1a1a] border border-white/5'
+                      : 'bg-[#111] text-white border border-white/5'
                 }`}
               >
                 <span className={`text-xl sm:text-2xl font-black tracking-tighter shrink-0 ${idx === currentIndex ? 'text-black/30' : song.isSeparator ? 'text-yellow-500/50' : 'text-white/20'}`}>
                   {(idx + 1).toString().padStart(2, '0')}
                 </span>
-                <span className="text-xl sm:text-3xl font-black uppercase tracking-tight truncate">
-                  {song.title}
-                </span>
+                <span className="text-xl sm:text-3xl font-black uppercase tracking-tight truncate">{song.title}</span>
               </button>
             ))}
           </div>
         </div>
       )}
 
-      {/* OVERLAY 2: Menu de Configurações */}
+      {/* OVERLAY CONFIGURAÇÕES */}
       {isMenuOpen && (
         <div className="fixed inset-0 bg-black/80 z-40 flex justify-end animate-fadeIn">
           <div className="w-80 bg-neutral-900 h-full border-l border-white/10 p-6 flex flex-col">
@@ -309,38 +341,62 @@ export default function PlaySong() {
               <h3 className="font-black uppercase tracking-widest text-sm">Opções de Palco</h3>
               <button onClick={() => setIsMenuOpen(false)} className="text-white/50 hover:text-white"><X size={20}/></button>
             </div>
-            
             <div className="mb-8">
               <p className="text-xs font-bold uppercase tracking-widest text-white/50 mb-3 flex items-center gap-2"><Type size={14}/> Tamanho da Letra</p>
               <div className="flex items-center gap-3">
-                <button onClick={() => changeFontSize(-4)} className="w-12 h-12 bg-neutral-800 rounded-xl font-black text-xl hover:bg-neutral-700 active:scale-95">-</button>
+                <button onClick={() => changeFontSize(-4)} className="w-12 h-12 bg-neutral-800 rounded-xl font-black text-xl active:scale-95">-</button>
                 <div className="flex-1 text-center font-black text-xl">{fontSize}px</div>
-                <button onClick={() => changeFontSize(4)} className="w-12 h-12 bg-neutral-800 rounded-xl font-black text-xl hover:bg-neutral-700 active:scale-95">+</button>
+                <button onClick={() => changeFontSize(4)} className="w-12 h-12 bg-neutral-800 rounded-xl font-black text-xl active:scale-95">+</button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Área da Letra */}
-      <div ref={contentRef} className="pt-40 pb-40 px-6 max-w-4xl mx-auto w-full">
-        <pre 
-          className={`whitespace-pre-wrap break-words font-black uppercase leading-relaxed tracking-tight w-full flex flex-col justify-center items-center ${currentSong.isSeparator ? 'text-yellow-400 text-center min-h-[40vh]' : 'text-white/90'}`}
-          style={{ fontSize: `${fontSize}px`, wordBreak: 'break-word', overflowWrap: 'anywhere' }}
-        >
-          {songText || (currentSong.isSeparator ? "" : "NENHUMA LETRA CADASTRADA PARA ESTA MÚSICA.")}
-        </pre>
+      {/* ÁREA DA LETRA (Renderização Condicional: Timecode vs Linear) */}
+      <div ref={contentRef} className="pt-40 pb-40 px-6 max-w-4xl mx-auto w-full min-h-screen flex flex-col justify-center">
+        {hasTimecodes ? (
+          <div className="w-full flex flex-col items-center gap-12 pb-[50vh]">
+            {timecodes.map((tc, idx) => {
+              const isActive = activeIndex === idx;
+              // Ajusta a nomenclatura da propriedade texto caso varie no banco
+              const textContent = tc.text || tc.content || tc.lyrics || "";
+              
+              return (
+                <div 
+                  key={tc.id || idx} 
+                  id={`block-${idx}`} 
+                  className={`w-full transition-all duration-300 ${isActive ? 'text-white scale-105 drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]' : 'text-white/20'}`}
+                >
+                  <pre 
+                    className="whitespace-pre-wrap break-words font-black uppercase leading-relaxed tracking-tight text-center"
+                    style={{ fontSize: `${fontSize}px`, wordBreak: 'break-word', overflowWrap: 'anywhere', fontFamily: 'inherit' }}
+                  >
+                    {textContent}
+                  </pre>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <pre 
+            className={`whitespace-pre-wrap break-words font-black uppercase leading-relaxed tracking-tight w-full flex flex-col justify-center items-center ${currentSong.isSeparator ? 'text-yellow-400 text-center min-h-[40vh]' : 'text-white/90'}`}
+            style={{ fontSize: `${fontSize}px`, wordBreak: 'break-word', overflowWrap: 'anywhere' }}
+          >
+            {songText || (currentSong.isSeparator ? "" : "NENHUMA LETRA CADASTRADA PARA ESTA MÚSICA.")}
+          </pre>
+        )}
       </div>
 
-      {/* Controles de Play/Navegação */}
+      {/* CONTROLES DE RODAPÉ */}
       <div className="fixed bottom-0 left-0 right-0 bg-[#0a0a0a] border-t border-white/10 p-3 pb-6 sm:pb-3 flex items-center justify-between gap-3 z-30">
         <div className="flex-1 w-1/3">
           {prevSong ? (
             <button onClick={() => handleNavigate(currentIndex - 1)} className="w-full h-14 bg-[#1a1a1a] text-white/50 hover:text-white hover:bg-[#2a2a2a] rounded-xl flex items-center justify-center gap-1 sm:gap-2 font-black text-sm sm:text-base tracking-widest uppercase border border-white/5">
-              <ChevronLeft size={18} className="shrink-0" /> <span className="truncate">{formatNavName(prevSong.title)}</span>
+              <ChevronLeft size={18} className="shrink-0" /> <span className="truncate">{prevSong.title?.substring(0, 6)}..</span>
             </button>
           ) : (
-            <button onClick={() => navigate('/setlists')} className="w-full h-14 bg-transparent text-white/20 hover:text-white/50 rounded-xl flex items-center justify-center gap-2 font-black text-xs tracking-widest uppercase">
+            <button onClick={() => navigate('/setlists')} className="w-full h-14 text-white/20 hover:text-white/50 flex items-center justify-center gap-2 font-black text-xs tracking-widest uppercase">
               <X size={16} /> SAIR
             </button>
           )}
@@ -357,10 +413,10 @@ export default function PlaySong() {
         <div className="flex-1 w-1/3">
           {nextSong ? (
             <button onClick={() => handleNavigate(currentIndex + 1)} className="w-full h-14 bg-[#1a1a1a] text-white/50 hover:text-white hover:bg-[#2a2a2a] rounded-xl flex items-center justify-center gap-1 sm:gap-2 font-black text-sm sm:text-base tracking-widest uppercase border border-white/5">
-              <span className="truncate">{formatNavName(nextSong.title)}</span> <ChevronRight size={18} className="shrink-0" />
+              <span className="truncate">{nextSong.title?.substring(0, 6)}..</span> <ChevronRight size={18} className="shrink-0" />
             </button>
           ) : (
-            <button onClick={() => navigate('/setlists')} className="w-full h-14 bg-transparent text-white/20 hover:text-white/50 rounded-xl flex items-center justify-center gap-2 font-black text-xs tracking-widest uppercase">
+            <button onClick={() => navigate('/setlists')} className="w-full h-14 text-white/20 hover:text-white/50 flex items-center justify-center gap-2 font-black text-xs tracking-widest uppercase">
               FIM <X size={16} />
             </button>
           )}
