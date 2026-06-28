@@ -17,6 +17,7 @@ export default function Setlists() {
     if (user) loadSetlists();
   }, [user]);
 
+  // Função para formatar segundos em horas e minutos
   const formatTotalDuration = (totalSeconds) => {
     if (!totalSeconds) return "0m";
     const h = Math.floor(totalSeconds / 3600);
@@ -73,12 +74,34 @@ export default function Setlists() {
       const { data: allSetlists, error } = await query;
 
       if (!error && allSetlists) {
-        const enriched = allSetlists.map(sl => ({ 
-          ...sl, 
-          songCount: 0, 
-          totalDurationSeconds: 0,
-          isShared: sl.created_by !== user.email // Descobre se é de fora
-        }));
+        
+        // 3. FAZ A MATEMÁTICA: Busca todos os itens dos setlists visíveis para contar as músicas e somar o tempo
+        const setlistIds = allSetlists.map(sl => sl.id);
+        let itemsData = [];
+        
+        if (setlistIds.length > 0) {
+          const { data: items } = await supabase
+            .from('setlist_items')
+            .select('setlist_id, item_type, songs(duration_seconds)')
+            .in('setlist_id', setlistIds);
+          itemsData = items || [];
+        }
+
+        // 4. Junta as informações e joga para a tela
+        const enriched = allSetlists.map(sl => {
+          // Filtra só as músicas reais (exclui divisores)
+          const myItems = itemsData.filter(i => i.setlist_id === sl.id && i.item_type !== 'divider');
+          const songCount = myItems.length;
+          const totalDurationSeconds = myItems.reduce((acc, curr) => acc + (curr.songs?.duration_seconds || 0), 0);
+
+          return { 
+            ...sl, 
+            songCount, 
+            totalDurationSeconds,
+            isShared: sl.created_by !== user.email
+          };
+        });
+
         setSetlists(enriched);
       }
     } catch (err) {
@@ -131,28 +154,35 @@ export default function Setlists() {
           {sl.event_name}
         </p>
         
-        {/* SELO DE COMPARTILHADO AQUI */}
-        {sl.isShared ? (
-          <div className="flex items-center gap-1 mt-1">
+        {/* NOME DA BANDA E/OU SELO DE COMPARTILHADO */}
+        <div className="flex items-center gap-2 mt-0.5">
+          {sl.band_name && (
+            <p className="text-[10px] font-bold uppercase tracking-widest text-black/50 truncate">
+              {sl.band_name}
+            </p>
+          )}
+          {sl.isShared && (
             <span className="bg-green-100 text-green-700 border border-green-200 text-[8px] px-1.5 py-0.5 rounded uppercase font-black tracking-widest flex items-center gap-1 w-fit">
-              <Users size={10} /> Compartilhado
+              <Users size={10} /> Collab
             </span>
-          </div>
-        ) : (
-          sl.band_name && <p className="text-[10px] font-bold uppercase tracking-widest text-black/50 truncate mt-0.5">{sl.band_name}</p>
-        )}
+          )}
+        </div>
       </button>
 
       <div className="mt-3">
-        {sl.date && !sl.isShared && (
+        {sl.date && (
           <span className="text-[10px] font-black text-black border border-black px-2 py-0.5 rounded-md block w-fit mb-2">
             {new Date(sl.date + 'T12:00:00').toLocaleDateString('pt-BR')}
           </span>
         )}
         <div className="flex items-center justify-between mt-2">
-          <span className="text-[9px] text-black/50 font-bold uppercase tracking-widest">
-            {sl.songCount || 0} MÚSICAS
+          
+          {/* RODAPÉ DO CARD: CONTAGEM, TEMPO E ÍCONE */}
+          <span className="text-[9px] text-black/50 font-bold uppercase tracking-widest flex items-center gap-1.5">
+            {sl.songCount || 0} Músicas • {formatTotalDuration(sl.totalDurationSeconds)}
+            {sl.isShared && <Users size={12} className="text-green-600 ml-1" title="Compartilhado" />}
           </span>
+          
           <button
             onClick={(e) => { e.stopPropagation(); navigate(`/setlists/${sl.id}/play/0`); }}
             className="w-11 h-11 bg-black rounded-full flex items-center justify-center text-white hover:opacity-80 transition-opacity active:scale-95"
