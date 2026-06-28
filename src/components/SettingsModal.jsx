@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, LogOut, RefreshCw, Zap, CreditCard, Check, Loader2, Download, Share } from 'lucide-react';
+import { X, LogOut, RefreshCw, Zap, CreditCard, Check, Loader2, Download, Share, Plus } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import Logo from './Logo';
@@ -100,7 +100,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
                 </button>
               )}
               {plan !== 'free' && (
-                <a href="https://billing.stripe.com/p/login/test_bJe28r4VTboafjVeP567S00" target="_blank" rel="noopener noreferrer" className="w-full py-4 bg-yellow-400 border-2 border-black text-black text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-yellow-300 transition-all flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:scale-95">
+                <a href="https://billing.stripe.com/p/login/bJe28r4VTboafjVeP567S00" target="_blank" rel="noopener noreferrer" className="w-full py-4 bg-yellow-400 border-2 border-black text-black text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-yellow-300 transition-all flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:scale-95">
                   <CreditCard size={14} /> Gerenciar Assinatura
                 </a>
               )}
