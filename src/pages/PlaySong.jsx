@@ -26,7 +26,6 @@ export default function PlaySong() {
   const contentRef = useRef(null);
   const wakeLockRef = useRef(null);
 
-  // Motor de Reprodução (Mantém o estado mesmo sem re-renderizar o React inteiro)
   const playbackRef = useRef({
     playing: false,
     startTime: 0,
@@ -34,7 +33,6 @@ export default function PlaySong() {
     animationId: null
   });
 
-  // WAKE LOCK (TELA LIGADA NO SHOW)
   useEffect(() => {
     const requestWakeLock = async () => {
       try {
@@ -59,7 +57,6 @@ export default function PlaySong() {
     };
   }, []);
 
-  // ZERA TUDO QUANDO TROCA DE MÚSICA
   useEffect(() => {
     stopAutoScroll();
     playbackRef.current = { playing: false, startTime: 0, elapsed: 0, animationId: null };
@@ -70,7 +67,6 @@ export default function PlaySong() {
     window.scrollTo(0, 0);
   }, [currentIndex]);
 
-  // BUSCA DADOS DO BANCO
   useEffect(() => {
     const loadSetlistAndSongs = async () => {
       setLoading(true);
@@ -119,13 +115,23 @@ export default function PlaySong() {
     }
   };
 
+  // Função Auxiliar: Extrai os Timecodes de forma segura
+  const getParsedTimecodes = (song) => {
+    if (!song) return [];
+    const raw = song.timecodes || song.blocks || song.timecode_blocks || song.sync_data;
+    if (typeof raw === 'string') {
+      try { return JSON.parse(raw); } catch(e) { return []; }
+    }
+    return Array.isArray(raw) ? raw : [];
+  };
+
   // MOTOR DE ROLAGEM INTELIGENTE
   const startAutoScroll = () => {
     const currentSong = songs[currentIndex];
     if (!currentSong) return;
 
-    const timecodes = currentSong.timecodes || currentSong.blocks || currentSong.timecode_blocks || [];
-    const hasTimecodes = Array.isArray(timecodes) && timecodes.length > 0;
+    const timecodes = getParsedTimecodes(currentSong);
+    const hasTimecodes = timecodes.length > 0;
 
     playbackRef.current.playing = true;
     playbackRef.current.startTime = Date.now() - playbackRef.current.elapsed;
@@ -138,13 +144,13 @@ export default function PlaySong() {
       playbackRef.current.elapsed = elapsed;
 
       // ========================================================
-      // MODO 1: MÚSICA TEM BLOCOS DE TIMECODE CUSTOMIZADOS
+      // MODO 1: MÚSICA COM TIMECODE CUSTOMIZADO
       // ========================================================
       if (hasTimecodes) {
         
         const currentBlockIdx = timecodes.findIndex(tc => {
-          const startMs = (tc.start_time ?? tc.startTime ?? tc.start ?? 0) * 1000;
-          const endMs = (tc.end_time ?? tc.endTime ?? tc.end ?? 0) * 1000;
+          const startMs = (tc.start_time ?? tc.startTime ?? tc.start ?? tc.time ?? 0) * 1000;
+          const endMs = (tc.end_time ?? tc.endTime ?? tc.end ?? (startMs / 1000) + 5) * 1000;
           return elapsed >= startMs && elapsed <= endMs;
         });
 
@@ -154,8 +160,9 @@ export default function PlaySong() {
           const blockElement = document.getElementById(`block-${currentBlockIdx}`);
           if (blockElement) {
             const tc = timecodes[currentBlockIdx];
-            const startMs = (tc.start_time ?? tc.startTime ?? tc.start ?? 0) * 1000;
-            const endMs = (tc.end_time ?? tc.endTime ?? tc.end ?? 0) * 1000;
+            const startMs = (tc.start_time ?? tc.startTime ?? tc.start ?? tc.time ?? 0) * 1000;
+            const endMs = (tc.end_time ?? tc.endTime ?? tc.end ?? (startMs / 1000) + 5) * 1000;
+            
             const duration = endMs - startMs;
             const progress = duration > 0 ? (elapsed - startMs) / duration : 0;
             
@@ -260,9 +267,9 @@ export default function PlaySong() {
   const prevSong = songs[currentIndex - 1];
   const nextSong = songs[currentIndex + 1];
   
-  // Tratamento dos Blocos
-  const timecodes = currentSong?.timecodes || currentSong?.blocks || currentSong?.timecode_blocks || [];
-  const hasTimecodes = Array.isArray(timecodes) && timecodes.length > 0;
+  // Tratamento Robusto dos Blocos
+  const timecodes = getParsedTimecodes(currentSong);
+  const hasTimecodes = timecodes.length > 0;
   const songText = currentSong?.lyrics_text || currentSong?.lyrics || currentSong?.content || currentSong?.text || currentSong?.body;
 
   return (
@@ -350,16 +357,19 @@ export default function PlaySong() {
         {hasTimecodes ? (
           <div className="w-full flex flex-col items-center gap-12 pb-[50vh]">
             {timecodes.map((tc, idx) => {
-              // CORREÇÃO: Usando a variável com o nome correto: activeBlockIndex
               const isActive = activeBlockIndex === idx;
               
-              const textContent = tc.text || tc.content || tc.lyrics || "";
+              // O CAÇADOR DE TEXTOS: Busca em qualquer variável que tenha string dentro do bloco!
+              let textContent = tc.text || tc.content || tc.lyrics || tc.line || tc.words || "";
+              if (!textContent) {
+                textContent = Object.values(tc).find(v => typeof v === 'string' && v.trim() !== '') || "[ BLOCO SEM TEXTO ]";
+              }
               
               return (
                 <div 
                   key={tc.id || idx} 
                   id={`block-${idx}`} 
-                  className={`w-full transition-all duration-300 ${isActive ? 'text-white scale-105 drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]' : 'text-white/20'}`}
+                  className={`w-full transition-all duration-300 ${isActive ? 'text-white scale-105 drop-shadow-[0_0_15px_rgba(255,255,255,0.4)] opacity-100' : 'text-white/20 opacity-40 blur-[1px]'}`}
                 >
                   <pre 
                     className="whitespace-pre-wrap break-words font-black uppercase leading-relaxed tracking-tight text-center"
