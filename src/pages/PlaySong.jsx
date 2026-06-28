@@ -13,13 +13,19 @@ export default function PlaySong() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSetlistOpen, setIsSetlistOpen] = useState(false);
-  const [fontSize, setFontSize] = useState(48);
+  
+  // 1. FONTE PERSISTENTE (Salva e lê do LocalStorage, Padrão: 24)
+  const [fontSize, setFontSize] = useState(() => {
+    const savedSize = localStorage.getItem('cantapro_fontSize');
+    return savedSize ? parseInt(savedSize, 10) : 24;
+  });
   
   const currentIndex = parseInt(songIndex, 10) || 0;
   const contentRef = useRef(null);
   const scrollIntervalRef = useRef(null);
   const wakeLockRef = useRef(null);
 
+  // WAKE LOCK (TELA LIGADA)
   useEffect(() => {
     const requestWakeLock = async () => {
       try {
@@ -48,6 +54,7 @@ export default function PlaySong() {
     };
   }, []);
 
+  // CONTROLE DE NAVEGAÇÃO INTERNA
   useEffect(() => {
     stopAutoScroll();
     setIsPlaying(false);
@@ -56,6 +63,7 @@ export default function PlaySong() {
     window.scrollTo(0, 0);
   }, [currentIndex]);
 
+  // BUSCA DE DADOS
   useEffect(() => {
     const loadSetlistAndSongs = async () => {
       setLoading(true);
@@ -82,15 +90,15 @@ export default function PlaySong() {
           const formattedItems = pivotData.map(item => {
             if (item.item_type === 'divider') {
               
-              // VISUAL LIMPO PARA O DIVISOR
-              let dividerText = `[ ${item.content || 'PAUSA'} ]`;
+              // 2. FIM DOS COLCHETES: VISUAL LIMPO PARA O DIVISOR
+              let dividerText = item.content || 'PAUSA';
               if (item.performance_notes) {
                 dividerText += `\n\n${item.performance_notes}`;
               }
 
               return {
                 id: item.id,
-                title: `[ ${item.content || 'DIVISOR'} ]`,
+                title: item.content || 'DIVISOR',
                 isSeparator: true,
                 lyrics_text: dividerText
               };
@@ -114,13 +122,52 @@ export default function PlaySong() {
   }, [id]);
 
   const togglePlay = () => {
-    if (isPlaying) stopAutoScroll();
-    else startAutoScroll();
-    setIsPlaying(!isPlaying);
+    if (isPlaying) {
+      stopAutoScroll();
+      setIsPlaying(false);
+    } else {
+      startAutoScroll();
+      setIsPlaying(true);
+    }
   };
 
+  // 3. ROLAGEM INTELIGENTE BASEADA NA DURAÇÃO DA MÚSICA
   const startAutoScroll = () => {
-    scrollIntervalRef.current = setInterval(() => { window.scrollBy({ top: 1, behavior: 'auto' }); }, 50);
+    const currentSong = songs[currentIndex];
+    const durationSec = currentSong?.duration_seconds || 0;
+    
+    // Distância total de rolagem (Tamanho do documento - Tamanho da tela vísivel)
+    const totalDistance = document.documentElement.scrollHeight - window.innerHeight;
+
+    if (totalDistance <= 0) return; // Não faz nada se a tela couber inteira sem rolar
+
+    // Se tiver tempo cadastrado, faz a matemática
+    if (durationSec > 0) {
+      const totalTimeMs = durationSec * 1000;
+      const intervalMs = 50; // Roda a cada 50ms (suave)
+      
+      // Velocidade: Quantos pixels rolar a cada 50ms para terminar exatamente junto com a música
+      const pixelsPerStep = totalDistance / (totalTimeMs / intervalMs);
+
+      scrollIntervalRef.current = setInterval(() => {
+        window.scrollBy(0, pixelsPerStep);
+        
+        // Verifica se chegou no fim da tela
+        if (Math.ceil(window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight) {
+          stopAutoScroll();
+          setIsPlaying(false);
+        }
+      }, intervalMs);
+    } else {
+      // Fallback seguro: Se a música tiver 0 minutos, rola num ritmo padrão lento
+      scrollIntervalRef.current = setInterval(() => { 
+        window.scrollBy(0, 1); 
+        if (Math.ceil(window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight) {
+          stopAutoScroll();
+          setIsPlaying(false);
+        }
+      }, 50);
+    }
   };
 
   const stopAutoScroll = () => {
@@ -137,6 +184,15 @@ export default function PlaySong() {
     if (!name) return "";
     const cleaned = name.trim().toUpperCase();
     return cleaned.length <= 6 ? cleaned : cleaned.substring(0, 6) + "..";
+  };
+
+  // Salva o novo tamanho de fonte no estado e no navegador
+  const changeFontSize = (delta) => {
+    setFontSize(prev => {
+      const newSize = Math.max(16, Math.min(100, prev + delta));
+      localStorage.setItem('cantapro_fontSize', newSize);
+      return newSize;
+    });
   };
 
   if (loading) {
@@ -255,9 +311,9 @@ export default function PlaySong() {
             <div className="mb-8">
               <p className="text-xs font-bold uppercase tracking-widest text-white/50 mb-3 flex items-center gap-2"><Type size={14}/> Tamanho da Letra</p>
               <div className="flex items-center gap-3">
-                <button onClick={() => setFontSize(prev => Math.max(20, prev - 4))} className="w-12 h-12 bg-neutral-800 rounded-xl font-black text-xl hover:bg-neutral-700 active:scale-95">-</button>
+                <button onClick={() => changeFontSize(-4)} className="w-12 h-12 bg-neutral-800 rounded-xl font-black text-xl hover:bg-neutral-700 active:scale-95">-</button>
                 <div className="flex-1 text-center font-black text-xl">{fontSize}px</div>
-                <button onClick={() => setFontSize(prev => Math.min(100, prev + 4))} className="w-12 h-12 bg-neutral-800 rounded-xl font-black text-xl hover:bg-neutral-700 active:scale-95">+</button>
+                <button onClick={() => changeFontSize(4)} className="w-12 h-12 bg-neutral-800 rounded-xl font-black text-xl hover:bg-neutral-700 active:scale-95">+</button>
               </div>
             </div>
           </div>
