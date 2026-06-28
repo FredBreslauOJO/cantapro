@@ -115,7 +115,6 @@ export default function PlaySong() {
     }
   };
 
-  // Função Auxiliar: Extrai os Timecodes de forma segura
   const getParsedTimecodes = (song) => {
     if (!song) return [];
     const raw = song.timecodes || song.blocks || song.timecode_blocks || song.sync_data;
@@ -125,7 +124,6 @@ export default function PlaySong() {
     return Array.isArray(raw) ? raw : [];
   };
 
-  // MOTOR DE ROLAGEM INTELIGENTE
   const startAutoScroll = () => {
     const currentSong = songs[currentIndex];
     if (!currentSong) return;
@@ -144,7 +142,7 @@ export default function PlaySong() {
       playbackRef.current.elapsed = elapsed;
 
       // ========================================================
-      // MODO 1: MÚSICA COM TIMECODE CUSTOMIZADO
+      // MODO TIMECODE
       // ========================================================
       if (hasTimecodes) {
         
@@ -190,7 +188,7 @@ export default function PlaySong() {
 
       } 
       // ========================================================
-      // MODO 2: TEXTO LINEAR (QUANDO NÃO HOUVER TIMECODE)
+      // MODO LINEAR
       // ========================================================
       else {
         const durationSec = currentSong.duration_seconds || 0;
@@ -267,7 +265,6 @@ export default function PlaySong() {
   const prevSong = songs[currentIndex - 1];
   const nextSong = songs[currentIndex + 1];
   
-  // Tratamento Robusto dos Blocos
   const timecodes = getParsedTimecodes(currentSong);
   const hasTimecodes = timecodes.length > 0;
   const songText = currentSong?.lyrics_text || currentSong?.lyrics || currentSong?.content || currentSong?.text || currentSong?.body;
@@ -352,17 +349,23 @@ export default function PlaySong() {
         </div>
       )}
 
-      {/* ÁREA DA LETRA (Renderização Condicional: Timecode vs Linear) */}
+      {/* ÁREA DA LETRA */}
       <div ref={contentRef} className="pt-40 pb-40 px-6 max-w-4xl mx-auto w-full min-h-screen flex flex-col justify-center">
         {hasTimecodes ? (
           <div className="w-full flex flex-col items-center gap-12 pb-[50vh]">
             {timecodes.map((tc, idx) => {
               const isActive = activeBlockIndex === idx;
               
-              // O CAÇADOR DE TEXTOS: Busca em qualquer variável que tenha string dentro do bloco!
+              // O CAÇADOR DE TEXTOS (IGNORANDO O 'ID' e 'BLOCK_')
               let textContent = tc.text || tc.content || tc.lyrics || tc.line || tc.words || "";
               if (!textContent) {
-                textContent = Object.values(tc).find(v => typeof v === 'string' && v.trim() !== '') || "[ BLOCO SEM TEXTO ]";
+                const found = Object.entries(tc).find(([k, v]) => 
+                  typeof v === 'string' && 
+                  v.trim() !== '' && 
+                  k !== 'id' && 
+                  !v.startsWith('BLOCK_')
+                );
+                textContent = found ? found[1] : "[ BLOCO SEM TEXTO ]";
               }
               
               return (
