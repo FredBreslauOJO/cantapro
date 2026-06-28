@@ -131,42 +131,41 @@ export default function PlaySong() {
     }
   };
 
-  // 3. ROLAGEM INTELIGENTE E DINÂMICA (Fix)
+  // 3. ROLAGEM INTELIGENTE ABSOLUTA (Blindada contra frações de pixel)
   const startAutoScroll = () => {
     const currentSong = songs[currentIndex];
     const durationSec = currentSong?.duration_seconds || 0;
     
-    // Fallback de segurança: Se a música tiver 0 minutos, rola num ritmo padrão lento
-    const durationMs = durationSec > 0 ? durationSec * 1000 : 30000; // 30 segundos como padrão se for 0
+    // Padrão de 30 segundos se a música estiver com o tempo zerado
+    const durationMs = durationSec > 0 ? durationSec * 1000 : 30000; 
 
-    // Variável para rastrear o tempo decorrido
-    let elapsedTimeMs = 0;
-    const intervalMs = 50; // Roda a cada 50ms (suave)
+    // Posicionamento inicial
+    const startScrollY = window.scrollY;
+    const totalHeight = document.documentElement.scrollHeight;
+    const viewportHeight = window.innerHeight;
+    
+    // O quanto falta rolar até o fim da página
+    const distanceToScroll = totalHeight - viewportHeight - startScrollY;
 
-    // A mágica: Re-calcula a distância a cada passo
+    // Se já estiver no fim ou não tiver rolagem, não faz nada
+    if (distanceToScroll <= 0) return;
+
+    const startTime = Date.now();
+    const intervalMs = 50; // Roda a cada 50ms para suavidade
+
     scrollIntervalRef.current = setInterval(() => {
-        // Distância total de rolagem (Tamanho do documento - Tamanho da tela vísivel)
-        const totalDistance = document.documentElement.scrollHeight - window.innerHeight;
+        const elapsed = Date.now() - startTime;
+        let progressPercent = elapsed / durationMs;
+        
+        // Garante que não passe de 100%
+        if (progressPercent > 1) progressPercent = 1;
 
-        // Se a tela for pequena demais para rolar, não faz nada
-        if (totalDistance <= 0) return;
+        // Define a posição exata (absoluta) que a tela deve estar neste momento
+        const nextScrollY = startScrollY + (distanceToScroll * progressPercent);
+        window.scrollTo(0, nextScrollY);
 
-        elapsedTimeMs += intervalMs;
-        const progressPercent = elapsedTimeMs / durationMs;
-
-        // Calcula a posição alvo para este momento no tempo
-        const targetScrollPos = totalDistance * progressPercent;
-        const currentScrollPos = window.scrollY;
-
-        // Calcula a quantidade de rolagem necessária
-        const scrollStep = targetScrollPos - currentScrollPos;
-
-        if (scrollStep > 0) {
-            window.scrollBy(0, scrollStep);
-        }
-
-        // Verifica se chegou no fim da tela ou no fim do tempo da música
-        if (elapsedTimeMs >= durationMs || (Math.ceil(window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight)) {
+        // Para se atingir o tempo ou se chegar fisicamente no fim do scroll
+        if (progressPercent === 1 || Math.ceil(window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight) {
           stopAutoScroll();
           setIsPlaying(false);
         }
