@@ -35,7 +35,7 @@ const STEPS = [
   },
   {
     title: "Pronto para o show?",
-    description: "O Modo Performance faz a letra rolar sozinha. Alterne entre 'Letra' e 'Setlist' para não se perder na noite.",
+    description: "Compatível com Pedais Bluetooth (Avançar/Voltar e Espaço). Você também pode Instalar o app pelo Menu Lateral para funcionar offline sem a barra do navegador!",
     icon: <Zap size={48} />,
     color: "bg-yellow-400"
   }

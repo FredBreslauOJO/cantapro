@@ -14,9 +14,7 @@ export default function PlaySong() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSetlistOpen, setIsSetlistOpen] = useState(false);
   
-  // Controle do Bloco Ativo do Timecode
   const [activeBlockIndex, setActiveIndex] = useState(-1);
-  
   const [fontSize, setFontSize] = useState(() => {
     const savedSize = localStorage.getItem('cantapro_fontSize');
     return savedSize ? parseInt(savedSize, 10) : 24;
@@ -26,32 +24,67 @@ export default function PlaySong() {
   const contentRef = useRef(null);
   const wakeLockRef = useRef(null);
 
-  const playbackRef = useRef({
-    playing: false,
-    startTime: 0,
-    elapsed: 0,
-    animationId: null
-  });
+  const playbackRef = useRef({ playing: false, startTime: 0, elapsed: 0, animationId: null });
+
+  // REFS PARA O PEDAL BLUETOOTH NÃO PEGAR ESTADOS VELHOS
+  const isPlayingRef = useRef(isPlaying);
+  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+
+  const currentIndexRef = useRef(currentIndex);
+  useEffect(() => { currentIndexRef.current = currentIndex; }, [currentIndex]);
+
+  const songsLengthRef = useRef(songs.length);
+  useEffect(() => { songsLengthRef.current = songs.length; }, [songs.length]);
+
+  // CONTROLE DE PEDAL BLUETOOTH (TECLADO)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Se tivermos inputs no futuro, não queremos que o espaço ative o play enquanto digitam
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      // PEDAL 1: PLAY/PAUSE (Espaço ou Enter)
+      if (e.code === 'Space' || e.code === 'Enter') {
+        e.preventDefault(); 
+        if (isPlayingRef.current) {
+          stopAutoScroll();
+          setIsPlaying(false);
+        } else {
+          startAutoScroll();
+          setIsPlaying(true);
+        }
+      } 
+      // PEDAL 2: PRÓXIMA MÚSICA (Seta Direita ou Page Down)
+      else if (e.code === 'ArrowRight' || e.code === 'PageDown') {
+        e.preventDefault();
+        if (currentIndexRef.current + 1 < songsLengthRef.current) {
+          navigate(`/setlists/${id}/play/${currentIndexRef.current + 1}`);
+        }
+      } 
+      // PEDAL 3: MÚSICA ANTERIOR (Seta Esquerda ou Page Up)
+      else if (e.code === 'ArrowLeft' || e.code === 'PageUp') {
+        e.preventDefault();
+        if (currentIndexRef.current - 1 >= 0) {
+          navigate(`/setlists/${id}/play/${currentIndexRef.current - 1}`);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [id, navigate]);
 
   useEffect(() => {
     const requestWakeLock = async () => {
       try {
-        if ('wakeLock' in navigator) {
-          wakeLockRef.current = await navigator.wakeLock.request('screen');
-        }
-      } catch (err) {
-        console.warn(`Wake Lock ignorado: ${err.message}`);
-      }
+        if ('wakeLock' in navigator) wakeLockRef.current = await navigator.wakeLock.request('screen');
+      } catch (err) { console.warn(`Wake Lock ignorado`); }
     };
     requestWakeLock();
     const handleVisibilityChange = () => { if (document.visibilityState === 'visible') requestWakeLock(); };
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      if (wakeLockRef.current) {
-        wakeLockRef.current.release().catch(() => {});
-        wakeLockRef.current = null;
-      }
+      if (wakeLockRef.current) { wakeLockRef.current.release().catch(() => {}); wakeLockRef.current = null; }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       stopAutoScroll();
     };
@@ -88,31 +121,20 @@ export default function PlaySong() {
               if (item.performance_notes) dividerText += `\n\n${item.performance_notes}`;
               return { id: item.id, title: item.content || 'DIVISOR', isSeparator: true, lyrics_text: dividerText };
             } 
-            else if (item.item_type === 'song' && item.songs) {
-              return item.songs;
-            }
+            else if (item.item_type === 'song' && item.songs) return item.songs;
             return null;
           }).filter(Boolean);
           
           setSongs(formattedItems);
         }
-      } catch (error) {
-        console.error("Erro no performance mode:", error);
-      } finally {
-        setLoading(false);
-      }
+      } catch (error) { console.error(error); } finally { setLoading(false); }
     };
     loadSetlistAndSongs();
   }, [id]);
 
   const togglePlay = () => {
-    if (isPlaying) {
-      stopAutoScroll();
-      setIsPlaying(false);
-    } else {
-      startAutoScroll();
-      setIsPlaying(true);
-    }
+    if (isPlaying) { stopAutoScroll(); setIsPlaying(false); } 
+    else { startAutoScroll(); setIsPlaying(true); }
   };
 
   const getParsedTimecodes = (song) => {
@@ -124,24 +146,13 @@ export default function PlaySong() {
     return Array.isArray(raw) ? raw : [];
   };
 
-  // EXTRATOR PROFUNDO DE TEXTO BLINDADO
   const extractBlockText = (block) => {
     if (!block) return "[ BLOCO VAZIO ]";
-    
-    // Se for uma string direta
-    if (typeof block === 'string') {
-      return block.startsWith('BLOCK_') ? "[ BLOCO SEM TEXTO ]" : block;
-    }
-
-    // Busca nas propriedades comuns garantindo que não é um ID
+    if (typeof block === 'string') return block.startsWith('BLOCK_') ? "[ BLOCO SEM TEXTO ]" : block;
     const commonKeys = ['text', 'content', 'lyrics', 'line', 'words', 'lyric', 'phrase', 'value'];
     for (let key of commonKeys) {
-      if (block[key] && typeof block[key] === 'string' && !block[key].startsWith('BLOCK_')) {
-        return block[key];
-      }
+      if (block[key] && typeof block[key] === 'string' && !block[key].startsWith('BLOCK_')) return block[key];
     }
-
-    // Busca profunda: Entra no objeto e pega a MAIOR string que não seja ID
     let bestString = "";
     const searchDeep = (obj) => {
       if (!obj) return;
@@ -150,17 +161,13 @@ export default function PlaySong() {
           if (v.trim() !== '' && !v.startsWith('BLOCK_') && k !== 'id' && k !== 'type') {
             if (v.length > bestString.length) bestString = v;
           }
-        } else if (typeof v === 'object') {
-          searchDeep(v);
-        }
+        } else if (typeof v === 'object') searchDeep(v);
       });
     };
     searchDeep(block);
-
     return bestString || "[ BLOCO SEM TEXTO ]";
   };
 
-  // MOTOR DE ROLAGEM INTELIGENTE
   const startAutoScroll = () => {
     const currentSong = songs[currentIndex];
     if (!currentSong) return;
@@ -178,11 +185,7 @@ export default function PlaySong() {
       const elapsed = now - playbackRef.current.startTime;
       playbackRef.current.elapsed = elapsed;
 
-      // ========================================================
-      // MODO TIMECODE
-      // ========================================================
       if (hasTimecodes) {
-        
         const currentBlockIdx = timecodes.findIndex(tc => {
           const startMs = (tc.start_time ?? tc.startTime ?? tc.start ?? tc.time ?? 0) * 1000;
           const endMs = (tc.end_time ?? tc.endTime ?? tc.end ?? (startMs / 1000) + 5) * 1000;
@@ -216,18 +219,10 @@ export default function PlaySong() {
         const lastBlock = timecodes[timecodes.length - 1];
         const maxTimeMs = (lastBlock.end_time ?? lastBlock.endTime ?? lastBlock.end ?? 0) * 1000;
         
-        if (elapsed < maxTimeMs) {
-          playbackRef.current.animationId = requestAnimationFrame(loop);
-        } else {
-          stopAutoScroll();
-          setIsPlaying(false);
-        }
+        if (elapsed < maxTimeMs) playbackRef.current.animationId = requestAnimationFrame(loop);
+        else { stopAutoScroll(); setIsPlaying(false); }
 
-      } 
-      // ========================================================
-      // MODO LINEAR
-      // ========================================================
-      else {
+      } else {
         const durationSec = currentSong.duration_seconds || 0;
         const durationMs = durationSec > 0 ? durationSec * 1000 : 30000; 
         
@@ -239,7 +234,6 @@ export default function PlaySong() {
         if (distanceToScroll > 0) {
           let progressPercent = elapsed / durationMs;
           if (progressPercent > 1) progressPercent = 1;
-
           const targetScrollPos = startScrollY + (distanceToScroll * progressPercent);
           window.scrollTo(0, targetScrollPos);
         }
@@ -252,15 +246,12 @@ export default function PlaySong() {
         }
       }
     };
-
     playbackRef.current.animationId = requestAnimationFrame(loop);
   };
 
   const stopAutoScroll = () => {
     playbackRef.current.playing = false;
-    if (playbackRef.current.animationId) {
-      cancelAnimationFrame(playbackRef.current.animationId);
-    }
+    if (playbackRef.current.animationId) cancelAnimationFrame(playbackRef.current.animationId);
   };
 
   const handleNavigate = (newIndex) => {
@@ -277,26 +268,8 @@ export default function PlaySong() {
     });
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-white/20 border-t-white rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  if (songs.length === 0) {
-    return (
-      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center">
-        <p className="mb-6 font-bold text-white/50 uppercase tracking-widest text-sm">
-          Nenhum conteúdo carregado.
-        </p>
-        <button onClick={() => navigate('/setlists')} className="px-6 py-3 bg-white text-black font-black uppercase rounded-xl">
-          Voltar
-        </button>
-      </div>
-    );
-  }
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><div className="w-8 h-8 border-4 border-white/20 border-t-white rounded-full animate-spin" /></div>;
+  if (songs.length === 0) return <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center"><p className="mb-6 font-bold text-white/50 uppercase tracking-widest text-sm">Nenhum conteúdo carregado.</p><button onClick={() => navigate('/setlists')} className="px-6 py-3 bg-white text-black font-black uppercase rounded-xl">Voltar</button></div>;
 
   const currentSong = songs[currentIndex];
   const prevSong = songs[currentIndex - 1];
