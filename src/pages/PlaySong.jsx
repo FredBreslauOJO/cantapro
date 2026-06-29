@@ -145,23 +145,17 @@ export default function PlaySong() {
     return Array.isArray(raw) ? raw : [];
   };
 
-  // =========================================================================
-  // FUNÇÃO CORRIGIDA: AGORA LÊ "text_content" E IGNORA IDs MINÚSCULOS
-  // =========================================================================
   const extractBlockText = (block) => {
     if (!block) return "[ BLOCO VAZIO ]";
     if (typeof block === 'string') return block.toUpperCase().startsWith('BLOCK_') ? "[ BLOCO SEM TEXTO ]" : block;
     
-    // Adicionado 'text_content' no topo da prioridade!
     const commonKeys = ['text_content', 'text', 'content', 'lyrics', 'line', 'words', 'lyric', 'phrase', 'value'];
-    
     for (let key of commonKeys) {
       if (block[key] && typeof block[key] === 'string' && !block[key].toUpperCase().startsWith('BLOCK_')) {
         return block[key];
       }
     }
     
-    // Fallback de varredura profunda (ignora chaves que contêm "id")
     let bestString = "";
     const searchDeep = (obj) => {
       if (!obj) return;
@@ -175,6 +169,32 @@ export default function PlaySong() {
     };
     searchDeep(block);
     return bestString || "[ BLOCO SEM TEXTO ]";
+  };
+
+  // =========================================================================
+  // RE-SYNC MANUAL: Clique no bloco para pular o timer para ele
+  // =========================================================================
+  const handleBlockClick = (idx) => {
+    const currentSong = songs[currentIndex];
+    const timecodes = getParsedTimecodes(currentSong);
+    if (!timecodes || timecodes.length === 0) return;
+
+    const tc = timecodes[idx];
+    const startMs = (tc.start_time ?? tc.startTime ?? tc.start ?? tc.time ?? tc.timecode ?? 0) * 1000;
+
+    // Engana o relógio interno e atualiza os timers para o novo momento
+    playbackRef.current.elapsed = startMs;
+    playbackRef.current.startTime = Date.now() - startMs;
+    setActiveIndex(idx);
+
+    // Ajusta a rolagem da tela para o centro visual imediatamente
+    const blockElement = document.getElementById(`block-${idx}`);
+    if (blockElement) {
+      const blockTop = blockElement.offsetTop;
+      const viewportHeight = window.innerHeight;
+      const alignTop = blockTop - (viewportHeight / 2);
+      window.scrollTo({ top: alignTop, behavior: 'smooth' });
+    }
   };
 
   const startAutoScroll = () => {
@@ -288,6 +308,9 @@ export default function PlaySong() {
   const hasTimecodes = timecodes.length > 0;
   const songText = currentSong?.lyrics_text || currentSong?.lyrics || currentSong?.content || currentSong?.text || currentSong?.body;
 
+  // Lógica de Performance: Descobre se o teleprompter já está rodando
+  const isStarted = isPlaying || activeBlockIndex !== -1;
+
   return (
     <div className="min-h-screen bg-black text-white selection:bg-white selection:text-black font-sans overflow-x-hidden">
       
@@ -376,14 +399,25 @@ export default function PlaySong() {
               const isActive = activeBlockIndex === idx;
               const textContent = extractBlockText(tc);
               
+              // Lógica dinâmica de cor da letra
+              let blockStyle = 'text-white opacity-100 scale-100'; // Começa tudo branco
+              if (isStarted) {
+                if (isActive) {
+                  blockStyle = 'text-white scale-105 opacity-100 drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]'; // Destacado se for a linha atual
+                } else {
+                  blockStyle = 'text-white/40 scale-100 hover:text-white/60'; // Linhas em volta ficam cinza mas destacam ao passar o mouse
+                }
+              }
+
               return (
                 <div 
                   key={tc.id || idx} 
                   id={`block-${idx}`} 
-                  className={`w-full transition-all duration-300 origin-left ${isActive ? 'text-white scale-105 opacity-100 drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]' : 'text-white/40 scale-100'}`}
+                  onClick={() => handleBlockClick(idx)} // AÇÃO MATADORA DE RE-SYNC!
+                  className={`w-full transition-all duration-300 origin-left cursor-pointer hover:scale-[1.02] ${blockStyle}`}
                 >
                   <pre 
-                    className="whitespace-pre-wrap break-words font-black uppercase leading-relaxed tracking-tight text-left"
+                    className="whitespace-pre-wrap break-words font-black uppercase leading-relaxed tracking-tight text-left pointer-events-none"
                     style={{ fontSize: `${fontSize}px`, wordBreak: 'break-word', overflowWrap: 'anywhere', fontFamily: 'inherit' }}
                   >
                     {textContent}
