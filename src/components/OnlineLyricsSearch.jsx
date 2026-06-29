@@ -256,7 +256,7 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onCloseSear
               </button>
             </div>
 
-            {/* Rodapé e Créditos Discretos */}
+            {/* Rodapé e Créditos Discretos. */}
             <div className="p-4 border-t border-gray-200 bg-white flex flex-col sm:flex-row items-center justify-between gap-3">
               <span className="text-[10px] font-bold text-black/30 uppercase tracking-widest">
                 Letras fornecidas por LRCLIB
