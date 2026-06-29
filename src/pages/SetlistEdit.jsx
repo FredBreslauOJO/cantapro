@@ -9,7 +9,7 @@ import { useAuth } from '../lib/AuthContext';
 
 export default function SetlistEdit() {
   const navigate = useNavigate();
-  const { id } = useParams(); 
+  const { id } = useParams();
   const { user } = useAuth();
 
   // Estados do Setlist
@@ -18,13 +18,13 @@ export default function SetlistEdit() {
   const [date, setDate] = useState("");
   const [loading, setLoading] = useState(true);
 
-  // Estados de Gerenciamento de Músicas
+  // Estados de Músicas
   const [searchQuery, setSearchQuery] = useState("");
   const [librarySongs, setLibrarySongs] = useState([]); 
   const [addedSongs, setAddedSongs] = useState([]);     
-  const [activeTab, setActiveTab] = useState("selecionar"); 
+  const [activeTab, setActiveTab] = useState("selecionar");
   
-  // Estado para controlar o índice do card sendo arrastado
+  // Estado para o Drag & Drop (Arrastar)
   const [draggedIndex, setDraggedIndex] = useState(null);
 
   useEffect(() => {
@@ -103,7 +103,7 @@ export default function SetlistEdit() {
         });
 
       if (error) throw error;
-      setSearchQuery(""); 
+      setSearchQuery(""); // Limpa a busca ao adicionar
       await loadAddedSongs(); 
     } catch (err) {
       alert(`Erro ao adicionar música: ${err.message}`);
@@ -125,15 +125,15 @@ export default function SetlistEdit() {
     }
   };
 
-  // ==========================================
-  // LÓGICA DE ARRASTAR NATIVA (DRAG & DROP)
-  // ==========================================
-  const handleDragStart = (index) => {
+  // --- LÓGICA DE ARRASTAR (NATIVA) ---
+  const handleDragStart = (e, index) => {
     setDraggedIndex(index);
+    // Pequeno efeito visual ao arrastar
+    e.dataTransfer.effectAllowed = "move";
   };
 
   const handleDragOver = (e) => {
-    e.preventDefault(); // Necessário para permitir o drop
+    e.preventDefault(); // Permite o drop
   };
 
   const handleDrop = async (index) => {
@@ -142,29 +142,24 @@ export default function SetlistEdit() {
     const updatedSongs = [...addedSongs];
     const draggedItem = updatedSongs[draggedIndex];
     
-    // Move o item no array local
     updatedSongs.splice(draggedIndex, 1);
     updatedSongs.splice(index, 0, draggedItem);
 
-    // Atualização otimista na tela
-    setAddedSongs(updatedSongs);
+    setAddedSongs(updatedSongs); // Atualiza UI instantaneamente
     setDraggedIndex(null);
 
     try {
-      // Salva a nova sequência de order_index em lote de forma limpa no Supabase
       const updates = updatedSongs.map((song, idx) => 
-        supabase
-          .from('setlist_items')
-          .update({ order_index: idx })
-          .eq('id', song.itemId)
+        supabase.from('setlist_items').update({ order_index: idx }).eq('id', song.itemId)
       );
       await Promise.all(updates);
     } catch (err) {
-      console.error("Erro ao salvar ordenação no banco:", err.message);
-      await loadAddedSongs(); // Fallback se der erro
+      console.error("Erro ao salvar ordenação:", err.message);
+      await loadAddedSongs(); // Reverte em caso de erro
     }
   };
 
+  // Filtra as músicas da biblioteca que não estão no setlist ainda
   const searchResults = librarySongs.filter(song => {
     if (!searchQuery.trim()) return false;
     const matchText = searchQuery.toLowerCase();
@@ -183,8 +178,8 @@ export default function SetlistEdit() {
   }
 
   return (
-    <div className="min-h-screen bg-white pb-24 font-sans select-none text-black px-4">
-      <div className="max-w-xl mx-auto pt-4">
+    <div className="min-h-screen bg-white pb-24 font-sans select-none text-black">
+      <div className="p-4 max-w-xl mx-auto">
         
         {/* BOTÕES DE AÇÃO SUPERIORES */}
         <div className="flex items-center justify-between mb-6">
@@ -204,7 +199,7 @@ export default function SetlistEdit() {
           </div>
         </div>
 
-        {/* INPUTS DE INFORMAÇÕES DO EVENTO */}
+        {/* TÍTULO E NOME DO SHOW (Resgatado do seu Backup Exato) */}
         <div className="mb-4">
           <input 
             type="text" 
@@ -225,7 +220,7 @@ export default function SetlistEdit() {
           />
         </div>
 
-        {/* DATA DO SHOW */}
+        {/* DATA DO SHOW (Resgatado do seu Backup) */}
         <div className="flex items-center gap-2 mb-6 text-xs font-bold text-black/60 uppercase tracking-wider">
           <span>Data do Show:</span>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-100 border border-gray-300 rounded-lg text-black font-medium normal-case">
@@ -234,11 +229,8 @@ export default function SetlistEdit() {
           </div>
         </div>
 
-        {/* DIVISOR MARCANTE */}
-        <div className="border-b-4 border-black my-6" />
-
-        {/* ABAS SELECIONAR / ORDENAR */}
-        <div className="w-full border-2 border-black rounded-xl p-1 flex bg-white mb-6 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+        {/* ABAS: SELECIONAR / ORDENAR */}
+        <div className="w-full border-2 border-black rounded-xl p-1 flex bg-white mb-4 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
           <button 
             onClick={() => setActiveTab("selecionar")}
             className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${activeTab === 'selecionar' ? 'bg-black text-white' : 'bg-transparent text-black'}`}
@@ -253,119 +245,105 @@ export default function SetlistEdit() {
           </button>
         </div>
 
-        {/* CAMPO DE BUSCA (Apenas no modo Selecionar) */}
+        {/* MODO SELECIONAR: Busca e Listagem Local */}
         {activeTab === "selecionar" && (
-          <div className="relative mb-2">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40" />
-            <input 
-              type="text" 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Digitar nome da música para adicionar..." 
-              className="w-full pl-9 pr-4 py-3 border-2 border-black rounded-xl text-sm font-bold bg-gray-50 focus:bg-white focus:border-black outline-none transition-all"
-            />
-          </div>
-        )}
-
-        {/* RESULTADOS DA BUSCA (Modo Selecionar) */}
-        {activeTab === "selecionar" && searchQuery.trim() && (
-          <div className="border-2 border-black rounded-xl bg-white p-2 mb-6 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] space-y-1 max-h-48 overflow-y-auto">
-            {searchResults.length === 0 ? (
-              <p className="text-xs font-bold text-gray-500 p-2 italic">Nenhuma música disponível para adicionar...</p>
-            ) : (
-              searchResults.map(song => (
-                <div key={song.id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="font-black text-xs uppercase tracking-tight">{song.title}</p>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase">{song.artist || 'Sem artista'}</p>
-                  </div>
-                  <button 
-                    onClick={() => handleAddSong(song)}
-                    className="px-3 py-1 bg-blue-600 text-white border border-black text-[10px] font-black uppercase rounded-lg shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
-                  >
-                    + Adicionar
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-
-        {/* SEÇÃO DA LISTA DE MÚSICAS */}
-        <div className="mt-4 pt-2">
-          <h3 className="text-xs font-black uppercase tracking-widest text-black/40 mb-3 px-1">
-            {activeTab === "ordenar" ? "Ajustar Ordem do Roteiro (Arraste os cards)" : "Músicas Escaladas"}
-          </h3>
-          
-          {addedSongs.length === 0 ? (
-            <div className="border-4 border-dashed border-black rounded-3xl p-8 text-center bg-gray-50 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-              <div className="w-12 h-12 bg-yellow-400 border-2 border-black rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Music size={22} />
-              </div>
-              <h3 className="font-black uppercase tracking-tight text-base mb-2">Seu repertório está vazio</h3>
-              <p className="text-xs font-bold text-black/60 mb-6 max-w-xs mx-auto">
-                Pesquise e adicione músicas usando o campo acima.
-              </p>
+          <>
+            <div className="relative mb-4">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40" />
+              <input 
+                type="text" 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar música ou artista para adicionar..." 
+                className="w-full pl-9 pr-4 py-2.5 border-2 border-gray-300 focus:border-black outline-none rounded-xl text-sm font-medium transition-colors"
+              />
             </div>
-          ) : (
-            <div className="space-y-2">
-              {addedSongs.map((song, index) => (
-                <div 
-                  key={song.id} 
-                  draggable={activeTab === "ordenar"} // Fica arrastável apenas na aba Ordenar
-                  onDragStart={() => handleDragStart(index)}
-                  onDragOver={handleDragOver}
-                  onDrop={() => handleDrop(index)}
-                  className={`p-3.5 bg-white border-2 border-black rounded-xl flex items-center justify-between shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all ${
-                    activeTab === "ordenar" ? "cursor-grab active:cursor-grabbing hover:bg-gray-50 border-dashed" : "bg-white"
-                  }`}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    {activeTab === "ordenar" && <GripVertical size={16} className="text-black/40 flex-shrink-0" />}
-                    <span className="font-mono text-xs font-black text-gray-400">
-                      {(index + 1).toString().padStart(2, '0')}
-                    </span>
-                    <div className="truncate">
-                      <p className="font-black text-sm uppercase tracking-tight text-black truncate">{song.title}</p>
-                      <p className="text-[10px] font-bold text-black/40 uppercase truncate">{song.artist || 'Sem artista'}</p>
-                    </div>
-                  </div>
-                  
-                  {/* CONTROLE LATERAL DA LINHA */}
-                  <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-                    {activeTab === "selecionar" && (
+
+            {/* RESULTADOS SUSPENSOS DA BUSCA */}
+            {searchQuery.trim() && (
+              <div className="border-2 border-black rounded-xl bg-white p-2 mb-6 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] space-y-1 max-h-48 overflow-y-auto">
+                {searchResults.length === 0 ? (
+                  <p className="text-xs font-bold text-gray-500 p-2 italic">Nenhuma música na sua biblioteca com esse nome...</p>
+                ) : (
+                  searchResults.map(song => (
+                    <div key={song.id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg border-b border-gray-100 last:border-0">
+                      <div>
+                        <p className="font-black text-xs uppercase tracking-tight">{song.title}</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase">{song.artist || 'Sem artista'}</p>
+                      </div>
                       <button 
-                        onClick={() => handleRemoveSong(song)}
-                        className="p-2 border border-red-200 text-red-500 bg-red-50 hover:bg-red-500 hover:text-white rounded-lg transition-colors"
+                        onClick={() => handleAddSong(song)}
+                        className="p-1.5 bg-black text-white rounded-lg active:scale-95 transition-all"
                       >
-                        <Minus size={14} strokeWidth={3} />
+                        <Plus size={16} strokeWidth={3} />
                       </button>
-                    )}
-                  </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </>
+        )}
 
-                </div>
-              ))}
+        {/* TELA DE AVISO (EMPTY STATE) SE O SETLIST ESTIVER VAZIO */}
+        {addedSongs.length === 0 ? (
+          <div className="mt-8 border-4 border-dashed border-black rounded-3xl p-8 text-center bg-gray-50 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+            <div className="w-12 h-12 bg-yellow-400 border-2 border-black rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+              <Music size={22} />
             </div>
-          )}
-        </div>
+            <h3 className="font-black uppercase tracking-tight text-base mb-2">Seu repertório está vazio</h3>
+            <p className="text-xs font-bold text-black/60 leading-relaxed max-w-xs mx-auto">
+              Utilize o campo de busca acima para adicionar as músicas que você já salvou na sua biblioteca.
+            </p>
+          </div>
+        ) : (
+          /* LISTAGEM DAS MÚSICAS ESCALADAS (Card Sólido Original) */
+          <div className="mt-4 space-y-3">
+            {activeTab === "ordenar" && (
+              <p className="text-[10px] font-black uppercase text-gray-400 mb-2 tracking-widest text-center">
+                Arraste os cards para ajustar a ordem
+              </p>
+            )}
+            
+            {addedSongs.map((song, index) => (
+              <div 
+                key={song.id} 
+                draggable={activeTab === "ordenar"}
+                onDragStart={(e) => handleDragStart(e, index)}
+                onDragOver={handleDragOver}
+                onDrop={() => handleDrop(index)}
+                className={`p-4 border-2 border-black rounded-xl flex items-center justify-between shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all bg-white ${
+                  activeTab === "ordenar" ? "cursor-grab active:cursor-grabbing hover:bg-gray-50" : ""
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  {/* Ícone de Arrastar apenas na aba Ordenar */}
+                  {activeTab === "ordenar" && <GripVertical size={18} className="text-black/30 flex-shrink-0" />}
+                  
+                  <span className="font-mono text-xs font-black text-gray-400">
+                    {(index + 1).toString().padStart(2, '0')}
+                  </span>
+                  <div className="truncate">
+                    <p className="font-black text-sm uppercase tracking-tight text-black truncate">{song.title}</p>
+                    <p className="text-[10px] font-bold text-black/40 uppercase truncate mt-0.5">{song.artist || 'Sem artista'}</p>
+                  </div>
+                </div>
+
+                {/* Botão de Remover apenas na aba Selecionar */}
+                {activeTab === "selecionar" && (
+                  <button 
+                    onClick={() => handleRemoveSong(song)}
+                    className="p-2 border-2 border-transparent hover:border-black text-red-500 rounded-xl transition-all hover:bg-red-50"
+                  >
+                    <Minus size={18} strokeWidth={3} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
       </div>
-
-      {/* FOOTER NAVEGAÇÃO */}
-      <nav className="fixed bottom-0 left-0 right-0 border-t-4 border-black bg-white px-4 py-3 flex gap-3 z-40">
-        <button 
-          onClick={() => navigate('/')}
-          className="flex-1 py-3 bg-black text-white text-xs font-black uppercase tracking-widest rounded-xl"
-        >
-          Setlists
-        </button>
-        <button 
-          onClick={() => navigate('/songs')}
-          className="flex-1 py-3 bg-white border-2 border-black text-black text-xs font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]"
-        >
-          <Music size={14} /> Letras
-        </button>
-      </nav>
     </div>
   );
 }
