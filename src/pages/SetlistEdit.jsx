@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { 
   ArrowLeft, Printer, Share2, Trash2, Search, 
-  Music, Plus, Minus, Calendar, GripVertical 
+  Music, Plus, Minus, Calendar, GripVertical, AlignLeft 
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
@@ -12,16 +12,16 @@ export default function SetlistEdit() {
   const { id } = useParams();
   const { user } = useAuth();
 
-  // Estados do Setlist
-  const [title, setTitle] = useState("");
-  const [event, setEvent] = useState("");
+  // Estados do Setlist (Mapeados para as colunas reais: event_name e band_name)
+  const [eventName, setEventName] = useState("");
+  const [bandName, setBandName] = useState("");
   const [date, setDate] = useState("");
   const [loading, setLoading] = useState(true);
 
-  // Estados de Músicas
+  // Estados de Gerenciamento do Roteiro (Músicas + Divisores)
   const [searchQuery, setSearchQuery] = useState("");
   const [librarySongs, setLibrarySongs] = useState([]); 
-  const [addedSongs, setAddedSongs] = useState([]);     
+  const [setlistItems, setSetlistItems] = useState([]); // Agora guarda tudo misturado!
   const [activeTab, setActiveTab] = useState("selecionar");
   
   // Estado para o Drag & Drop (Arrastar)
@@ -37,6 +37,7 @@ export default function SetlistEdit() {
     try {
       setLoading(true);
 
+      // 1. CARREGA O CABEÇALHO DO SETLIST
       const { data: setlist } = await supabase
         .from('setlists')
         .select('*')
@@ -44,15 +45,16 @@ export default function SetlistEdit() {
         .single();
 
       if (setlist) {
-        setTitle(setlist.title || "SEM TÍTULO");
-        setEvent(setlist.event_name || "");
-        if (setlist.created_at) {
-          setDate(new Date(setlist.created_at).toLocaleDateString('pt-BR', {
-            day: '2-digit', month: 'short', year: 'numeric'
-          }));
+        setEventName(setlist.event_name || ""); // Nome principal
+        setBandName(setlist.band_name || "");   // Subtítulo
+        if (setlist.date) {
+          // Ajuste para não bugar fuso horário
+          const [year, month, day] = setlist.date.split('-');
+          setDate(`${day}/${month}/${year}`);
         }
       }
 
+      // 2. CARREGA A BIBLIOTECA DE MÚSICAS DO USUÁRIO
       const { data: songsData } = await supabase
         .from('songs')
         .select('*')
@@ -61,7 +63,8 @@ export default function SetlistEdit() {
 
       if (songsData) setLibrarySongs(songsData);
 
-      await loadAddedSongs();
+      // 3. CARREGA OS ITENS DO SETLIST (Músicas e Divisores)
+      await loadSetlistItems();
 
     } catch (err) {
       console.error("Erro ao carregar dados:", err.message);
@@ -70,96 +73,149 @@ export default function SetlistEdit() {
     }
   };
 
-  const loadAddedSongs = async () => {
+  const loadSetlistItems = async () => {
     const { data: items } = await supabase
       .from('setlist_items')
-      .select('id, song_id, order_index, songs(*)')
+      .select('id, song_id, order_index, item_type, content, songs(*)')
       .eq('setlist_id', id)
       .order('order_index', { ascending: true });
 
     if (items) {
-      const formatted = items
-        .filter(item => item.songs)
-        .map(item => ({
-          itemId: item.id, 
-          orderIndex: item.order_index ?? 0,
-          ...item.songs
-        }));
-      setAddedSongs(formatted);
+      // Formata os dados para a UI saber se é música ou divisor
+      const formatted = items.map(item => {
+        if (item.item_type === 'divider') {
+          return {
+            itemId: item.id,
+            type: 'divider',
+            content: item.content || "NOVO DIVISOR",
+            orderIndex: item.order_index ?? 0
+          };
+        } else {
+          return {
+            itemId: item.id,
+            type: 'song',
+            orderIndex: item.order_index ?? 0,
+            ...(item.songs || {}) // Espalha os dados da música vinculada
+          };
+        }
+      });
+      setSetlistItems(formatted);
     }
   };
 
+  // --- AÇÕES DO BANCO DE DADOS ---
+
   const handleAddSong = async (song) => {
-    if (addedSongs.some(s => s.id === song.id)) return;
-    const nextIndex = addedSongs.length;
+    // Evita duplicatas da mesma música
+    if (setlistItems.some(item => item.type === 'song' && item.id === song.id)) return;
+    
+    const nextIndex = setlistItems.length;
 
     try {
       const { error } = await supabase
         .from('setlist_items')
         .insert({
           setlist_id: id,
+          item_type: 'song',
           song_id: song.id,
           order_index: nextIndex 
         });
 
       if (error) throw error;
-      setSearchQuery(""); // Limpa a busca ao adicionar
-      await loadAddedSongs(); 
+      setSearchQuery(""); 
+      await loadSetlistItems(); 
     } catch (err) {
       alert(`Erro ao adicionar música: ${err.message}`);
     }
   };
 
-  const handleRemoveSong = async (song) => {
+  const handleAddDivider = async () => {
+    const nextIndex = setlistItems.length;
+
+    try {
+      const { error } = await supabase
+        .from('setlist_items')
+        .insert({
+          setlist_id: id,
+          item_type: 'divider',
+          content: '— NOVO BLOCO —', // Texto padrão
+          order_index: nextIndex
+        });
+
+      if (error) throw error;
+      await loadSetlistItems();
+    } catch (err) {
+      alert(`Erro ao criar divisor: ${err.message}`);
+    }
+  };
+
+  const handleRemoveItem = async (itemId) => {
     try {
       const { error } = await supabase
         .from('setlist_items')
         .delete()
-        .eq('setlist_id', id)
-        .eq('song_id', song.id);
+        .eq('id', itemId);
 
       if (error) throw error;
-      await loadAddedSongs(); 
+      await loadSetlistItems(); 
     } catch (err) {
-      console.error("Erro ao remover música:", err.message);
+      console.error("Erro ao remover item:", err.message);
+    }
+  };
+
+  // Atualiza o texto do divisor ao digitar
+  const handleUpdateDividerText = async (itemId, newText) => {
+    // Atualização otimista local
+    setSetlistItems(prev => prev.map(item => 
+      item.itemId === itemId ? { ...item, content: newText } : item
+    ));
+
+    // Atualiza no banco silenciosamente
+    try {
+      await supabase
+        .from('setlist_items')
+        .update({ content: newText })
+        .eq('id', itemId);
+    } catch (err) {
+      console.error("Erro ao salvar texto do divisor:", err.message);
     }
   };
 
   // --- LÓGICA DE ARRASTAR (NATIVA) ---
   const handleDragStart = (e, index) => {
     setDraggedIndex(index);
-    // Pequeno efeito visual ao arrastar
     e.dataTransfer.effectAllowed = "move";
   };
 
   const handleDragOver = (e) => {
-    e.preventDefault(); // Permite o drop
+    e.preventDefault();
   };
 
   const handleDrop = async (index) => {
     if (draggedIndex === null || draggedIndex === index) return;
 
-    const updatedSongs = [...addedSongs];
-    const draggedItem = updatedSongs[draggedIndex];
+    const updatedItems = [...setlistItems];
+    const draggedItem = updatedItems[draggedIndex];
     
-    updatedSongs.splice(draggedIndex, 1);
-    updatedSongs.splice(index, 0, draggedItem);
+    updatedItems.splice(draggedIndex, 1);
+    updatedItems.splice(index, 0, draggedItem);
 
-    setAddedSongs(updatedSongs); // Atualiza UI instantaneamente
+    setSetlistItems(updatedItems); 
     setDraggedIndex(null);
 
     try {
-      const updates = updatedSongs.map((song, idx) => 
-        supabase.from('setlist_items').update({ order_index: idx }).eq('id', song.itemId)
+      // Reordena o índice de todo mundo no banco
+      const updates = updatedItems.map((item, idx) => 
+        supabase.from('setlist_items').update({ order_index: idx }).eq('id', item.itemId)
       );
       await Promise.all(updates);
     } catch (err) {
       console.error("Erro ao salvar ordenação:", err.message);
-      await loadAddedSongs(); // Reverte em caso de erro
+      await loadSetlistItems(); 
     }
   };
 
-  // Filtra as músicas da biblioteca que não estão no setlist ainda
+  // Filtro de Busca (oculta músicas que já estão na lista)
   const searchResults = librarySongs.filter(song => {
     if (!searchQuery.trim()) return false;
     const matchText = searchQuery.toLowerCase();
@@ -167,7 +223,10 @@ export default function SetlistEdit() {
       song.title.toLowerCase().includes(matchText) ||
       (song.artist || "").toLowerCase().includes(matchText)
     );
-  }).filter(song => !addedSongs.some(added => added.id === song.id));
+  }).filter(song => !setlistItems.some(item => item.type === 'song' && item.id === song.id));
+
+  // Função para contar apenas as músicas (para exibir o número correto "01", "02") ignorando os divisores
+  let songCounter = 0;
 
   if (loading) {
     return (
@@ -199,28 +258,28 @@ export default function SetlistEdit() {
           </div>
         </div>
 
-        {/* TÍTULO E NOME DO SHOW (Resgatado do seu Backup Exato) */}
+        {/* TÍTULO E NOME DO SHOW (Lendo event_name e band_name) */}
         <div className="mb-4">
           <input 
             type="text" 
-            value={title} 
-            onChange={(e) => setTitle(e.target.value)}
+            value={eventName} 
+            onChange={(e) => setEventName(e.target.value)}
             className="w-full font-black text-3xl uppercase tracking-tighter outline-none border-b-4 border-black pb-1 placeholder-black/20 bg-transparent"
-            placeholder="NOME DO SETLIST"
+            placeholder="NOME DO EVENTO"
           />
         </div>
 
         <div className="mb-4">
           <input 
             type="text" 
-            value={event} 
-            onChange={(e) => setEvent(e.target.value)}
+            value={bandName} 
+            onChange={(e) => setBandName(e.target.value)}
             className="w-full px-3 py-2.5 font-bold uppercase tracking-wide text-sm bg-transparent border-2 border-gray-300 rounded-xl focus:border-black outline-none transition-colors"
-            placeholder="NOME DA BANDA OU EVENTO"
+            placeholder="NOME DA BANDA"
           />
         </div>
 
-        {/* DATA DO SHOW (Resgatado do seu Backup) */}
+        {/* DATA DO SHOW */}
         <div className="flex items-center gap-2 mb-6 text-xs font-bold text-black/60 uppercase tracking-wider">
           <span>Data do Show:</span>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-100 border border-gray-300 rounded-lg text-black font-medium normal-case">
@@ -245,25 +304,34 @@ export default function SetlistEdit() {
           </button>
         </div>
 
-        {/* MODO SELECIONAR: Busca e Listagem Local */}
+        {/* MODO SELECIONAR: Busca e Botão de Divisor */}
         {activeTab === "selecionar" && (
-          <>
-            <div className="relative mb-4">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40" />
-              <input 
-                type="text" 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar música ou artista para adicionar..." 
-                className="w-full pl-9 pr-4 py-2.5 border-2 border-gray-300 focus:border-black outline-none rounded-xl text-sm font-medium transition-colors"
-              />
+          <div className="mb-6">
+            <div className="flex gap-2 mb-2">
+              <div className="relative flex-1">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40" />
+                <input 
+                  type="text" 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Buscar música..." 
+                  className="w-full pl-9 pr-4 py-3 border-2 border-black rounded-xl text-sm font-bold bg-gray-50 focus:bg-white outline-none transition-all"
+                />
+              </div>
+              <button 
+                onClick={handleAddDivider}
+                className="px-4 bg-black text-white border-2 border-black rounded-xl text-[10px] font-black uppercase tracking-widest shadow-[2px_2px_0px_0px_rgba(0,0,0,0.2)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center gap-1.5"
+                title="Adicionar um divisor de blocos no setlist"
+              >
+                <AlignLeft size={14} /> Divisor
+              </button>
             </div>
 
             {/* RESULTADOS SUSPENSOS DA BUSCA */}
             {searchQuery.trim() && (
-              <div className="border-2 border-black rounded-xl bg-white p-2 mb-6 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] space-y-1 max-h-48 overflow-y-auto">
+              <div className="border-2 border-black rounded-xl bg-white p-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] space-y-1 max-h-48 overflow-y-auto">
                 {searchResults.length === 0 ? (
-                  <p className="text-xs font-bold text-gray-500 p-2 italic">Nenhuma música na sua biblioteca com esse nome...</p>
+                  <p className="text-xs font-bold text-gray-500 p-2 italic">Nenhuma música não adicionada encontrada...</p>
                 ) : (
                   searchResults.map(song => (
                     <div key={song.id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg border-b border-gray-100 last:border-0">
@@ -273,7 +341,7 @@ export default function SetlistEdit() {
                       </div>
                       <button 
                         onClick={() => handleAddSong(song)}
-                        className="p-1.5 bg-black text-white rounded-lg active:scale-95 transition-all"
+                        className="p-1.5 bg-blue-600 text-white rounded-lg active:scale-95 transition-all shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] border border-black"
                       >
                         <Plus size={16} strokeWidth={3} />
                       </button>
@@ -282,68 +350,107 @@ export default function SetlistEdit() {
                 )}
               </div>
             )}
-          </>
+          </div>
         )}
 
         {/* TELA DE AVISO (EMPTY STATE) SE O SETLIST ESTIVER VAZIO */}
-        {addedSongs.length === 0 ? (
+        {setlistItems.length === 0 ? (
           <div className="mt-8 border-4 border-dashed border-black rounded-3xl p-8 text-center bg-gray-50 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
             <div className="w-12 h-12 bg-yellow-400 border-2 border-black rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
               <Music size={22} />
             </div>
-            <h3 className="font-black uppercase tracking-tight text-base mb-2">Seu repertório está vazio</h3>
+            <h3 className="font-black uppercase tracking-tight text-base mb-2">Seu roteiro está vazio</h3>
             <p className="text-xs font-bold text-black/60 leading-relaxed max-w-xs mx-auto">
-              Utilize o campo de busca acima para adicionar as músicas que você já salvou na sua biblioteca.
+              Utilize o campo de busca para adicionar músicas ou crie divisores para separar os momentos do show.
             </p>
           </div>
         ) : (
-          /* LISTAGEM DAS MÚSICAS ESCALADAS (Card Sólido Original) */
+          /* LISTAGEM DO ROTEIRO (Músicas + Divisores) */
           <div className="mt-4 space-y-3">
             {activeTab === "ordenar" && (
               <p className="text-[10px] font-black uppercase text-gray-400 mb-2 tracking-widest text-center">
-                Arraste os cards para ajustar a ordem
+                Arraste os blocos para ajustar a ordem do show
               </p>
             )}
             
-            {addedSongs.map((song, index) => (
-              <div 
-                key={song.id} 
-                draggable={activeTab === "ordenar"}
-                onDragStart={(e) => handleDragStart(e, index)}
-                onDragOver={handleDragOver}
-                onDrop={() => handleDrop(index)}
-                className={`p-4 border-2 border-black rounded-xl flex items-center justify-between shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all bg-white ${
-                  activeTab === "ordenar" ? "cursor-grab active:cursor-grabbing hover:bg-gray-50" : ""
-                }`}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  {/* Ícone de Arrastar apenas na aba Ordenar */}
-                  {activeTab === "ordenar" && <GripVertical size={18} className="text-black/30 flex-shrink-0" />}
-                  
-                  <span className="font-mono text-xs font-black text-gray-400">
-                    {(index + 1).toString().padStart(2, '0')}
-                  </span>
-                  <div className="truncate">
-                    <p className="font-black text-sm uppercase tracking-tight text-black truncate">{song.title}</p>
-                    <p className="text-[10px] font-bold text-black/40 uppercase truncate mt-0.5">{song.artist || 'Sem artista'}</p>
-                  </div>
-                </div>
+            {setlistItems.map((item, index) => {
+              // Se for música, incrementa o contador para exibir "01", "02" na UI
+              if (item.type === 'song') songCounter++;
 
-                {/* Botão de Remover apenas na aba Selecionar. */}
-                {activeTab === "selecionar" && (
-                  <button 
-                    onClick={() => handleRemoveSong(song)}
-                    className="p-2 border-2 border-transparent hover:border-black text-red-500 rounded-xl transition-all hover:bg-red-50"
-                  >
-                    <Minus size={18} strokeWidth={3} />
-                  </button>
-                )}
-              </div>
-            ))}
+              return (
+                <div 
+                  key={item.itemId} 
+                  draggable={activeTab === "ordenar"}
+                  onDragStart={(e) => handleDragStart(e, index)}
+                  onDragOver={handleDragOver}
+                  onDrop={() => handleDrop(index)}
+                  className={`border-2 border-black rounded-xl flex items-center justify-between transition-all ${
+                    item.type === 'divider' ? "bg-black text-white p-3 shadow-[4px_4px_0px_0px_rgba(234,179,8,1)]" : "bg-white p-4 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                  } ${activeTab === "ordenar" ? "cursor-grab active:cursor-grabbing border-dashed" : ""}`}
+                >
+                  
+                  {/* CONTEÚDO DO CARD (Varia se é Divisor ou Música) */}
+                  {item.type === 'divider' ? (
+                    <div className="flex items-center gap-3 w-full">
+                      {activeTab === "ordenar" && <GripVertical size={16} className="text-white/40 flex-shrink-0" />}
+                      <input 
+                        type="text"
+                        value={item.content}
+                        onChange={(e) => handleUpdateDividerText(item.itemId, e.target.value)}
+                        className="bg-transparent font-black text-sm uppercase tracking-widest outline-none w-full placeholder-white/40"
+                        placeholder="DIGITE O NOME DO BLOCO"
+                        readOnly={activeTab === "ordenar"}
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 min-w-0">
+                      {activeTab === "ordenar" && <GripVertical size={18} className="text-black/30 flex-shrink-0" />}
+                      <span className="font-mono text-xs font-black text-gray-400">
+                        {songCounter.toString().padStart(2, '0')}
+                      </span>
+                      <div className="truncate">
+                        <p className="font-black text-sm uppercase tracking-tight text-black truncate">{item.title}</p>
+                        <p className="text-[10px] font-bold text-black/40 uppercase truncate mt-0.5">{item.artist || 'Sem artista'}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Botão de Remover apenas na aba Selecionar */}
+                  {activeTab === "selecionar" && (
+                    <button 
+                      onClick={() => handleRemoveItem(item.itemId)}
+                      className={`flex-shrink-0 ml-2 p-2 border-2 rounded-xl transition-all ${
+                        item.type === 'divider' 
+                        ? 'border-white/20 text-white hover:bg-red-500 hover:border-red-500' 
+                        : 'border-transparent hover:border-black text-red-500 hover:bg-red-50'
+                      }`}
+                    >
+                      <Minus size={18} strokeWidth={3} />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
       </div>
+
+      {/* FOOTER NAVEGAÇÃO FIXO */}
+      <nav className="fixed bottom-0 left-0 right-0 border-t-4 border-black bg-white px-4 py-3 flex gap-3 z-40">
+        <button 
+          onClick={() => navigate('/')}
+          className="flex-1 py-3 bg-black text-white text-xs font-black uppercase tracking-widest rounded-xl"
+        >
+          Setlists
+        </button>
+        <button 
+          onClick={() => navigate('/songs')}
+          className="flex-1 py-3 bg-white border-2 border-black text-black text-xs font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]"
+        >
+          <Music size={14} /> Letras
+        </button>
+      </nav>
     </div>
   );
 }
