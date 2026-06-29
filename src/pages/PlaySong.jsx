@@ -145,19 +145,29 @@ export default function PlaySong() {
     return Array.isArray(raw) ? raw : [];
   };
 
+  // =========================================================================
+  // FUNÇÃO CORRIGIDA: AGORA LÊ "text_content" E IGNORA IDs MINÚSCULOS
+  // =========================================================================
   const extractBlockText = (block) => {
     if (!block) return "[ BLOCO VAZIO ]";
-    if (typeof block === 'string') return block.startsWith('BLOCK_') ? "[ BLOCO SEM TEXTO ]" : block;
-    const commonKeys = ['text', 'content', 'lyrics', 'line', 'words', 'lyric', 'phrase', 'value'];
+    if (typeof block === 'string') return block.toUpperCase().startsWith('BLOCK_') ? "[ BLOCO SEM TEXTO ]" : block;
+    
+    // Adicionado 'text_content' no topo da prioridade!
+    const commonKeys = ['text_content', 'text', 'content', 'lyrics', 'line', 'words', 'lyric', 'phrase', 'value'];
+    
     for (let key of commonKeys) {
-      if (block[key] && typeof block[key] === 'string' && !block[key].startsWith('BLOCK_')) return block[key];
+      if (block[key] && typeof block[key] === 'string' && !block[key].toUpperCase().startsWith('BLOCK_')) {
+        return block[key];
+      }
     }
+    
+    // Fallback de varredura profunda (ignora chaves que contêm "id")
     let bestString = "";
     const searchDeep = (obj) => {
       if (!obj) return;
       Object.entries(obj).forEach(([k, v]) => {
         if (typeof v === 'string') {
-          if (v.trim() !== '' && !v.startsWith('BLOCK_') && k !== 'id' && k !== 'type') {
+          if (v.trim() !== '' && !v.toUpperCase().startsWith('BLOCK_') && !k.toLowerCase().includes('id') && k !== 'type') {
             if (v.length > bestString.length) bestString = v;
           }
         } else if (typeof v === 'object') searchDeep(v);
@@ -370,7 +380,6 @@ export default function PlaySong() {
                 <div 
                   key={tc.id || idx} 
                   id={`block-${idx}`} 
-                  // 🚨 REMOVIDO O BLUR: Fica apenas menor e transparente, mas sempre nítido 🚨
                   className={`w-full transition-all duration-300 origin-left ${isActive ? 'text-white scale-105 opacity-100 drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]' : 'text-white/40 scale-100'}`}
                 >
                   <pre 
