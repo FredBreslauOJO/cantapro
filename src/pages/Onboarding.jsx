@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Music, Clock, ListMusic, Move, Share2, Zap, ChevronRight, X } from 'lucide-react';
+import { Music, Globe, Clock, ListMusic, Move, Share2, Zap, ChevronRight, X } from 'lucide-react';
 
 const STEPS = [
   {
@@ -8,6 +8,12 @@ const STEPS = [
     description: "Digite o nome da música e do artista, cole ou digite suas letras. Tudo fica salvo na sua biblioteca pessoal.",
     icon: <Music size={48} />,
     color: "bg-blue-400"
+  },
+  {
+    title: "Busca Global Sincronizada",
+    description: "Não perca tempo digitando. Acesse nosso banco de dados mundial e importe letras com os tempos (timecodes) já sincronizados automaticamente direto para o seu teleprompter.",
+    icon: <Globe size={48} />,
+    color: "bg-cyan-400"
   },
   {
     title: "Edite Timecode",
