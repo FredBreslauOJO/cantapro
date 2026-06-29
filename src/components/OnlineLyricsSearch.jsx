@@ -56,7 +56,7 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onCloseSear
     return `${m}:${s}`;
   };
 
-  // 3. PARSER: TRANFORMA A LETRA SINCRONIZADA EM BLOCOS COM TIMECODE EXATO
+  // 3. PARSER INTELIGENTE: TRADUZ LRCLIB PARA OS BLOCOS DO CANTA.PRO (START / END)
   const processAndSave = (track, forcePlain = false) => {
     const useSynced = track.syncedLyrics && activePreviewTab === 'synced' && !forcePlain;
     const rawText = useSynced ? track.syncedLyrics : track.plainLyrics;
@@ -64,52 +64,69 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onCloseSear
     let generatedBlocks = [];
 
     if (useSynced) {
-      // Divide a letra linha por linha
       const lines = rawText.split('\n');
-      
+      const parsedLines = [];
+
+      // Passo 1: Extrai todos os tempos (inclusive das linhas vazias, que marcam pausas)
       lines.forEach((line) => {
-        // Regex para capturar exatamente o padrão [mm:ss.xx] e o texto da frente
         const match = line.match(/\[(\d+):(\d+)\.(\d+)\](.*)/);
-        
         if (match) {
           const minutes = parseInt(match[1], 10);
           const seconds = parseInt(match[2], 10);
-          const fraction = parseInt(match[3].padEnd(3, '0'), 10) / 1000; // Converte para milissegundos corretos
-          
-          const totalSeconds = (minutes * 60) + seconds + fraction;
+          const fraction = parseInt(match[3].padEnd(3, '0'), 10) / 1000; 
+          const timeInSeconds = (minutes * 60) + seconds + fraction;
           const text = match[4].trim();
           
-          // Só adiciona se houver texto na linha (ignora quebras instrumentais vazias)
-          if (text) {
-            generatedBlocks.push({
-              id: Math.random().toString(36).substring(2, 11),
-              text: text,
-              timecode: Number(totalSeconds.toFixed(2)), // Salva numérico com 2 casas
-            });
-          }
+          parsedLines.push({
+            time: Number(timeInSeconds.toFixed(2)),
+            text: text
+          });
         }
       });
+
+      // Passo 2: Monta os Blocos com START e END para o seu Editor
+      for (let i = 0; i < parsedLines.length; i++) {
+        // Só cria bloco se a linha tiver letra (ignora linhas de marcação vazias)
+        if (parsedLines[i].text !== "") {
+          const start = parsedLines[i].time;
+          
+          // O END é o tempo da próxima linha (mesmo que seja vazia). 
+          // Se for a última linha da música, adicionamos 5 segundos de margem.
+          let end = start + 5; 
+          if (i + 1 < parsedLines.length) {
+            end = parsedLines[i + 1].time;
+          }
+
+          generatedBlocks.push({
+            id: Math.random().toString(36).substring(2, 11),
+            text: parsedLines[i].text,
+            start: start,
+            end: end
+          });
+        }
+      }
     } else {
-      // Se for Plain Lyrics, apenas quebra por linhas e zera os timecodes
+      // Se for Letra sem sincronia, gera os blocos com Start/End zerados
       const lines = rawText.split('\n');
       lines.forEach((line) => {
         if (line.trim()) {
           generatedBlocks.push({
             id: Math.random().toString(36).substring(2, 11),
             text: line.trim(),
-            timecode: 0,
+            start: 0,
+            end: 0
           });
         }
       });
     }
 
-    // Envia os dados estruturados de volta para a sua função principal salvar no Supabase
+    // Envia os blocos com o formato estruturado para o Supabase
     onSaveLyrics({
       title: track.trackName.toUpperCase(),
       artist: track.artistName.toUpperCase(),
       duration: track.duration,
       blocks: generatedBlocks,
-      raw_text: track.plainLyrics // Mantém cópia limpa de segurança
+      raw_text: track.plainLyrics 
     });
 
     setSelectedTrack(null);
