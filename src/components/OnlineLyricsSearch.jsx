@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Eye, X, Check, ArrowRight, Sparkles, Music } from 'lucide-react';
+import { Search, Eye, X, Check, Sparkles, Music } from 'lucide-react';
 
 export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onCloseSearch }) {
   const [query, setQuery] = useState('');
@@ -56,7 +56,7 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onCloseSear
     return `${m}:${s}`;
   };
 
-  // 3. PARSER: TRANFORMA A LETRA SINCRONIZADA EM BLOCOS DO CANTA.PRO
+  // 3. PARSER: TRANFORMA A LETRA SINCRONIZADA EM BLOCOS COM TIMECODE EXATO
   const processAndSave = (track, forcePlain = false) => {
     const useSynced = track.syncedLyrics && activePreviewTab === 'synced' && !forcePlain;
     const rawText = useSynced ? track.syncedLyrics : track.plainLyrics;
@@ -64,27 +64,33 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onCloseSear
     let generatedBlocks = [];
 
     if (useSynced) {
-      // Processa linha por linha capturando o timestamp [mm:ss.xx]
+      // Divide a letra linha por linha
       const lines = rawText.split('\n');
+      
       lines.forEach((line) => {
+        // Regex para capturar exatamente o padrão [mm:ss.xx] e o texto da frente
         const match = line.match(/\[(\d+):(\d+)\.(\d+)\](.*)/);
+        
         if (match) {
           const minutes = parseInt(match[1], 10);
           const seconds = parseInt(match[2], 10);
-          const totalSeconds = (minutes * 60) + seconds;
+          const fraction = parseInt(match[3].padEnd(3, '0'), 10) / 1000; // Converte para milissegundos corretos
+          
+          const totalSeconds = (minutes * 60) + seconds + fraction;
           const text = match[4].trim();
           
+          // Só adiciona se houver texto na linha (ignora quebras instrumentais vazias)
           if (text) {
             generatedBlocks.push({
               id: Math.random().toString(36).substring(2, 11),
               text: text,
-              timecode: totalSeconds, // Sincronia perfeita em segundos
+              timecode: Number(totalSeconds.toFixed(2)), // Salva numérico com 2 casas
             });
           }
         }
       });
     } else {
-      // Processa como texto plano padrão por quebra de linha
+      // Se for Plain Lyrics, apenas quebra por linhas e zera os timecodes
       const lines = rawText.split('\n');
       lines.forEach((line) => {
         if (line.trim()) {
@@ -141,7 +147,7 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onCloseSear
         </div>
       )}
 
-      {/* LISTA DE RESULTADOS (Idêntica à imagem image_d8c7ff.png) */}
+      {/* LISTA DE RESULTADOS */}
       <div className="space-y-3">
         {results.map((track) => (
           <div 
@@ -183,7 +189,7 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onCloseSear
         ))}
       </div>
 
-      {/* MODAL DE PREVIEW E IMPORTAÇÃO (Idêntico à imagem image_d8c85e.jpg) */}
+      {/* MODAL DE PREVIEW E IMPORTAÇÃO */}
       {selectedTrack && (
         <div className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white border-4 border-black w-full max-w-lg rounded-3xl overflow-hidden flex flex-col max-h-[85vh] shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] font-sans animate-fadeIn">

@@ -39,7 +39,6 @@ export default function PlaySong() {
   // CONTROLE DE PEDAL BLUETOOTH (TECLADO)
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Se tivermos inputs no futuro, não queremos que o espaço ative o play enquanto digitam
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
       // PEDAL 1: PLAY/PAUSE (Espaço ou Enter)
@@ -187,7 +186,7 @@ export default function PlaySong() {
 
       if (hasTimecodes) {
         const currentBlockIdx = timecodes.findIndex(tc => {
-          const startMs = (tc.start_time ?? tc.startTime ?? tc.start ?? tc.time ?? 0) * 1000;
+          const startMs = (tc.start_time ?? tc.startTime ?? tc.start ?? tc.time ?? tc.timecode ?? 0) * 1000;
           const endMs = (tc.end_time ?? tc.endTime ?? tc.end ?? (startMs / 1000) + 5) * 1000;
           return elapsed >= startMs && elapsed <= endMs;
         });
@@ -198,7 +197,7 @@ export default function PlaySong() {
           const blockElement = document.getElementById(`block-${currentBlockIdx}`);
           if (blockElement) {
             const tc = timecodes[currentBlockIdx];
-            const startMs = (tc.start_time ?? tc.startTime ?? tc.start ?? tc.time ?? 0) * 1000;
+            const startMs = (tc.start_time ?? tc.startTime ?? tc.start ?? tc.time ?? tc.timecode ?? 0) * 1000;
             const endMs = (tc.end_time ?? tc.endTime ?? tc.end ?? (startMs / 1000) + 5) * 1000;
             
             const duration = endMs - startMs;
@@ -217,7 +216,7 @@ export default function PlaySong() {
         }
 
         const lastBlock = timecodes[timecodes.length - 1];
-        const maxTimeMs = (lastBlock.end_time ?? lastBlock.endTime ?? lastBlock.end ?? 0) * 1000;
+        const maxTimeMs = (lastBlock.end_time ?? lastBlock.endTime ?? lastBlock.end ?? lastBlock.timecode ?? 0) * 1000;
         
         if (elapsed < maxTimeMs) playbackRef.current.animationId = requestAnimationFrame(loop);
         else { stopAutoScroll(); setIsPlaying(false); }
@@ -371,7 +370,8 @@ export default function PlaySong() {
                 <div 
                   key={tc.id || idx} 
                   id={`block-${idx}`} 
-                  className={`w-full transition-all duration-300 origin-left ${isActive ? 'text-white scale-105 drop-shadow-[0_0_15px_rgba(255,255,255,0.4)] opacity-100' : 'text-white/50 blur-[1px]'}`}
+                  // 🚨 REMOVIDO O BLUR: Fica apenas menor e transparente, mas sempre nítido 🚨
+                  className={`w-full transition-all duration-300 origin-left ${isActive ? 'text-white scale-105 opacity-100 drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]' : 'text-white/40 scale-100'}`}
                 >
                   <pre 
                     className="whitespace-pre-wrap break-words font-black uppercase leading-relaxed tracking-tight text-left"
