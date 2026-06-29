@@ -56,7 +56,7 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onCloseSear
     return `${m}:${s}`;
   };
 
-  // 3. PARSER INTELIGENTE: TRADUZ LRCLIB PARA OS BLOCOS DO CANTA.PRO (START / END)
+  // 3. PARSER INTELIGENTE: TRADUZ LRCLIB PARA OS BLOCOS EXATOS DO SEU EDITOR
   const processAndSave = (track, forcePlain = false) => {
     const useSynced = track.syncedLyrics && activePreviewTab === 'synced' && !forcePlain;
     const rawText = useSynced ? track.syncedLyrics : track.plainLyrics;
@@ -67,7 +67,7 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onCloseSear
       const lines = rawText.split('\n');
       const parsedLines = [];
 
-      // Passo 1: Extrai todos os tempos (inclusive das linhas vazias, que marcam pausas)
+      // Passo 1: Extrai todos os tempos (inclusive das linhas vazias)
       lines.forEach((line) => {
         const match = line.match(/\[(\d+):(\d+)\.(\d+)\](.*)/);
         if (match) {
@@ -84,48 +84,46 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onCloseSear
         }
       });
 
-      // Passo 2: Monta os Blocos com START e END para o seu Editor
+      // Passo 2: Monta os Blocos com a nomenclatura exata do TimecodeEditor.jsx
       for (let i = 0; i < parsedLines.length; i++) {
-        // Só cria bloco se a linha tiver letra (ignora linhas de marcação vazias)
+        // Só cria bloco se a linha tiver texto (ignora blocos em branco)
         if (parsedLines[i].text !== "") {
           const start = parsedLines[i].time;
           
-          // O END é o tempo da próxima linha (mesmo que seja vazia). 
-          // Se for a última linha da música, adicionamos 5 segundos de margem.
           let end = start + 5; 
           if (i + 1 < parsedLines.length) {
             end = parsedLines[i + 1].time;
           }
 
           generatedBlocks.push({
-            id: Math.random().toString(36).substring(2, 11),
-            text: parsedLines[i].text,
-            start: start,
-            end: end
+            block_id: `block_${Date.now()}_${i}`, // Nomenclatura igual ao Editor
+            text_content: parsedLines[i].text,    // Variável exata
+            start_time: start,                    // Variável exata
+            end_time: end,                        // Variável exata
+            order_index: generatedBlocks.length   // Mantém a ordem
           });
         }
       }
     } else {
-      // Se for Letra sem sincronia, gera os blocos com Start/End zerados
       const lines = rawText.split('\n');
       lines.forEach((line) => {
         if (line.trim()) {
           generatedBlocks.push({
-            id: Math.random().toString(36).substring(2, 11),
-            text: line.trim(),
-            start: 0,
-            end: 0
+            block_id: `block_${Date.now()}_${generatedBlocks.length}`,
+            text_content: line.trim(),
+            start_time: 0,
+            end_time: 0,
+            order_index: generatedBlocks.length
           });
         }
       });
     }
 
-    // Envia os blocos com o formato estruturado para o Supabase
     onSaveLyrics({
       title: track.trackName.toUpperCase(),
       artist: track.artistName.toUpperCase(),
       duration: track.duration,
-      blocks: generatedBlocks,
+      blocks: generatedBlocks, // Agora formatado 100% compátivel
       raw_text: track.plainLyrics 
     });
 
@@ -240,7 +238,7 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onCloseSear
               </button>
             </div>
 
-            {/* Caixa de Texto da Letra (NÍTIDA, SEM BLUR) */}
+            {/* Caixa de Texto da Letra */}
             <div className="flex-1 overflow-y-auto p-4 bg-gray-50/50 font-mono text-xs text-black/80 space-y-1 relative">
               <pre className="whitespace-pre-wrap font-sans font-bold leading-relaxed">
                 {activePreviewTab === 'synced' ? selectedTrack.syncedLyrics : selectedTrack.plainLyrics}
@@ -256,7 +254,7 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onCloseSear
               </button>
             </div>
 
-            {/* Rodapé e Créditos Discretos. */}
+            {/* Rodapé e Créditos Discretos */}
             <div className="p-4 border-t border-gray-200 bg-white flex flex-col sm:flex-row items-center justify-between gap-3">
               <span className="text-[10px] font-bold text-black/30 uppercase tracking-widest">
                 Letras fornecidas por LRCLIB
