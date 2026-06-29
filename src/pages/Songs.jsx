@@ -43,16 +43,18 @@ export default function Songs() {
     navigate("/songs/new");
   };
 
-  // FUNÇÃO QUE SALVA A LETRA ENCONTRADA NA WEB DIRETO NO SEU BANCO DE DADOS
+  // FUNÇÃO QUE SALVA A LETRA ENCONTRADA NA WEB COM OS NOMES REAIS DAS SUAS COLUNAS
   const handleSaveLyricsFromWeb = async (songData) => {
     try {
       const { error } = await supabase
         .from('songs')
         .insert({
-          created_by: user.email, // Mantém o padrão de relacionamento do seu banco
+          created_by: user.email,
           title: songData.title,
           artist: songData.artist,
-          blocks: songData.blocks // Salva os blocos estruturados (com sincronia se houver)
+          duration_seconds: songData.duration || 0, // Mapeado para duration_seconds
+          lyrics_text: songData.raw_text || "",     // Mapeado para lyrics_text
+          timecode_blocks: songData.blocks          // Mapeado para timecode_blocks
         });
 
       if (error) throw error;
