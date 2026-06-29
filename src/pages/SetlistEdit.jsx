@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { 
   ArrowLeft, Printer, Share2, Trash2, Search, 
-  Music, Plus, Minus, Calendar, ArrowUp, ArrowDown 
+  Music, Plus, Minus, Calendar, GripVertical 
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
@@ -23,6 +23,9 @@ export default function SetlistEdit() {
   const [librarySongs, setLibrarySongs] = useState([]); 
   const [addedSongs, setAddedSongs] = useState([]);     
   const [activeTab, setActiveTab] = useState("selecionar"); 
+  
+  // Estado para controlar o índice do card sendo arrastado
+  const [draggedIndex, setDraggedIndex] = useState(null);
 
   useEffect(() => {
     if (user && id) {
@@ -30,7 +33,6 @@ export default function SetlistEdit() {
     }
   }, [user, id]);
 
-  // 1. CARREGA OS DADOS DO SETLIST (ORDENADO POR INDEX)
   const loadSetlistAndLibrary = async () => {
     try {
       setLoading(true);
@@ -68,13 +70,12 @@ export default function SetlistEdit() {
     }
   };
 
-  // Carrega as músicas do setlist respeitando rigorosamente a ordem do 'order_index'
   const loadAddedSongs = async () => {
     const { data: items } = await supabase
       .from('setlist_items')
       .select('id, song_id, order_index, songs(*)')
       .eq('setlist_id', id)
-      .order('order_index', { ascending: true }); // Garante a ordenação correta vinda do banco
+      .order('order_index', { ascending: true });
 
     if (items) {
       const formatted = items
@@ -88,11 +89,8 @@ export default function SetlistEdit() {
     }
   };
 
-  // 2. ADICIONAR MÚSICA CONFIGURANDO O ORDER_INDEX (Resolve o Erro 400)
   const handleAddSong = async (song) => {
     if (addedSongs.some(s => s.id === song.id)) return;
-
-    // Calcula a próxima posição da fila (se tem 3 músicas, o próximo index é o 3)
     const nextIndex = addedSongs.length;
 
     try {
@@ -101,19 +99,17 @@ export default function SetlistEdit() {
         .insert({
           setlist_id: id,
           song_id: song.id,
-          order_index: nextIndex // Envia o número da posição para satisfazer a constraint!
+          order_index: nextIndex 
         });
 
       if (error) throw error;
-      
-      setSearchQuery(""); // Limpa o campo após adicionar
+      setSearchQuery(""); 
       await loadAddedSongs(); 
     } catch (err) {
       alert(`Erro ao adicionar música: ${err.message}`);
     }
   };
 
-  // 3. REMOVER MÚSICA E REAJUSTAR FILA
   const handleRemoveSong = async (song) => {
     try {
       const { error } = await supabase
@@ -129,37 +125,46 @@ export default function SetlistEdit() {
     }
   };
 
-  // 4. SISTEMA DE ORDENAÇÃO POR BOTÕES (Mover para Cima / Baixo)
-  const handleMoveSong = async (index, direction) => {
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+  // ==========================================
+  // LÓGICA DE ARRASTAR NATIVA (DRAG & DROP)
+  // ==========================================
+  const handleDragStart = (index) => {
+    setDraggedIndex(index);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault(); // Necessário para permitir o drop
+  };
+
+  const handleDrop = async (index) => {
+    if (draggedIndex === null || draggedIndex === index) return;
+
+    const updatedSongs = [...addedSongs];
+    const draggedItem = updatedSongs[draggedIndex];
     
-    // Proteção de limites da lista
-    if (targetIndex < 0 || targetIndex >= addedSongs.length) return;
+    // Move o item no array local
+    updatedSongs.splice(draggedIndex, 1);
+    updatedSongs.splice(index, 0, draggedItem);
 
-    const currentItem = addedSongs[index];
-    const targetItem = addedSongs[targetIndex];
-
-    // Atualização Otimista (UI muda na hora sem delay)
-    setAddedSongs(prev => {
-      const updated = [...prev];
-      updated[index] = targetItem;
-      updated[targetIndex] = currentItem;
-      return updated;
-    });
+    // Atualização otimista na tela
+    setAddedSongs(updatedSongs);
+    setDraggedIndex(null);
 
     try {
-      // Atualiza os índices de ordem de ambas as músicas cruzadas no banco
-      await Promise.all([
-        supabase.from('setlist_items').update({ order_index: targetIndex }).eq('id', currentItem.itemId),
-        supabase.from('setlist_items').update({ order_index: index }).eq('id', targetItem.itemId)
-      ]);
+      // Salva a nova sequência de order_index em lote de forma limpa no Supabase
+      const updates = updatedSongs.map((song, idx) => 
+        supabase
+          .from('setlist_items')
+          .update({ order_index: idx })
+          .eq('id', song.itemId)
+      );
+      await Promise.all(updates);
     } catch (err) {
-      console.error("Erro ao persistir nova ordem:", err.message);
-      await loadAddedSongs(); // Se der erro, desfaz voltando o do banco
+      console.error("Erro ao salvar ordenação no banco:", err.message);
+      await loadAddedSongs(); // Fallback se der erro
     }
   };
 
-  // Filtro de pesquisa da biblioteca
   const searchResults = librarySongs.filter(song => {
     if (!searchQuery.trim()) return false;
     const matchText = searchQuery.toLowerCase();
@@ -229,6 +234,9 @@ export default function SetlistEdit() {
           </div>
         </div>
 
+        {/* DIVISOR MARCANTE */}
+        <div className="border-b-4 border-black my-6" />
+
         {/* ABAS SELECIONAR / ORDENAR */}
         <div className="w-full border-2 border-black rounded-xl p-1 flex bg-white mb-6 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
           <button 
@@ -245,7 +253,7 @@ export default function SetlistEdit() {
           </button>
         </div>
 
-        {/* EXIBIÇÃO CONDICIONAL DA BUSCA (Apenas no modo Selecionar) */}
+        {/* CAMPO DE BUSCA (Apenas no modo Selecionar) */}
         {activeTab === "selecionar" && (
           <div className="relative mb-2">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40" />
@@ -283,10 +291,10 @@ export default function SetlistEdit() {
           </div>
         )}
 
-        {/* SEÇÃO PRINCIPAL DA LISTA DE MÚSICAS DO SHOW */}
+        {/* SEÇÃO DA LISTA DE MÚSICAS */}
         <div className="mt-4 pt-2">
           <h3 className="text-xs font-black uppercase tracking-widest text-black/40 mb-3 px-1">
-            {activeTab === "ordenar" ? "Ajustar Ordem do Roteiro" : "Músicas Escaladas"}
+            {activeTab === "ordenar" ? "Ajustar Ordem do Roteiro (Arraste os cards)" : "Músicas Escaladas"}
           </h3>
           
           {addedSongs.length === 0 ? (
@@ -304,9 +312,16 @@ export default function SetlistEdit() {
               {addedSongs.map((song, index) => (
                 <div 
                   key={song.id} 
-                  className="p-3.5 bg-white border-2 border-black rounded-xl flex items-center justify-between shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] bg-white"
+                  draggable={activeTab === "ordenar"} // Fica arrastável apenas na aba Ordenar
+                  onDragStart={() => handleDragStart(index)}
+                  onDragOver={handleDragOver}
+                  onDrop={() => handleDrop(index)}
+                  className={`p-3.5 bg-white border-2 border-black rounded-xl flex items-center justify-between shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all ${
+                    activeTab === "ordenar" ? "cursor-grab active:cursor-grabbing hover:bg-gray-50 border-dashed" : "bg-white"
+                  }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
+                    {activeTab === "ordenar" && <GripVertical size={16} className="text-black/40 flex-shrink-0" />}
                     <span className="font-mono text-xs font-black text-gray-400">
                       {(index + 1).toString().padStart(2, '0')}
                     </span>
@@ -316,34 +331,15 @@ export default function SetlistEdit() {
                     </div>
                   </div>
                   
-                  {/* BOTÕES DE CONTROLE VARIÁVEIS POR ABA */}
+                  {/* CONTROLE LATERAL DA LINHA */}
                   <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-                    {activeTab === "selecionar" ? (
-                      /* MODO SELECIONAR: Botão de Deletar Recipiente */
+                    {activeTab === "selecionar" && (
                       <button 
                         onClick={() => handleRemoveSong(song)}
                         className="p-2 border border-red-200 text-red-500 bg-red-50 hover:bg-red-500 hover:text-white rounded-lg transition-colors"
                       >
                         <Minus size={14} strokeWidth={3} />
                       </button>
-                    ) : (
-                      /* MODO ORDENAR: Setas de Organização para Palco */
-                      <>
-                        <button 
-                          onClick={() => handleMoveSong(index, 'up')}
-                          disabled={index === 0}
-                          className={`p-2 border-2 border-black rounded-lg transition-colors ${index === 0 ? 'opacity-20 bg-gray-100' : 'bg-white hover:bg-gray-100 active:scale-95'}`}
-                        >
-                          <ArrowUp size={12} strokeWidth={3} />
-                        </button>
-                        <button 
-                          onClick={() => handleMoveSong(index, 'down')}
-                          disabled={index === addedSongs.length - 1}
-                          className={`p-2 border-2 border-black rounded-lg transition-colors ${index === addedSongs.length - 1 ? 'opacity-20 bg-gray-100' : 'bg-white hover:bg-gray-100 active:scale-95'}`}
-                        >
-                          <ArrowDown size={12} strokeWidth={3} />
-                        </button>
-                      </>
                     )}
                   </div>
 
