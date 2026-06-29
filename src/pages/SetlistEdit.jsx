@@ -329,7 +329,7 @@ export default function SetlistEdit() {
                   </div>
                 </div>
 
-                {/* Botão de Remover apenas na aba Selecionar */}
+                {/* Botão de Remover apenas na aba Selecionar. */}
                 {activeTab === "selecionar" && (
                   <button 
                     onClick={() => handleRemoveSong(song)}
