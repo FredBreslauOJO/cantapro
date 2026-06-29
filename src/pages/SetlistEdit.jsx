@@ -2,95 +2,153 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { 
   ArrowLeft, Printer, Share2, Trash2, Search, 
-  Eye, Music, Plus, Calendar 
+  Music, Plus, Minus, Calendar 
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 
 export default function SetlistEdit() {
   const navigate = useNavigate();
-  const { id } = useParams(); // Pega o ID único do setlist vindo da URL
+  const { id } = useParams(); // Pega o ID do setlist na URL
   const { user } = useAuth();
 
-  // Estados limpos aguardando os dados reais do banco
+  // Estados do Setlist
   const [title, setTitle] = useState("");
   const [event, setEvent] = useState("");
   const [date, setDate] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showOnlyAdded, setShowOnlyAdded] = useState(false);
-  const [activeTab, setActiveTab] = useState("selecionar");
-  const [allSongs, setAllSongs] = useState([]); 
   const [loading, setLoading] = useState(true);
+
+  // Estados de Gerenciamento de Músicas
+  const [searchQuery, setSearchQuery] = useState("");
+  const [librarySongs, setLibrarySongs] = useState([]); // Todas as músicas do usuário
+  const [addedSongs, setAddedSongs] = useState([]);     // Músicas já escaladas neste setlist
+  const [activeTab, setActiveTab] = useState("selecionar"); // selecionar ou ordenar
 
   useEffect(() => {
     if (user && id) {
-      loadSetlistData();
+      loadSetlistAndLibrary();
     }
   }, [user, id]);
 
-  // Carrega as informações específicas do setlist clicado
-  const loadSetlistData = async () => {
+  // 1. CARREGA OS DADOS DO SETLIST E O REPERTÓRIO DO USUÁRIO
+  const loadSetlistAndLibrary = async () => {
     try {
       setLoading(true);
 
-      // 1. Busca os dados do Setlist
-      const { data: setlist, error: setlistError } = await supabase
+      // Busca metadados do Setlist
+      const { data: setlist } = await supabase
         .from('setlists')
         .select('*')
         .eq('id', id)
         .single();
 
-      if (setlistError) throw setlistError;
-
       if (setlist) {
         setTitle(setlist.title || "SEM TÍTULO");
-        setEvent(setlist.event_name || ""); // Ajuste para a coluna real do seu banco (ex: event_name ou description)
-        
-        // Formata a data se houver
+        setEvent(setlist.event_name || "");
         if (setlist.created_at) {
-          const formattedDate = new Date(setlist.created_at).toLocaleDateString('pt-BR', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric'
-          });
-          setDate(formattedDate);
+          setDate(new Date(setlist.created_at).toLocaleDateString('pt-BR', {
+            day: '2-digit', month: 'short', year: 'numeric'
+          }));
         }
       }
 
-      // 2. Busca as músicas associadas a este setlist (tabela intermediária setlist_members)
-      const { data: members, error: membersError } = await supabase
-        .from('setlist_members')
+      // Busca todas as músicas na biblioteca pessoal do usuário
+      const { data: songsData } = await supabase
+        .from('songs')
         .select('*')
-        .eq('setlist_id', id);
+        .eq('created_by', user.email)
+        .order('title', { ascending: true });
 
-      if (membersError) throw membersError;
-      
-      // Armazena as músicas vinculadas para renderizar a lista ou o aviso de vazio
-      if (members) {
-        setAllSongs(members);
-      }
+      if (songsData) setLibrarySongs(songsData);
+
+      // Busca as músicas atualmente vinculadas a este setlist
+      await loadAddedSongs();
 
     } catch (err) {
-      console.error("Erro ao carregar dados do setlist:", err.message);
+      console.error("Erro ao carregar dados:", err.message);
     } finally {
       setLoading(false);
     }
   };
 
+  // Carrega apenas as músicas pertencentes a este setlist específico
+  const loadAddedSongs = async () => {
+    const { data: items } = await supabase
+      .from('setlist_items')
+      .select('id, song_id, songs(*)')
+      .eq('setlist_id', id);
+
+    if (items) {
+      // Filtra e mapeia para garantir o formato correto do objeto da música
+      const formatted = items
+        .filter(item => item.songs)
+        .map(item => ({
+          itemId: item.id, // ID da relação na tabela setlist_items
+          ...item.songs
+        }));
+      setAddedSongs(formatted);
+    }
+  };
+
+  // 2. FUNÇÃO PARA ADICIONAR MÚSICA AO SETLIST
+  const handleAddSong = async (song) => {
+    // Evita duplicados na lista
+    if (addedSongs.some(s => s.id === song.id)) return;
+
+    try {
+      const { error } = await supabase
+        .from('setlist_items')
+        .insert({
+          setlist_id: id,
+          song_id: song.id
+        });
+
+      if (error) throw error;
+      await loadAddedSongs(); // Atualiza a listagem dinamicamente
+    } catch (err) {
+      console.error("Erro ao adicionar música:", err.message);
+    }
+  };
+
+  // 3. FUNÇÃO PARA REMOVER MÚSICA DO SETLIST
+  const handleRemoveSong = async (song) => {
+    try {
+      const { error } = await supabase
+        .from('setlist_items')
+        .delete()
+        .eq('setlist_id', id)
+        .eq('song_id', song.id);
+
+      if (error) throw error;
+      await loadAddedSongs(); // Atualiza a listagem dinamicamente
+    } catch (err) {
+      console.error("Erro ao remover música:", err.message);
+    }
+  };
+
+  // Filtra a biblioteca com base no que foi digitado no input de busca
+  const searchResults = librarySongs.filter(song => {
+    if (!searchQuery.trim()) return false; // Só exibe resultados se houver texto digitado
+    const matchText = searchQuery.toLowerCase();
+    return (
+      song.title.toLowerCase().includes(matchText) ||
+      (song.artist || "").toLowerCase().includes(matchText)
+    );
+  }).filter(song => !addedSongs.some(added => added.id === song.id)); // Oculta as que já estão no setlist
+
   if (loading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center font-black uppercase text-xs tracking-widest text-black">
-        Carregando Setlist...
+        Carregando painel de edição...
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white pb-24 font-sans select-none text-black">
-      
-      <div className="p-4 max-w-xl mx-auto">
+    <div className="min-h-screen bg-white pb-24 font-sans select-none text-black px-4">
+      <div className="max-w-xl mx-auto pt-4">
         
-        {/* 1. BOTÕES DE AÇÃO SUPERIORES */}
+        {/* BOTÕES DE AÇÃO SUPERIORES */}
         <div className="flex items-center justify-between mb-6">
           <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-black">
             <ArrowLeft size={22} />
@@ -108,13 +166,13 @@ export default function SetlistEdit() {
           </div>
         </div>
 
-        {/* 2. TÍTULO E NOME DO SHOW DINÂMICOS */}
+        {/* INPUTS DE INFORMAÇÕES DO EVENTO */}
         <div className="mb-4">
           <input 
             type="text" 
             value={title} 
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full font-black text-3xl uppercase tracking-tighter outline-none border-b-4 border-black pb-1 placeholder-black/20"
+            className="w-full font-black text-3xl uppercase tracking-tighter outline-none border-b-4 border-black pb-1 placeholder-black/20 bg-transparent"
             placeholder="NOME DO SETLIST"
           />
         </div>
@@ -129,7 +187,7 @@ export default function SetlistEdit() {
           />
         </div>
 
-        {/* 3. DATA DO SHOW */}
+        {/* DATA DO SHOW */}
         <div className="flex items-center gap-2 mb-6 text-xs font-bold text-black/60 uppercase tracking-wider">
           <span>Data do Show:</span>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-100 border border-gray-300 rounded-lg text-black font-medium normal-case">
@@ -138,8 +196,8 @@ export default function SetlistEdit() {
           </div>
         </div>
 
-        {/* 4. ABAS: SELECIONAR / ORDENAR */}
-        <div className="w-full border-2 border-black rounded-xl p-1 flex bg-white mb-4 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+        {/* ABAS SELECIONAR / ORDENAR */}
+        <div className="w-full border-2 border-black rounded-xl p-1 flex bg-white mb-6 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
           <button 
             onClick={() => setActiveTab("selecionar")}
             className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${activeTab === 'selecionar' ? 'bg-black text-white' : 'bg-transparent text-black'}`}
@@ -154,39 +212,56 @@ export default function SetlistEdit() {
           </button>
         </div>
 
-        {/* 5. BUSCA LOCAL */}
-        <div className="relative mb-3">
+        {/* CAMPO DE BUSCA GLOBAL PARA ADICIONAR NOVAS MÚSICAS */}
+        <div className="relative mb-2">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40" />
           <input 
             type="text" 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Filtrar músicas do setlist..." 
-            className="w-full pl-9 pr-4 py-2.5 border-2 border-gray-300 focus:border-black outline-none rounded-xl text-sm font-medium transition-colors"
+            placeholder="Digitar nome da música para adicionar..." 
+            className="w-full pl-9 pr-4 py-3 border-2 border-black rounded-xl text-sm font-bold bg-gray-50 focus:bg-white focus:border-black outline-none transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,0.1)]"
           />
         </div>
 
-        <div 
-          onClick={() => setShowOnlyAdded(!showOnlyAdded)}
-          className="flex items-center gap-2 text-xs font-bold text-black cursor-pointer mb-6"
-        >
-          <div className={`w-4 h-4 border-2 border-black rounded flex items-center justify-center transition-colors ${showOnlyAdded ? 'bg-black text-white' : 'bg-white'}`}>
-            {showOnlyAdded && <Plus size={10} strokeWidth={4} />}
+        {/* RESULTADOS DA BUSCA (Aparecem flutuando ou listados logo abaixo do input) */}
+        {searchQuery.trim() && (
+          <div className="border-2 border-black rounded-xl bg-white p-2 mb-6 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] space-y-1 max-h-48 overflow-y-auto">
+            <p className="text-[10px] font-black uppercase text-gray-400 px-2 py-1 tracking-wider">Resultados no seu repertório:</p>
+            {searchResults.length === 0 ? (
+              <p className="text-xs font-bold text-gray-500 p-2 italic">Nenhuma música disponível com esse nome...</p>
+            ) : (
+              searchResults.map(song => (
+                <div key={song.id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg border border-transparent hover:border-gray-200">
+                  <div>
+                    <p className="font-black text-xs uppercase tracking-tight">{song.title}</p>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase">{song.artist || 'Sem artista'}</p>
+                  </div>
+                  <button 
+                    onClick={() => handleAddSong(song)}
+                    className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white border border-black text-[10px] font-black uppercase rounded-lg shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] active:scale-95 transition-all"
+                  >
+                    <Plus size={10} strokeWidth={4} /> Adicionar
+                  </button>
+                </div>
+              ))
+            )}
           </div>
-          <Eye size={14} className="text-black/60" />
-          <span>Somente adicionadas</span>
-        </div>
+        )}
 
-        {/* 6. RENDERIZAÇÃO DE CONTEÚDO / AVISO REPERTÓRIO VAZIO */}
-        <div className="mt-4">
-          {allSongs.length === 0 ? (
-            <div className="border-4 border-dashed border-black rounded-3xl p-8 text-center bg-gray-50 my-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+        {/* SEÇÃO DINÂMICA: MÚSICAS ESCALADAS OU CARD DE AVISO VAZIO */}
+        <div className="mt-6 border-t-2 border-gray-100 pt-4">
+          <h3 className="text-xs font-black uppercase tracking-widest text-black/40 mb-3 px-1">Músicas do Show</h3>
+          
+          {addedSongs.length === 0 ? (
+            /* CONDIÇÃO VERIFICADA: SE FOR IGUAL A 0, EXIBE O AVISO PONTLHADO */
+            <div className="border-4 border-dashed border-black rounded-3xl p-8 text-center bg-gray-50 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] animate-fadeIn">
               <div className="w-12 h-12 bg-yellow-400 border-2 border-black rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                 <Music size={22} />
               </div>
               <h3 className="font-black uppercase tracking-tight text-base mb-2">Seu repertório está vazio</h3>
               <p className="text-xs font-bold text-black/60 mb-6 leading-relaxed max-w-xs mx-auto">
-                Para montar um setlist, você precisa criar as suas músicas primeiro no menu Letras.
+                Para montar um setlist, você precisa criar as suas músicas primeiro no menu Letras ou buscá-las acima.
               </p>
               <button 
                 onClick={() => navigate('/songs')} 
@@ -196,25 +271,41 @@ export default function SetlistEdit() {
               </button>
             </div>
           ) : (
-            <div className="space-y-2">
-              {allSongs
-                .filter(song => (song.member_email || "").toLowerCase().includes(searchQuery.toLowerCase()))
-                .map((song) => (
-                  <div key={song.id} className="p-4 border-2 border-black rounded-xl flex items-center justify-between shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                    <span className="font-bold text-sm uppercase">{song.member_email || "Música sem identificação"}</span>
+            /* CONDIÇÃO VERIFICADA: SE TIVER MÚSICAS, O AVISO SOME E ENTRA A LISTA REAIS COM REMOÇÃO */
+            <div className="space-y-2 animate-fadeIn">
+              {addedSongs.map((song, index) => (
+                <div 
+                  key={song.id} 
+                  className="p-3.5 bg-white border-2 border-black rounded-xl flex items-center justify-between shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:scale-[0.99] transition-all"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-xs font-black text-gray-300">{(index + 1).toString().padStart(2, '0')}</span>
+                    <div>
+                      <span className="font-black text-sm uppercase tracking-tight">{song.title}</span>
+                      <p className="text-[10px] font-bold text-black/40 uppercase mt-0.5">{song.artist || 'Sem artista'}</p>
+                    </div>
                   </div>
-                ))}
+                  
+                  <button 
+                    onClick={() => handleRemoveSong(song)}
+                    className="p-2 border border-red-200 text-red-500 bg-red-50 hover:bg-red-500 hover:text-white rounded-lg transition-colors"
+                    title="Remover do setlist"
+                  >
+                    <Minus size={14} strokeWidth={3} />
+                  </button>
+                </div>
+              ))}
             </div>
           )}
         </div>
 
       </div>
 
-      {/* 7. BOTTOM NAVIGATION FIXED */}
-      <nav className="fixed bottom-0 left-0 right-0 border-t-4 border-black bg-white px-4 py-3 flex gap-3 z-50">
+      {/* FOOTER FIXADO DE NAVEGAÇÃO */}
+      <nav className="fixed bottom-0 left-0 right-0 border-t-4 border-black bg-white px-4 py-3 flex gap-3 z-40">
         <button 
           onClick={() => navigate('/')}
-          className="flex-1 py-3 bg-white border-2 border-black text-black text-xs font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:scale-95 transition-all"
+          className="flex-1 py-3 bg-black text-white text-xs font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,0.2)] active:scale-95 transition-all"
         >
           Setlists
         </button>
@@ -225,7 +316,6 @@ export default function SetlistEdit() {
           <Music size={14} /> Letras
         </button>
       </nav>
-
     </div>
   );
 }
