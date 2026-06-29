@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
-import { Search, Eye, X, Check, Sparkles, Music } from 'lucide-react';
+import { Search, Eye, X, Check, Sparkles } from 'lucide-react';
 
-export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onCloseSearch }) {
+export default function OnlineLyricsSearch({ userPlan, onSaveLyrics }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   
-  // Estados do Modal de Preview
+  // Estado crucial de feedback visual para o usuário
+  const [isSaving, setIsSaving] = useState(false); 
+  
   const [selectedTrack, setSelectedTrack] = useState(null);
-  const [activePreviewTab, setActivePreviewTab] = useState('synced'); // synced ou plain
+  const [activePreviewTab, setActivePreviewTab] = useState('synced');
 
-  // 1. VALIDAÇÃO DE PLANO (Paywall)
   const isPremium = userPlan === 'base' || userPlan === 'pro';
 
   if (!isPremium) {
@@ -23,21 +24,19 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onCloseSear
         <p className="text-xs font-bold text-black/70 mb-6 leading-relaxed">
           A busca automatizada de repertório e importação com timecodes é exclusiva para assinantes dos planos **BASE** e **PRO**.
         </p>
-        <button className="w-full py-3 bg-black text-white text-xs font-black uppercase tracking-widest rounded-xl hover:opacity-90 active:scale-95 transition-all shadow-[3px_3px_0px_0px_rgba(255,255,255,1)]">
+        <button className="w-full py-3 bg-black text-white text-xs font-black uppercase tracking-widest rounded-xl">
           Fazer Upgrade Agora
         </button>
       </div>
     );
   }
 
-  // 2. FUNÇÃO DE BUSCA NA API LRCLIB
   const handleSearch = async (e) => {
     e.preventDefault();
     if (!query.trim()) return;
     setLoading(true);
 
     try {
-      // LRCLIB é pública e possui suporte a CORS direto no navegador
       const response = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(query)}`);
       const data = await response.json();
       setResults(data);
@@ -48,7 +47,6 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onCloseSear
     }
   };
 
-  // Helper para formatar segundos em mm:ss
   const formatDuration = (secs) => {
     if (!secs) return '0:00';
     const m = Math.floor(secs / 60);
@@ -56,8 +54,11 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onCloseSear
     return `${m}:${s}`;
   };
 
-  // 3. PARSER INTELIGENTE: TRADUZ LRCLIB PARA OS BLOCOS EXATOS DO SEU EDITOR
-  const processAndSave = (track, forcePlain = false) => {
+  // PARSER COM EMBARGO DE REQUISIÇÃO (BLOQUEIA CLIQUE DUPLO)
+  const processAndSave = async (track, forcePlain = false) => {
+    if (isSaving) return; // Se já estiver salvando, ignora qualquer clique extra
+    setIsSaving(true);    // Ativa imediatamente o carregamento visual
+
     const useSynced = track.syncedLyrics && activePreviewTab === 'synced' && !forcePlain;
     const rawText = useSynced ? track.syncedLyrics : track.plainLyrics;
     
@@ -67,7 +68,6 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onCloseSear
       const lines = rawText.split('\n');
       const parsedLines = [];
 
-      // Passo 1: Extrai todos os tempos (inclusive das linhas vazias)
       lines.forEach((line) => {
         const match = line.match(/\[(\d+):(\d+)\.(\d+)\](.*)/);
         if (match) {
@@ -84,23 +84,20 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onCloseSear
         }
       });
 
-      // Passo 2: Monta os Blocos com a nomenclatura exata do TimecodeEditor.jsx
       for (let i = 0; i < parsedLines.length; i++) {
-        // Só cria bloco se a linha tiver texto (ignora blocos em branco)
         if (parsedLines[i].text !== "") {
           const start = parsedLines[i].time;
-          
           let end = start + 5; 
           if (i + 1 < parsedLines.length) {
             end = parsedLines[i + 1].time;
           }
 
           generatedBlocks.push({
-            block_id: `block_${Date.now()}_${i}`, // Nomenclatura igual ao Editor
-            text_content: parsedLines[i].text,    // Variável exata
-            start_time: start,                    // Variável exata
-            end_time: end,                        // Variável exata
-            order_index: generatedBlocks.length   // Mantém a ordem
+            block_id: `block_${Date.now()}_${i}`,
+            text_content: parsedLines[i].text,
+            start_time: start,
+            end_time: end,
+            order_index: generatedBlocks.length
           });
         }
       }
@@ -119,21 +116,26 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onCloseSear
       });
     }
 
-    onSaveLyrics({
-      title: track.trackName.toUpperCase(),
-      artist: track.artistName.toUpperCase(),
-      duration: track.duration,
-      blocks: generatedBlocks, // Agora formatado 100% compátivel
-      raw_text: track.plainLyrics 
-    });
-
-    setSelectedTrack(null);
+    try {
+      // Espera a resposta real do banco (async/await) antes de fechar o modal
+      await onSaveLyrics({
+        title: track.trackName.toUpperCase(),
+        artist: track.artistName.toUpperCase(),
+        duration: track.duration,
+        blocks: generatedBlocks,
+        raw_text: track.plainLyrics 
+      });
+      setSelectedTrack(null);
+    } catch (err) {
+      alert("Erro ao importar: " + err.message);
+    } finally {
+      setIsSaving(false); // Libera o estado apenas após a conclusão
+    }
   };
 
   return (
     <div className="w-full bg-white text-black font-sans p-4 max-w-xl mx-auto">
       
-      {/* Input de Busca Neo-Brutalista */}
       <form onSubmit={handleSearch} className="mb-6">
         <div className="flex gap-2">
           <div className="relative flex-1">
@@ -143,19 +145,18 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onCloseSear
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar música ou artista online..."
-              className="w-full pl-10 pr-4 py-3 border-4 border-black outline-none rounded-xl text-sm font-bold shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] focus:translate-x-[1px] focus:translate-y-[1px] focus:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all"
+              className="w-full pl-10 pr-4 py-3 border-4 border-black outline-none rounded-xl text-sm font-bold shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]"
             />
           </div>
           <button 
             type="submit"
-            className="px-5 bg-black text-white rounded-xl border-4 border-black font-black text-xs uppercase tracking-wider shadow-[3px_3px_0px_0px_rgba(234,179,8,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all"
+            className="px-5 bg-black text-white rounded-xl border-4 border-black font-black text-xs uppercase tracking-wider shadow-[3px_3px_0px_0px_rgba(234,179,8,1)]"
           >
             Buscar
           </button>
         </div>
       </form>
 
-      {/* Indicador de Carregamento */}
       {loading && (
         <div className="text-center py-8 font-bold text-sm tracking-wide animate-pulse">
           🔍 Vasculhando banco de dados mundial...
@@ -175,7 +176,6 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onCloseSear
                 <span className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-[10px] font-black text-black/60">
                   {formatDuration(track.duration)}
                 </span>
-                
                 {track.syncedLyrics ? (
                   <span className="px-1.5 py-0.5 bg-green-100 border border-green-400 text-green-700 rounded text-[10px] font-black uppercase tracking-wide">
                     Synced
@@ -204,57 +204,42 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onCloseSear
         ))}
       </div>
 
-      {/* MODAL DE PREVIEW E IMPORTAÇÃO */}
+      {/* MODAL DE PREVIEW */}
       {selectedTrack && (
         <div className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border-4 border-black w-full max-w-lg rounded-3xl overflow-hidden flex flex-col max-h-[85vh] shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] font-sans animate-fadeIn">
+          <div className="bg-white border-4 border-black w-full max-w-lg rounded-3xl overflow-hidden flex flex-col max-h-[85vh] shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
             
-            {/* Cabeçalho do Modal */}
             <div className="p-4 border-b-2 border-gray-200 flex items-center justify-between">
               <h3 className="font-black text-base uppercase text-black">Preview</h3>
-              <button 
-                onClick={() => setSelectedTrack(null)}
-                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
-              >
+              <button onClick={() => !isSaving && setSelectedTrack(null)} disabled={isSaving} className="p-1 hover:bg-gray-100 rounded-full">
                 <X size={20} />
               </button>
             </div>
 
-            {/* Abas Superiores (Synced / Plain) */}
             <div className="px-4 pt-3 flex gap-2 bg-gray-50 border-b border-gray-200">
               {selectedTrack.syncedLyrics && (
                 <button
-                  onClick={() => setActivePreviewTab('synced')}
+                  onClick={() => !isSaving && setActivePreviewTab('synced')}
                   className={`px-4 py-2 text-xs font-black uppercase tracking-widest rounded-t-xl transition-all border-t-2 border-x-2 ${activePreviewTab === 'synced' ? 'bg-white border-black text-black' : 'bg-transparent border-transparent text-black/40'}`}
                 >
                   Synced Lyrics
                 </button>
               )}
               <button
-                onClick={() => setActivePreviewTab('plain')}
+                onClick={() => !isSaving && setActivePreviewTab('plain')}
                 className={`px-4 py-2 text-xs font-black uppercase tracking-widest rounded-t-xl transition-all border-t-2 border-x-2 ${activePreviewTab === 'plain' || !selectedTrack.syncedLyrics ? 'bg-white border-black text-black' : 'bg-transparent border-transparent text-black/40'}`}
               >
                 Plain Lyrics
               </button>
             </div>
 
-            {/* Caixa de Texto da Letra */}
             <div className="flex-1 overflow-y-auto p-4 bg-gray-50/50 font-mono text-xs text-black/80 space-y-1 relative">
               <pre className="whitespace-pre-wrap font-sans font-bold leading-relaxed">
                 {activePreviewTab === 'synced' ? selectedTrack.syncedLyrics : selectedTrack.plainLyrics}
               </pre>
-
-              {/* Botão Flutuante de Importação Rápida */}
-              <button
-                onClick={() => processAndSave(selectedTrack)}
-                className="absolute bottom-4 right-4 p-3 bg-blue-600 text-white rounded-full border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:bg-blue-700 active:scale-95 transition-all"
-                title="Importar esta versão"
-              >
-                <Check size={20} strokeWidth={3} />
-              </button>
             </div>
 
-            {/* Rodapé e Créditos Discretos */}
+            {/* BOTÕES DE CONFIRMAÇÃO COM CONTROLE DE CARREGAMENTO */}
             <div className="p-4 border-t border-gray-200 bg-white flex flex-col sm:flex-row items-center justify-between gap-3">
               <span className="text-[10px] font-bold text-black/30 uppercase tracking-widest">
                 Letras fornecidas por LRCLIB
@@ -262,15 +247,17 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onCloseSear
               <div className="flex gap-2 w-full sm:w-auto">
                 <button
                   onClick={() => setSelectedTrack(null)}
-                  className="flex-1 sm:flex-none px-5 py-2.5 bg-gray-200 text-black text-xs font-black uppercase tracking-wider rounded-xl border-2 border-black active:scale-95 transition-all"
+                  disabled={isSaving}
+                  className="flex-1 sm:flex-none px-5 py-2.5 bg-gray-200 text-black text-xs font-black uppercase tracking-wider rounded-xl border-2 border-black disabled:opacity-50"
                 >
                   Fechar
                 </button>
                 <button
                   onClick={() => processAndSave(selectedTrack)}
-                  className="flex-1 sm:flex-none px-5 py-2.5 bg-black text-white text-xs font-black uppercase tracking-wider rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(34,197,94,1)] active:scale-95 transition-all"
+                  disabled={isSaving} // Desativa o botão fisicamente ao ser clicado!
+                  className="flex-1 sm:flex-none px-5 py-2.5 bg-black text-white text-xs font-black uppercase tracking-wider rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(34,197,94,1)] disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  Salvar no App
+                  {isSaving ? "Importando para o App..." : "Salvar no App"}
                 </button>
               </div>
             </div>

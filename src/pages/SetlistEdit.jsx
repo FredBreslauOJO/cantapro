@@ -15,7 +15,7 @@ export default function SetlistEdit() {
   // Estados do Setlist
   const [eventName, setEventName] = useState("");
   const [bandName, setBandName] = useState("");
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState(""); // Formato padrão do banco: YYYY-MM-DD
   const [loading, setLoading] = useState(true);
 
   // Estados de Gerenciamento do Roteiro
@@ -45,10 +45,8 @@ export default function SetlistEdit() {
       if (setlist) {
         setEventName(setlist.event_name || "");
         setBandName(setlist.band_name || "");
-        if (setlist.date) {
-          const [year, month, day] = setlist.date.split('-');
-          setDate(`${day}/${month}/${year}`);
-        }
+        // Mantém a data limpa no formato YYYY-MM-DD para o input nativo reconhecer
+        setDate(setlist.date || ""); 
       }
 
       const { data: songsData } = await supabase
@@ -94,6 +92,18 @@ export default function SetlistEdit() {
         }
       });
       setSetlistItems(formatted);
+    }
+  };
+
+  // FUNÇÃO DE AUTO-SALVAMENTO DOS DADOS DO CABEÇALHO
+  const handleUpdateField = async (field, value) => {
+    try {
+      await supabase
+        .from('setlists')
+        .update({ [field]: value })
+        .eq('id', id);
+    } catch (err) {
+      console.error("Erro ao atualizar cabeçalho:", err.message);
     }
   };
 
@@ -169,7 +179,6 @@ export default function SetlistEdit() {
     }
   };
 
-  // --- LÓGICA DE ARRASTAR ---
   const handleDragStart = (e, index) => {
     setDraggedIndex(index);
     e.dataTransfer.effectAllowed = "move";
@@ -231,24 +240,25 @@ export default function SetlistEdit() {
             <ArrowLeft size={22} />
           </button>
           <div className="flex items-center gap-2">
-            <button className="p-2.5 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:scale-95 transition-all">
+            <button className="p-2.5 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
               <Printer size={18} />
             </button>
-            <button className="p-2.5 bg-yellow-200 border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-yellow-100 active:scale-95 transition-all">
+            <button className="p-2.5 bg-yellow-200 border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
               <Share2 size={18} />
             </button>
-            <button className="p-2.5 bg-white border-2 border-black text-red-500 rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-red-50 active:scale-95 transition-all">
+            <button className="p-2.5 bg-white border-2 border-black text-red-500 rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
               <Trash2 size={18} />
             </button>
           </div>
         </div>
 
-        {/* INPUTS CABEÇALHO */}
+        {/* INPUTS CABEÇALHO COM AUTO-SAVE ON BLUR */}
         <div className="mb-4">
           <input 
             type="text" 
             value={eventName} 
             onChange={(e) => setEventName(e.target.value)}
+            onBlur={() => handleUpdateField('event_name', eventName)}
             className="w-full font-black text-3xl uppercase tracking-tighter outline-none border-b-4 border-black pb-1 placeholder-black/20 bg-transparent"
             placeholder="NOME DO EVENTO"
           />
@@ -259,17 +269,26 @@ export default function SetlistEdit() {
             type="text" 
             value={bandName} 
             onChange={(e) => setBandName(e.target.value)}
+            onBlur={() => handleUpdateField('band_name', bandName)}
             className="w-full px-3 py-2.5 font-bold uppercase tracking-wide text-sm bg-transparent border-2 border-gray-300 rounded-xl focus:border-black outline-none transition-colors"
             placeholder="NOME DA BANDA"
           />
         </div>
 
-        {/* DATA */}
-        <div className="flex items-center gap-2 mb-6 text-xs font-bold text-black/60 uppercase tracking-wider">
+        {/* DATA DO SHOW CONSERTADA (REAL SELETOR DE DATA AUTOMÁTICO) */}
+        <div className="flex items-center gap-2 mb-6 text-xs font-black uppercase tracking-wider">
           <span>Data do Show:</span>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-100 border border-gray-300 rounded-lg text-black font-medium normal-case">
-            <Calendar size={12} className="text-black/40" />
-            {date || "Sem data"}
+          <div className="relative inline-flex items-center bg-gray-50 border-2 border-black rounded-xl px-2 py-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+            <Calendar size={14} className="text-black/50 mr-1.5 pointer-events-none" />
+            <input 
+              type="date" 
+              value={date} 
+              onChange={(e) => {
+                setDate(e.target.value);
+                handleUpdateField('date', e.target.value); // Grava direto no Supabase ao mudar!
+              }}
+              className="bg-transparent font-bold text-black outline-none border-none cursor-pointer uppercase text-xs"
+            />
           </div>
         </div>
 
@@ -320,10 +339,10 @@ export default function SetlistEdit() {
           )}
         </div>
 
-        {/* LISTAGEM UNIFICADA (Arrastar + Remover integrados) */}
+        {/* LISTAGEM UNIFICADA */}
         {setlistItems.length === 0 ? (
           <div className="mt-8 border-4 border-dashed border-black rounded-3xl p-8 text-center bg-gray-50 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-            <div className="w-12 h-12 bg-yellow-400 border-2 border-black rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+            <div className="w-12 h-12 bg-yellow-400 border-2 border-black rounded-2xl flex items-center justify-center mx-auto mb-4">
               <Music size={22} />
             </div>
             <h3 className="font-black uppercase tracking-tight text-base mb-2">Seu roteiro está vazio</h3>
@@ -395,18 +414,12 @@ export default function SetlistEdit() {
 
       </div>
 
-      {/* FOOTER NAVEGAÇÃO FIXO */}
+      {/* FOOTER FIXO */}
       <nav className="fixed bottom-0 left-0 right-0 border-t-4 border-black bg-white px-4 py-3 flex gap-3 z-40">
-        <button 
-          onClick={() => navigate('/')}
-          className="flex-1 py-3 bg-black text-white text-xs font-black uppercase tracking-widest rounded-xl"
-        >
+        <button onClick={() => navigate('/')} className="flex-1 py-3 bg-black text-white text-xs font-black uppercase tracking-widest rounded-xl">
           Setlists
         </button>
-        <button 
-          onClick={() => navigate('/songs')}
-          className="flex-1 py-3 bg-white border-2 border-black text-black text-xs font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]"
-        >
+        <button onClick={() => navigate('/songs')} className="flex-1 py-3 bg-white border-2 border-black text-black text-xs font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
           <Music size={14} /> Letras
         </button>
       </nav>
