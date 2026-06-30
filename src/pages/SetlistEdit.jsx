@@ -4,6 +4,8 @@ import {
   ArrowLeft, Printer, Share2, Trash2, Search, 
   Music, Plus, Minus, Calendar, GripVertical, AlignLeft 
 } from 'lucide-react';
+import { PDFDownloadLink } from '@react-pdf/renderer'; // ◄ RESTAURADO O MOTOR DE PDF
+import { SetlistPdfDocument } from '../components/SetlistPdfDocument'; // ◄ IMPORTADO O SEU DOCUMENTO
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 
@@ -94,7 +96,6 @@ export default function SetlistEdit() {
     }
   };
 
-  // ATUALIZAÇÃO DOS CAMPOS GERAIS DO CABEÇALHO
   const handleUpdateField = async (field, value) => {
     try {
       await supabase
@@ -106,17 +107,8 @@ export default function SetlistEdit() {
     }
   };
 
-  // ==========================================
-  // LÓGICAS DOS TRÊS BOTÕES DE AÇÃO SUPERIORES
-  // ==========================================
-  
-  const handlePrint = () => {
-    window.print();
-  };
-
   const handleShare = async () => {
     try {
-      // Gera o link direto para a tela de performance da primeira música do roteiro
       const shareUrl = `${window.location.origin}/setlists/${id}/play/0`;
       await navigator.clipboard.writeText(shareUrl);
       alert("Link de Palco copiado! Envie para a banda.");
@@ -131,21 +123,15 @@ export default function SetlistEdit() {
 
     try {
       setLoading(true);
-      // Limpa os itens do setlist primeiro para evitar quebra de FK
       await supabase.from('setlist_items').delete().eq('setlist_id', id);
-      
-      // Deleta o setlist principal
       const { error } = await supabase.from('setlists').delete().eq('id', id);
       if (error) throw error;
-
       navigate('/');
     } catch (err) {
       alert("Erro ao remover setlist: " + err.message);
       setLoading(false);
     }
   };
-
-  // ==========================================
 
   const handleAddSong = async (song) => {
     if (setlistItems.some(item => item.type === 'song' && item.id === song.id)) return;
@@ -259,6 +245,30 @@ export default function SetlistEdit() {
     );
   }).filter(song => !setlistItems.some(item => item.type === 'song' && item.id === song.id));
 
+  // =========================================================================
+  // TRADUTOR DE INFRAESTRUTURA: Adapta o state local de volta para o formato 
+  // exato exigido pelo arquivo SetlistPdfDocument.jsx (item_type e item.songs)
+  // =========================================================================
+  const getPdfItemsFormat = () => {
+    return setlistItems.map(item => {
+      if (item.type === 'divider') {
+        return {
+          id: item.itemId,
+          item_type: 'divider',
+          content: item.content
+        };
+      } else {
+        return {
+          id: item.itemId,
+          item_type: 'song',
+          songs: {
+            title: item.title || "Música sem título"
+          }
+        };
+      }
+    });
+  };
+
   let songCounter = 0;
 
   if (loading) {
@@ -273,18 +283,29 @@ export default function SetlistEdit() {
     <div className="min-h-screen bg-white pb-24 font-sans select-none text-black">
       <div className="p-4 max-w-xl mx-auto">
         
-        {/* BOTÕES SUPERIORES OPERACIONAIS */}
+        {/* BOTÕES SUPERIORES */}
         <div className="flex items-center justify-between mb-6">
           <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-black">
             <ArrowLeft size={22} />
           </button>
           <div className="flex items-center gap-2">
-            <button 
-              onClick={handlePrint}
-              className="p-2.5 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
+            
+            {/* 📥 RESTAURADO: DOWNLOAD DE PDF DIRETO EM DUAS COLUNAS VIA @REACT-PDF/RENDERER */}
+            <PDFDownloadLink
+              document={
+                <SetlistPdfDocument 
+                  eventName={eventName} 
+                  bandName={bandName} 
+                  date={date} 
+                  orderedItems={getPdfItemsFormat()} 
+                />
+              }
+              fileName={`${eventName || 'setlist'}.pdf`}
+              className="p-2.5 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center text-black"
             >
-              <Printer size={18} />
-            </button>
+              {({ loading }) => (loading ? "..." : <Printer size={18} />)}
+            </PDFDownloadLink>
+
             <button 
               onClick={handleShare}
               className="p-2.5 bg-yellow-200 border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-yellow-100 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
@@ -342,7 +363,7 @@ export default function SetlistEdit() {
 
         <div className="border-b-4 border-black mb-6" />
 
-        {/* PROCURAR MÚSICA / CRIAR DIVISOR */}
+        {/* BUSCA / DIVISOR */}
         <div className="mb-6">
           <div className="flex gap-2 mb-2">
             <div className="relative flex-1">
