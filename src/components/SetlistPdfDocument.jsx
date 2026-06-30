@@ -15,7 +15,6 @@ const styles = StyleSheet.create({
   },
   eventName: {
     fontSize: 28,
-    fontWeight: 'extrabold',
     textTransform: 'uppercase',
     fontFamily: 'Helvetica-Bold',
   },
@@ -30,13 +29,18 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     fontFamily: 'Helvetica-Bold',
   },
+  // Alinha as duas colunas principais lado a lado
   grid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     justifyContent: 'space-between',
   },
-  songItem: {
+  // Garante que cada coluna empilhe os itens de cima para baixo
+  column: {
     width: '47%',
+    flexDirection: 'column',
+  },
+  songItem: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
@@ -58,7 +62,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   dividerItem: {
-    width: '47%',
+    width: '100%',
     marginBottom: 16,
     paddingBottom: 4,
     justifyContent: 'center',
@@ -82,10 +86,50 @@ const truncate = (str, max) => {
 export const SetlistPdfDocument = ({ eventName, bandName, date, orderedItems }) => {
   let songCounter = 1;
 
+  // 1. IMPORTANTE: Adiciona a numeração original sequencial (01, 02...) ANTES de fatiar,
+  // para que a contagem do show continue certa ao dividir as colunas.
+  const itemsWithNumbers = orderedItems.map((item) => {
+    if (item.item_type === 'divider') {
+      return { ...item, isDivider: true };
+    } else {
+      const currentNum = songCounter++;
+      return { ...item, isDivider: false, songNumber: currentNum };
+    }
+  });
+
+  // 2. Divide o array de itens ao meio verticalmente
+  const half = Math.ceil(itemsWithNumbers.length / 2);
+  const leftColumn = itemsWithNumbers.slice(0, half);
+  const rightColumn = itemsWithNumbers.slice(half);
+
+  // Função auxiliar para renderizar os cards de uma coluna específica
+  const renderColumn = (columnItems) => {
+    return columnItems.map((item, idx) => {
+      if (item.isDivider) {
+        return (
+          <View key={item.id || idx} style={styles.dividerItem}>
+            <Text style={styles.dividerText}>{truncate(item.content || "---", 25)}</Text>
+          </View>
+        );
+      }
+
+      const song = item.songs;
+      const title = song ? song.title : "Música Deletada";
+
+      return (
+        <View key={item.id || idx} style={styles.songItem}>
+          <Text style={styles.songIndex}>{item.songNumber.toString().padStart(2, '0')}</Text>
+          <Text style={styles.songTitle}>{truncate(title, 22)}</Text>
+        </View>
+      );
+    });
+  };
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         
+        {/* CABEÇALHO DO PDF */}
         <View style={styles.header}>
           <Text style={styles.eventName}>{eventName || "MEU SETLIST"}</Text>
           <View style={styles.bandDateRow}>
@@ -96,29 +140,14 @@ export const SetlistPdfDocument = ({ eventName, bandName, date, orderedItems }) 
           </View>
         </View>
 
+        {/* ESTRUTURA DE DUAS COLUNAS VERTICAIS PURAS */}
         <View style={styles.grid}>
-          {orderedItems.map((item, idx) => {
-            
-            if (item.item_type === 'divider') {
-              return (
-                <View key={item.id || idx} style={styles.dividerItem}>
-                  <Text style={styles.dividerText}>{truncate(item.content || "---", 25)}</Text>
-                </View>
-              );
-            }
-
-            // CORREÇÃO AQUI: Usa a música que veio junto do Join no banco de dados
-            const song = item.songs;
-            const currentIndex = songCounter++;
-            const title = song ? song.title : "Música Deletada";
-
-            return (
-              <View key={item.id || idx} style={styles.songItem}>
-                <Text style={styles.songIndex}>{currentIndex.toString().padStart(2, '0')}</Text>
-                <Text style={styles.songTitle}>{truncate(title, 22)}</Text>
-              </View>
-            );
-          })}
+          <View style={styles.column}>
+            {renderColumn(leftColumn)}
+          </View>
+          <View style={styles.column}>
+            {renderColumn(rightColumn)}
+          </View>
         </View>
 
       </Page>
