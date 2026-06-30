@@ -15,7 +15,7 @@ export default function SetlistEdit() {
   // Estados do Setlist
   const [eventName, setEventName] = useState("");
   const [bandName, setBandName] = useState("");
-  const [date, setDate] = useState(""); // Formato padrão do banco: YYYY-MM-DD
+  const [date, setDate] = useState(""); 
   const [loading, setLoading] = useState(true);
 
   // Estados de Gerenciamento do Roteiro
@@ -45,7 +45,6 @@ export default function SetlistEdit() {
       if (setlist) {
         setEventName(setlist.event_name || "");
         setBandName(setlist.band_name || "");
-        // Mantém a data limpa no formato YYYY-MM-DD para o input nativo reconhecer
         setDate(setlist.date || ""); 
       }
 
@@ -95,7 +94,7 @@ export default function SetlistEdit() {
     }
   };
 
-  // FUNÇÃO DE AUTO-SALVAMENTO DOS DADOS DO CABEÇALHO
+  // ATUALIZAÇÃO DOS CAMPOS GERAIS DO CABEÇALHO
   const handleUpdateField = async (field, value) => {
     try {
       await supabase
@@ -107,9 +106,49 @@ export default function SetlistEdit() {
     }
   };
 
+  // ==========================================
+  // LÓGICAS DOS TRÊS BOTÕES DE AÇÃO SUPERIORES
+  // ==========================================
+  
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleShare = async () => {
+    try {
+      // Gera o link direto para a tela de performance da primeira música do roteiro
+      const shareUrl = `${window.location.origin}/setlists/${id}/play/0`;
+      await navigator.clipboard.writeText(shareUrl);
+      alert("Link de Palco copiado! Envie para a banda.");
+    } catch (err) {
+      alert("Não foi possível copiar o link automaticamente.");
+    }
+  };
+
+  const handleDeleteSetlist = async () => {
+    const confirmDelete = window.confirm("Tem certeza que deseja excluir permanentemente este setlist e todo o roteiro dele?");
+    if (!confirmDelete) return;
+
+    try {
+      setLoading(true);
+      // Limpa os itens do setlist primeiro para evitar quebra de FK
+      await supabase.from('setlist_items').delete().eq('setlist_id', id);
+      
+      // Deleta o setlist principal
+      const { error } = await supabase.from('setlists').delete().eq('id', id);
+      if (error) throw error;
+
+      navigate('/');
+    } catch (err) {
+      alert("Erro ao remover setlist: " + err.message);
+      setLoading(false);
+    }
+  };
+
+  // ==========================================
+
   const handleAddSong = async (song) => {
     if (setlistItems.some(item => item.type === 'song' && item.id === song.id)) return;
-    
     const nextIndex = setlistItems.length;
 
     try {
@@ -234,25 +273,34 @@ export default function SetlistEdit() {
     <div className="min-h-screen bg-white pb-24 font-sans select-none text-black">
       <div className="p-4 max-w-xl mx-auto">
         
-        {/* BOTÕES SUPERIORES */}
+        {/* BOTÕES SUPERIORES OPERACIONAIS */}
         <div className="flex items-center justify-between mb-6">
           <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-black">
             <ArrowLeft size={22} />
           </button>
           <div className="flex items-center gap-2">
-            <button className="p-2.5 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+            <button 
+              onClick={handlePrint}
+              className="p-2.5 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
+            >
               <Printer size={18} />
             </button>
-            <button className="p-2.5 bg-yellow-200 border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+            <button 
+              onClick={handleShare}
+              className="p-2.5 bg-yellow-200 border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-yellow-100 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
+            >
               <Share2 size={18} />
             </button>
-            <button className="p-2.5 bg-white border-2 border-black text-red-500 rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+            <button 
+              onClick={handleDeleteSetlist}
+              className="p-2.5 bg-white border-2 border-black text-red-500 rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-red-50 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
+            >
               <Trash2 size={18} />
             </button>
           </div>
         </div>
 
-        {/* INPUTS CABEÇALHO COM AUTO-SAVE ON BLUR */}
+        {/* INPUTS CABEÇALHO */}
         <div className="mb-4">
           <input 
             type="text" 
@@ -275,7 +323,7 @@ export default function SetlistEdit() {
           />
         </div>
 
-        {/* DATA DO SHOW CONSERTADA (REAL SELETOR DE DATA AUTOMÁTICO) */}
+        {/* SELETOR DE DATA */}
         <div className="flex items-center gap-2 mb-6 text-xs font-black uppercase tracking-wider">
           <span>Data do Show:</span>
           <div className="relative inline-flex items-center bg-gray-50 border-2 border-black rounded-xl px-2 py-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
@@ -285,7 +333,7 @@ export default function SetlistEdit() {
               value={date} 
               onChange={(e) => {
                 setDate(e.target.value);
-                handleUpdateField('date', e.target.value); // Grava direto no Supabase ao mudar!
+                handleUpdateField('date', e.target.value);
               }}
               className="bg-transparent font-bold text-black outline-none border-none cursor-pointer uppercase text-xs"
             />
@@ -294,7 +342,7 @@ export default function SetlistEdit() {
 
         <div className="border-b-4 border-black mb-6" />
 
-        {/* CONTROLES ÚNICOS: Busca e Divisor */}
+        {/* PROCURAR MÚSICA / CRIAR DIVISOR */}
         <div className="mb-6">
           <div className="flex gap-2 mb-2">
             <div className="relative flex-1">
@@ -339,7 +387,7 @@ export default function SetlistEdit() {
           )}
         </div>
 
-        {/* LISTAGEM UNIFICADA */}
+        {/* LISTAGEM DO ROTEIRO */}
         {setlistItems.length === 0 ? (
           <div className="mt-8 border-4 border-dashed border-black rounded-3xl p-8 text-center bg-gray-50 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
             <div className="w-12 h-12 bg-yellow-400 border-2 border-black rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -378,7 +426,7 @@ export default function SetlistEdit() {
                         type="text"
                         value={item.content}
                         onChange={(e) => handleUpdateDividerText(item.itemId, e.target.value)}
-                        className="bg-transparent font-black text-sm uppercase tracking-widest outline-none w-full placeholder-white/40"
+                        className="bg-transparent font-black text-sm uppercase tracking-widest outline-none w-full placeholder-white/40 text-white"
                         placeholder="DIGITE O NOME DO BLOCO"
                       />
                     </div>
