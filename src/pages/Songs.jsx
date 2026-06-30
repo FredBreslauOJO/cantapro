@@ -16,8 +16,15 @@ export default function Songs() {
   const navigate = useNavigate();
   const { user, plan } = useAuth();
 
+  // DESTRAVA DE LOADING NA ABERTURA DO APP
   useEffect(() => {
-    if (user) loadSongs();
+    if (user) {
+      loadSongs();
+    } else {
+      // Se o status do usuário terminar de verificar e ele não existir (ou falhar), 
+      // desativa o loading para não travar a tela em um loop infinito.
+      setLoading(false); 
+    }
   }, [user]);
 
   const loadSongs = async () => {
@@ -35,7 +42,6 @@ export default function Songs() {
   };
 
   const handleCreateNew = () => {
-    // GUARDA-COSTAS: Se for Free e já tiver 10 ou mais músicas, barra e abre o Paywall!
     if (plan === 'free' && songs.length >= 10) {
       setIsPaywallOpen(true);
       return;
@@ -43,18 +49,18 @@ export default function Songs() {
     navigate("/songs/new");
   };
 
-  // FUNÇÃO QUE SALVA A LETRA ENCONTRADA NA WEB COM OS NOMES REAIS DAS SUAS COLUNAS
+  // REPARO CRÍTICO: CONVERTE FLOAT PARA INTEGER ANTES DE SALVAR (Mata o erro 428.8)
   const handleSaveLyricsFromWeb = async (songData) => {
     try {
       const { error } = await supabase
         .from('songs')
         .insert({
-          created_by: user.email,
+          created_by: user.email, 
           title: songData.title,
           artist: songData.artist,
-          duration_seconds: songData.duration || 0, // Mapeado para duration_seconds
-          lyrics_text: songData.raw_text || "",     // Mapeado para lyrics_text
-          timecode_blocks: songData.blocks          // Mapeado para timecode_blocks
+          duration_seconds: Math.round(songData.duration) || 0, // Arredonda o número para inteiro!
+          lyrics_text: songData.raw_text || "",     
+          timecode_blocks: songData.blocks 
         });
 
       if (error) throw error;
@@ -112,7 +118,7 @@ export default function Songs() {
           </h1>
         </div>
         
-        {/* BOTÕES DE AÇÃO SUPERIORES (Lado Direito) */}
+        {/* BOTÕES DE AÇÃO SUPERIORES */}
         <div className="flex items-center gap-2 mt-8">
           {!showOnlineSearch && (
             <button
@@ -143,7 +149,7 @@ export default function Songs() {
 
       <div className="border-b border-gray-200 mb-5 mt-3" />
 
-      {/* RENDERIZAÇÃO CONDICIONAL: BUSCA ONLINE VS LISTA LOCAL */}
+      {/* RENDERIZAÇÃO CONDICIONAL */}
       {showOnlineSearch ? (
         <div className="animate-fadeIn">
           <OnlineLyricsSearch 
