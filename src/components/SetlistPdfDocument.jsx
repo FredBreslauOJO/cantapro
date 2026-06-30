@@ -17,7 +17,7 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   eventName: {
-    fontSize: 26,
+    fontSize: 20,
     textTransform: 'uppercase',
     fontFamily: 'Helvetica-Bold',
   },
@@ -50,13 +50,13 @@ const styles = StyleSheet.create({
     borderBottomColor: '#eeeeee',
   },
   songIndex: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#999999',
     width: 28,
     fontFamily: 'Helvetica-Bold',
   },
   songTitle: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#000000',
     textTransform: 'uppercase',
     fontFamily: 'Helvetica-Bold',
@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
   logoAccentText: {
     fontSize: 11,
     fontFamily: 'Helvetica-Bold',
-    color: '#22c55e', // Verde característico do app
+    color: '#777777', // Cinza do logo
   },
   pageNumber: {
     position: 'absolute',
