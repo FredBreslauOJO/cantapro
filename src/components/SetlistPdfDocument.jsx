@@ -3,9 +3,12 @@ import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
 
 const styles = StyleSheet.create({
   page: {
-    padding: 30,
+    paddingTop: 30,
+    paddingHorizontal: 30,
+    paddingBottom: 50, // Garante folga para o rodapé assinado
     fontFamily: 'Helvetica',
-    backgroundColor: '#ffffff'
+    backgroundColor: '#ffffff',
+    position: 'relative'
   },
   header: {
     marginBottom: 20,
@@ -14,7 +17,7 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   eventName: {
-    fontSize: 28,
+    fontSize: 26,
     textTransform: 'uppercase',
     fontFamily: 'Helvetica-Bold',
   },
@@ -29,12 +32,10 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     fontFamily: 'Helvetica-Bold',
   },
-  // Alinha as duas colunas principais lado a lado
   grid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
-  // Garante que cada coluna empilhe os itens de cima para baixo
   column: {
     width: '47%',
     flexDirection: 'column',
@@ -43,19 +44,19 @@ const styles = StyleSheet.create({
     width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
     paddingBottom: 4,
     borderBottomWidth: 1,
     borderBottomColor: '#eeeeee',
   },
   songIndex: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#999999',
     width: 28,
     fontFamily: 'Helvetica-Bold',
   },
   songTitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#000000',
     textTransform: 'uppercase',
     fontFamily: 'Helvetica-Bold',
@@ -63,17 +64,44 @@ const styles = StyleSheet.create({
   },
   dividerItem: {
     width: '100%',
-    marginBottom: 16,
+    marginBottom: 14,
     paddingBottom: 4,
     justifyContent: 'center',
   },
   dividerText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#000000',
     backgroundColor: '#eeeeee',
-    padding: 6,
+    padding: 5,
     textAlign: 'center',
     textTransform: 'uppercase',
+    fontFamily: 'Helvetica-Bold',
+  },
+  // 👑 LOGO CANTA.PRO PURA NO RODAPÉ DIREITO
+  footerLogoContainer: {
+    position: 'absolute',
+    bottom: 20,
+    right: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  logoMainText: {
+    fontSize: 11,
+    fontFamily: 'Helvetica-Bold',
+    color: '#000000',
+    letterSpacing: -0.5,
+  },
+  logoAccentText: {
+    fontSize: 11,
+    fontFamily: 'Helvetica-Bold',
+    color: '#22c55e', // Verde característico do app
+  },
+  pageNumber: {
+    position: 'absolute',
+    bottom: 20,
+    left: 30,
+    fontSize: 9,
+    color: '#999999',
     fontFamily: 'Helvetica-Bold',
   }
 });
@@ -86,8 +114,7 @@ const truncate = (str, max) => {
 export const SetlistPdfDocument = ({ eventName, bandName, date, orderedItems }) => {
   let songCounter = 1;
 
-  // 1. IMPORTANTE: Adiciona a numeração original sequencial (01, 02...) ANTES de fatiar,
-  // para que a contagem do show continue certa ao dividir as colunas.
+  // Passo 1: Insere o número de faixa sequencial antes de fatiar nas páginas
   const itemsWithNumbers = orderedItems.map((item) => {
     if (item.item_type === 'divider') {
       return { ...item, isDivider: true };
@@ -97,12 +124,31 @@ export const SetlistPdfDocument = ({ eventName, bandName, date, orderedItems }) 
     }
   });
 
-  // 2. Divide o array de itens ao meio verticalmente
-  const half = Math.ceil(itemsWithNumbers.length / 2);
-  const leftColumn = itemsWithNumbers.slice(0, half);
-  const rightColumn = itemsWithNumbers.slice(half);
+  // =========================================================================
+  // ALGORITMO DE TRANSBORDO VERTICAL (PAGINAÇÃO COMPLETA)
+  // =========================================================================
+  const LIMIT_PAGE_1 = 14; // Limite menor na folha 1 devido ao cabeçalho do show
+  const LIMIT_PAGE_2 = 18; // Limite maior nas folhas seguintes
 
-  // Função auxiliar para renderizar os cards de uma coluna específica
+  const chunksPages = [];
+  let index = 0;
+  let isFirstPage = true;
+
+  while (index < itemsWithNumbers.length) {
+    const limit = isFirstPage ? LIMIT_PAGE_1 : LIMIT_PAGE_2;
+    
+    // Preenche a coluna da esquerda inteira de cima para baixo
+    const leftCol = itemsWithNumbers.slice(index, index + limit);
+    index += leftCol.length;
+    
+    // Preenche a coluna da direita com o transbordo subsequente
+    const rightCol = itemsWithNumbers.slice(index, index + limit);
+    index += rightCol.length;
+    
+    chunksPages.push({ left: leftCol, right: rightCol, isFirstPage });
+    isFirstPage = false;
+  }
+
   const renderColumn = (columnItems) => {
     return columnItems.map((item, idx) => {
       if (item.isDivider) {
@@ -127,30 +173,48 @@ export const SetlistPdfDocument = ({ eventName, bandName, date, orderedItems }) 
 
   return (
     <Document>
-      <Page size="A4" style={styles.page}>
-        
-        {/* CABEÇALHO DO PDF */}
-        <View style={styles.header}>
-          <Text style={styles.eventName}>{eventName || "MEU SETLIST"}</Text>
-          <View style={styles.bandDateRow}>
-            <Text style={styles.subtitle}>{bandName || "Banda / Artista"}</Text>
-            <Text style={styles.subtitle}>
-              {date ? new Date(date + 'T12:00:00').toLocaleDateString('pt-BR') : ""}
-            </Text>
-          </View>
-        </View>
+      {chunksPages.map((pageData, pageIdx) => (
+        <Page key={pageIdx} size="A4" style={styles.page}>
+          
+          {pageData.isFirstPage ? (
+            <View style={styles.header}>
+              <Text style={styles.eventName}>{eventName || "MEU SETLIST"}</Text>
+              <View style={styles.bandDateRow}>
+                <Text style={styles.subtitle}>{bandName || "Banda / Artista"}</Text>
+                <Text style={styles.subtitle}>
+                  {date ? new Date(date + 'T12:00:00').toLocaleDateString('pt-BR') : ""}
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <View style={[styles.header, { marginBottom: 15, paddingBottom: 4, borderBottomWidth: 2 }]}>
+              <Text style={[styles.subtitle, { fontSize: 10, color: '#999999' }]}>
+                {eventName || "SETLIST"} · PAGINA {pageIdx + 1}
+              </Text>
+            </View>
+          )}
 
-        {/* ESTRUTURA DE DUAS COLUNAS VERTICAIS PURAS */}
-        <View style={styles.grid}>
-          <View style={styles.column}>
-            {renderColumn(leftColumn)}
+          {/* Renderização em Duas Colunas Verticais Purass */}
+          <View style={styles.grid}>
+            <View style={styles.column}>
+              {renderColumn(pageData.left)}
+            </View>
+            <View style={styles.column}>
+              {renderColumn(pageData.right)}
+            </View>
           </View>
-          <View style={styles.column}>
-            {renderColumn(rightColumn)}
-          </View>
-        </View>
 
-      </Page>
+          {/* Numeração de Páginas */}
+          <Text style={styles.pageNumber}>{pageIdx + 1} / {chunksPages.length}</Text>
+
+          {/* Assinatura com a Logo Limpa */}
+          <View style={styles.footerLogoContainer}>
+            <Text style={styles.logoMainText}>CANTA</Text>
+            <Text style={styles.logoAccentText}>.PRO</Text>
+          </View>
+
+        </Page>
+      ))}
     </Document>
   );
 };
