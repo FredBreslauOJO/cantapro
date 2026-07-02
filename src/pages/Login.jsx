@@ -36,8 +36,21 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 font-sans text-black">
-      <div className="w-full max-w-md bg-white border-4 border-black rounded-3xl p-6 sm:p-8 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] z-10">
+    <div className="relative min-h-screen flex flex-col items-center justify-center p-4 font-sans text-black overflow-hidden bg-black">
+      
+      {/* VÍDEO DE FUNDO RESTAURADO E POSICIONADO NO FUNDO (z-0) */}
+      <video
+        autoPlay
+        muted
+        loop
+        playsInline
+        className="absolute top-0 left-0 w-full h-full object-cover z-0 opacity-80"
+      >
+        <source src="/videoBG/loginVid.webm" type="video/webm" />
+      </video>
+
+      {/* CARD DO FORMULÁRIO FLUTUANDO ACIMA DO VÍDEO (relative z-10) */}
+      <div className="relative z-10 w-full max-w-md bg-white border-4 border-black rounded-3xl p-6 sm:p-8 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
         
         <div className="text-center mb-8">
           <img src="/CantaProLogo.svg" alt="CANTA.PRO" className="h-10 mx-auto" />
