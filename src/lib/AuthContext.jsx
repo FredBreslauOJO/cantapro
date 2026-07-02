@@ -12,7 +12,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 🚨 WATCHDOG TIMER (CÃO DE GUARDA)
+    // WATCHDOG TIMER (CÃO DE GUARDA)
     const watchdog = setTimeout(() => {
       if (loading) {
         console.warn("⚠️ Supabase demorou demais para responder. Destravando loading via Watchdog.");
@@ -25,7 +25,7 @@ export const AuthProvider = ({ children }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchUserPlan(session.user); // ◄ CORREÇÃO: Passa o objeto do usuário completo
+        fetchUserPlan(session.user); 
       } else {
         setLoading(false);
         clearTimeout(watchdog);
@@ -40,7 +40,7 @@ export const AuthProvider = ({ children }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchUserPlan(session.user); // ◄ CORREÇÃO: Passa o objeto do usuário completo
+        fetchUserPlan(session.user); 
       } else {
         setLoading(false);
         clearTimeout(watchdog);
@@ -53,30 +53,33 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
-  // 🛠️ BUSCA DE PLANO CORRIGIDA (Mata o Erro 400)
+  // BUSCA DE PLANO BLINDADA COM DIAGNÓSTICO DE ERRO
   const fetchUserPlan = async (currentUser) => {
     try {
-      // TENTATIVA 1: Verifica se o plano está direto no Metadata do login (Super rápido, evita query)
+      // Se o plano já estiver nos metadados do login, resolve direto aqui
       if (currentUser.user_metadata?.plan) {
         setPlan(currentUser.user_metadata.plan);
         setLoading(false);
         return;
       }
 
-      // TENTATIVA 2: Busca na tabela 'profiles' usando o ID (UUID) único do usuário
       const { data, error } = await supabase
         .from('profiles')
         .select('plan')
-        .eq('id', currentUser.id) // ◄ CORREÇÃO CRÍTICA: Busca por ID, não por e-mail
+        .eq('id', currentUser.id) 
         .maybeSingle();
 
-      if (!error && data) {
+      if (error) {
+        // 🚨 ISSO VAI PRINTAR O MOTIVO EXATO DO ERRO 400 NO SEU CONSOLE (Ex: "column id does not exist")
+        console.error("🚨 ERRO DE SCHEMA NO SUPABASE:", error.message, "| Detalhes:", error.details);
+        setPlan('free'); 
+      } else if (data) {
         setPlan(data.plan || 'free');
       }
     } catch (err) {
-      console.error("Erro ao buscar plano no banco:", err);
+      console.error("Erro interno ao buscar plano:", err);
     } finally {
-      setLoading(false); // Destrava o app independentemente do resultado
+      setLoading(false); // ◄ Alívio imediato: o loading morre aqui de qualquer forma, sem travar a tela!
     }
   };
 
