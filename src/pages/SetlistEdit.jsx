@@ -107,13 +107,23 @@ export default function SetlistEdit() {
     }
   };
 
+  // ==========================================
+  // FUNÇÃO DE COMPARTILHAMENTO ATUALIZADA
+  // ==========================================
   const handleShare = async () => {
     try {
       const shareUrl = `${window.location.origin}/setlists/${id}/play/0`;
-      await navigator.clipboard.writeText(shareUrl);
-      alert("Link de Palco copiado! Envie para a banda.");
+      
+      // Captura o prefixo do e-mail do usuário para servir de assinatura
+      const userName = user?.email ? user.email.split('@')[0].toUpperCase() : "Seu parceiro de banda";
+      
+      // Texto estruturado contendo tags de formatação nativa para o WhatsApp
+      const shareMessage = `🎤 *${userName}* compartilhou o setlist *${eventName.toUpperCase() || 'ROTEIRO DO SHOW'}* com você!\n\n👉 Clique no link para acessar o Teleprompter de Palco:\n${shareUrl}\n\n🎸 Já tem o APP *CANTA.PRO*? Instale agora de graça direto pelo menu lateral!`;
+      
+      await navigator.clipboard.writeText(shareMessage);
+      alert("Mensagem completa com o link copiada! Pronto para colar no WhatsApp da banda.");
     } catch (err) {
-      alert("Não foi possível copiar o link automaticamente.");
+      alert("Não foi possível copiar a mensagem automaticamente.");
     }
   };
 
@@ -245,10 +255,6 @@ export default function SetlistEdit() {
     );
   }).filter(song => !setlistItems.some(item => item.type === 'song' && item.id === song.id));
 
-  // =========================================================================
-  // TRADUTOR DE INFRAESTRUTURA: Adapta o state local de volta para o formato 
-  // exato exigido pelo arquivo SetlistPdfDocument.jsx (item_type e item.songs)
-  // =========================================================================
   const getPdfItemsFormat = () => {
     return setlistItems.map(item => {
       if (item.type === 'divider') {
@@ -290,7 +296,6 @@ export default function SetlistEdit() {
           </button>
           <div className="flex items-center gap-2">
             
-            {/* 📥 RESTAURADO: DOWNLOAD DE PDF DIRETO EM DUAS COLUNAS VIA @REACT-PDF/RENDERER */}
             <PDFDownloadLink
               document={
                 <SetlistPdfDocument 
