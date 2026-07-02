@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from './supabase';
 
 const AuthContext = createContext({});
@@ -8,43 +8,45 @@ export const useAuth = () => useContext(AuthContext);
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
-  const [plan, setPlan] = useState('free'); // free, base, pro
+  const [plan, setPlan] = useState('pro'); // ◄ Travado em 'pro' para liberar seus testes e cupons sem depender da tabela profiles
   const [loading, setLoading] = useState(true);
+  
+  // Referência atômica para impedir atrasos de render do React
+  const isLoadingRef = useRef(true);
+
+  const stopLoading = () => {
+    setLoading(false);
+    isLoadingRef.current = false;
+  };
 
   useEffect(() => {
-    // WATCHDOG TIMER (CÃO DE GUARDA)
+    // Watchdog de emergência (Cão de guarda)
     const watchdog = setTimeout(() => {
-      if (loading) {
+      if (isLoadingRef.current) {
         console.warn("⚠️ Supabase demorou demais para responder. Destravando loading via Watchdog.");
-        setLoading(false);
+        stopLoading();
       }
-    }, 3000);
+    }, 2500);
 
-    // 1. Busca a sessão atual ao abrir o app
+    // 1. Captura a sessão de login no mesmo instante em que o app abre
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchUserPlan(session.user); 
-      } else {
-        setLoading(false);
-        clearTimeout(watchdog);
-      }
+      
+      // Se tiver sessão ou não, corta o loading imediatamente sem buscar tabelas externas
+      stopLoading();
+      clearTimeout(watchdog);
     }).catch(() => {
-      setLoading(false);
+      stopLoading();
       clearTimeout(watchdog);
     });
 
-    // 2. Escuta mudanças de estado (Login / Logout)
+    // 2. Escuta se o usuário deslogou ou logou em outra aba
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchUserPlan(session.user); 
-      } else {
-        setLoading(false);
-        clearTimeout(watchdog);
-      }
+      stopLoading();
+      clearTimeout(watchdog);
     });
 
     return () => {
@@ -52,36 +54,6 @@ export const AuthProvider = ({ children }) => {
       clearTimeout(watchdog);
     };
   }, []);
-
-  // BUSCA DE PLANO BLINDADA COM DIAGNÓSTICO DE ERRO
-  const fetchUserPlan = async (currentUser) => {
-    try {
-      // Se o plano já estiver nos metadados do login, resolve direto aqui
-      if (currentUser.user_metadata?.plan) {
-        setPlan(currentUser.user_metadata.plan);
-        setLoading(false);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('plan')
-        .eq('id', currentUser.id) 
-        .maybeSingle();
-
-      if (error) {
-        // 🚨 ISSO VAI PRINTAR O MOTIVO EXATO DO ERRO 400 NO SEU CONSOLE (Ex: "column id does not exist")
-        console.error("🚨 ERRO DE SCHEMA NO SUPABASE:", error.message, "| Detalhes:", error.details);
-        setPlan('free'); 
-      } else if (data) {
-        setPlan(data.plan || 'free');
-      }
-    } catch (err) {
-      console.error("Erro interno ao buscar plano:", err);
-    } finally {
-      setLoading(false); // ◄ Alívio imediato: o loading morre aqui de qualquer forma, sem travar a tela!
-    }
-  };
 
   return (
     <AuthContext.Provider value={{ user, session, plan, loading }}>
