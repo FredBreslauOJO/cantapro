@@ -11,39 +11,72 @@ import PlaySong from './pages/PlaySong';
 import TimecodeEditor from './pages/TimecodeEditor';
 import JoinSetlist from './pages/JoinSetlist';
 import Onboarding from './pages/Onboarding'; 
-import { Music, List, Menu, Zap } from 'lucide-react';
+import { Music, List, Menu, Zap, RefreshCw } from 'lucide-react'; // <--- RefreshCw adicionado aqui
 
 // Importação dos Modais e Componentes Visuais
 import PaywallModal from './components/PaywallModal';
 import SettingsModal from './components/SettingsModal';
 import Logo from './components/Logo';
 import Success from './pages/Success';
-import ForceTerms, { CURRENT_TERMS_VERSION } from './components/ForceTerms'; // <--- IMPORT NOVO
+import ForceTerms, { CURRENT_TERMS_VERSION } from './components/ForceTerms';
 
 // TELA DE CARREGAMENTO IMPONENTE (SPLASH SCREEN)
-const SplashScreen = () => (
-  <div className="fixed inset-0 min-h-screen bg-black flex flex-col items-center justify-center z-[100] select-none">
-    <style>
-      {`
-        @keyframes loadingBar {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(200%); }
-        }
-        .animate-loading-bar {
-          animation: loadingBar 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-        }
-      `}
-    </style>
-    <div className="flex flex-col items-center">
-      <div className="mb-8 opacity-90 animate-pulse">
-        <Logo className="h-8 text-white filter invert brightness-0 saturate-100" />
-      </div>
-      <div className="w-48 h-1 bg-white/10 rounded-full overflow-hidden relative">
-        <div className="absolute top-0 left-0 h-full w-1/2 bg-yellow-400 rounded-full animate-loading-bar shadow-[0_0_10px_rgba(250,204,21,0.5)]" />
+const SplashScreen = () => {
+  // Controle de tempo para exibir o botão de recarregar de emergência
+  const [showReload, setShowReload] = useState(false);
+
+  useEffect(() => {
+    // Dispara a exibição do botão exatamente após 4 segundos
+    const timer = setTimeout(() => {
+      setShowReload(true);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <div className="fixed inset-0 min-h-screen bg-black flex flex-col items-center justify-center z-[100] select-none">
+      <style>
+        {`
+          @keyframes loadingBar {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(200%); }
+          }
+          .animate-loading-bar {
+            animation: loadingBar 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+          }
+        `}
+      </style>
+      <div className="flex flex-col items-center">
+        <div className="mb-8 opacity-90 animate-pulse">
+          <Logo className="h-8 text-white filter invert brightness-0 saturate-100" />
+        </div>
+        <div className="w-48 h-1 bg-white/10 rounded-full overflow-hidden relative mb-12">
+          <div className="absolute top-0 left-0 h-full w-1/2 bg-yellow-400 rounded-full animate-loading-bar shadow-[0_0_10px_rgba(250,204,21,0.5)]" />
+        </div>
+
+        {/* 🔄 BOTÃO DE RECARREGAR DE EMERGÊNCIA (Fininho e Elegante) */}
+        <div 
+          className={`flex flex-col items-center gap-3 transition-all duration-1000 ease-out transform ${
+            showReload ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
+          }`}
+        >
+          <button
+            onClick={() => window.location.reload()}
+            className="p-3 text-white/40 hover:text-white bg-white/5 hover:bg-white/10 rounded-full transition-all duration-300 active:scale-95 flex items-center justify-center"
+            title="Recarregar aplicativo"
+          >
+            {/* strokeWidth={1.2} garante o traço fino, não brutalista */}
+            <RefreshCw size={22} strokeWidth={1.2} />
+          </button>
+          <span className="text-[10px] font-medium tracking-widest text-white/40 uppercase">
+            Recarregar
+          </span>
+        </div>
+
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, isLoadingAuth } = useAuth();
@@ -118,13 +151,13 @@ const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
 };
 
 const AuthenticatedApp = () => {
-  const { isAuthenticated, plan, profile, user } = useAuth(); // <--- PROFILE E USER ADICIONADOS
+  const { isAuthenticated, plan, profile, user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [hasAcceptedTerms, setHasAcceptedTerms] = useState(true); // <--- ESTADO NOVO
+  const [hasAcceptedTerms, setHasAcceptedTerms] = useState(true);
   
   // VERIFICA SE É A PRIMEIRA VEZ E CHAMA O TUTORIAL
   useEffect(() => {
