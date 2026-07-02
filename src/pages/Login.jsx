@@ -38,7 +38,7 @@ export default function Login() {
   return (
     <div className="relative min-h-screen flex flex-col items-center justify-center p-4 font-sans text-black overflow-hidden bg-black">
       
-      {/* VÍDEO DE FUNDO RESTAURADO E POSICIONADO NO FUNDO (z-0) */}
+      {/* VÍDEO DE FUNDO */}
       <video
         autoPlay
         muted
@@ -49,7 +49,7 @@ export default function Login() {
         <source src="/videoBG/loginVid.webm" type="video/webm" />
       </video>
 
-      {/* CARD DO FORMULÁRIO FLUTUANDO ACIMA DO VÍDEO (relative z-10) */}
+      {/* CARD DO FORMULÁRIO */}
       <div className="relative z-10 w-full max-w-md bg-white border-4 border-black rounded-3xl p-6 sm:p-8 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
         
         <div className="text-center mb-8">
@@ -106,6 +106,18 @@ export default function Login() {
             {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : "Entrar no CANTA.PRO"}
           </button>
         </form>
+
+        {/* ==========================================
+            NOVA INSTRUÇÃO DE UX PARA NOVOS USUÁRIOS
+        ========================================== */}
+        <div className="mt-8 pt-6 border-t-2 border-dashed border-gray-200 text-center">
+          <p className="text-[11px] font-black uppercase tracking-widest text-black mb-1.5">
+            Primeira vez por aqui?
+          </p>
+          <p className="text-[10px] font-bold text-black/50 leading-relaxed max-w-[260px] mx-auto">
+            Basta digitar seu melhor e-mail e criar uma senha acima. O sistema enviará um link de confirmação para ativar sua conta na hora!
+          </p>
+        </div>
 
       </div>
     </div>
