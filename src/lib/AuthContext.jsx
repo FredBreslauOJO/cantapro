@@ -12,9 +12,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 🚨 TRAVA CÃO DE GUARDA (WATCHDOG TIMER) 🚨
-    // Se o Supabase falhar, travar ou demorar mais de 3 segundos para responder,
-    // o timer abaixo estoura e força o encerramento do loading para não travar o app.
+    // 🚨 WATCHDOG TIMER (CÃO DE GUARDA)
     const watchdog = setTimeout(() => {
       if (loading) {
         console.warn("⚠️ Supabase demorou demais para responder. Destravando loading via Watchdog.");
@@ -22,12 +20,12 @@ export const AuthProvider = ({ children }) => {
       }
     }, 3000);
 
-    // 1. Busca a sessão atual de forma assíncrona
+    // 1. Busca a sessão atual ao abrir o app
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchuserPlan(session.user.email);
+        fetchUserPlan(session.user); // ◄ CORREÇÃO: Passa o objeto do usuário completo
       } else {
         setLoading(false);
         clearTimeout(watchdog);
@@ -37,12 +35,12 @@ export const AuthProvider = ({ children }) => {
       clearTimeout(watchdog);
     });
 
-    // 2. Escuta mudanças na autenticação (Login, Logout, etc.)
+    // 2. Escuta mudanças de estado (Login / Logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchuserPlan(session.user.email);
+        fetchUserPlan(session.user); // ◄ CORREÇÃO: Passa o objeto do usuário completo
       } else {
         setLoading(false);
         clearTimeout(watchdog);
@@ -55,22 +53,30 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
-  // Busca o plano do usuário na tabela de perfis/assinaturas
-  const fetchuserPlan = async (email) => {
+  // 🛠️ BUSCA DE PLANO CORRIGIDA (Mata o Erro 400)
+  const fetchUserPlan = async (currentUser) => {
     try {
+      // TENTATIVA 1: Verifica se o plano está direto no Metadata do login (Super rápido, evita query)
+      if (currentUser.user_metadata?.plan) {
+        setPlan(currentUser.user_metadata.plan);
+        setLoading(false);
+        return;
+      }
+
+      // TENTATIVA 2: Busca na tabela 'profiles' usando o ID (UUID) único do usuário
       const { data, error } = await supabase
-        .from('profiles') // Ajuste o nome da tabela se for 'user_subscriptions', 'users', etc.
+        .from('profiles')
         .select('plan')
-        .eq('email', email)
+        .eq('id', currentUser.id) // ◄ CORREÇÃO CRÍTICA: Busca por ID, não por e-mail
         .maybeSingle();
 
       if (!error && data) {
         setPlan(data.plan || 'free');
       }
     } catch (err) {
-      console.error("Erro ao buscar plano:", err);
+      console.error("Erro ao buscar plano no banco:", err);
     } finally {
-      setLoading(false); // Desliga o loading global com sucesso
+      setLoading(false); // Destrava o app independentemente do resultado
     }
   };
 
