@@ -26,7 +26,7 @@ export default function Login() {
       if (error) throw error;
       
       if (data?.user) {
-        navigate('/'); // Redireciona apenas uma vez após o clique de sucesso
+        navigate('/'); 
       }
     } catch (err) {
       console.error(err.message);
@@ -38,18 +38,10 @@ export default function Login() {
   return (
     <div className="relative min-h-screen flex flex-col items-center justify-center p-4 font-sans text-black overflow-hidden bg-black">
       
-      {/* VÍDEO DE FUNDO */}
-      <video
-        autoPlay
-        muted
-        loop
-        playsInline
-        className="absolute top-0 left-0 w-full h-full object-cover z-0 opacity-80"
-      >
+      <video autoPlay muted loop playsInline className="absolute top-0 left-0 w-full h-full object-cover z-0 opacity-80">
         <source src="/videoBG/loginVid.webm" type="video/webm" />
       </video>
 
-      {/* CARD DO FORMULÁRIO */}
       <div className="relative z-10 w-full max-w-md bg-white border-4 border-black rounded-3xl p-6 sm:p-8 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
         
         <div className="text-center mb-8">
@@ -69,12 +61,8 @@ export default function Login() {
             <div className="relative">
               <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40" />
               <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="email" name="email" type="email" required
+                value={email} onChange={(e) => setEmail(e.target.value)}
                 placeholder="seuemail@banda.com"
                 className="w-full pl-10 pr-4 py-3 border-2 border-black rounded-xl text-sm font-bold bg-gray-50 outline-none"
               />
@@ -86,12 +74,8 @@ export default function Login() {
             <div className="relative">
               <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40" />
               <input
-                id="password-field"
-                name="password"
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                id="password-field" name="password" type="password" required
+                value={password} onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 className="w-full pl-10 pr-4 py-3 border-2 border-black rounded-xl text-sm font-bold bg-gray-50 outline-none"
               />
@@ -99,24 +83,25 @@ export default function Login() {
           </div>
 
           <button
-            type="submit"
-            disabled={isSubmitting}
+            type="submit" disabled={isSubmitting}
             className="w-full mt-2 py-4 bg-black text-white rounded-xl font-black uppercase tracking-widest text-xs border-2 border-black shadow-[3px_3px_0px_0px_rgba(34,197,94,1)] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : "Entrar no CANTA.PRO"}
           </button>
         </form>
 
-        {/* ==========================================
-            NOVA INSTRUÇÃO DE UX PARA NOVOS USUÁRIOS
-        ========================================== */}
+        {/* RODAPÉ ATUALIZADO: LEVA PARA O REGISTRO */}
         <div className="mt-8 pt-6 border-t-2 border-dashed border-gray-200 text-center">
-          <p className="text-[11px] font-black uppercase tracking-widest text-black mb-1.5">
-            Primeira vez por aqui?
+          <p className="text-[11px] font-black uppercase tracking-widest text-black mb-3">
+            Ainda não tem uma conta?
           </p>
-          <p className="text-[10px] font-bold text-black/50 leading-relaxed max-w-[260px] mx-auto">
-            Basta digitar seu melhor e-mail e criar uma senha acima. O sistema enviará um link de confirmação para ativar sua conta na hora!
-          </p>
+          <button
+            onClick={() => navigate('/register')}
+            type="button"
+            className="w-full py-3 bg-white text-black rounded-xl font-black uppercase tracking-widest text-xs border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all"
+          >
+            Criar Conta Grátis
+          </button>
         </div>
 
       </div>
