@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
-import { Search, Eye, X, Check, Sparkles } from 'lucide-react';
+import { Search, Eye, X, Sparkles, Loader2, User, Music } from 'lucide-react';
 
 export default function OnlineLyricsSearch({ userPlan, onSaveLyrics }) {
-  const [query, setQuery] = useState('');
+  const [trackQuery, setTrackQuery] = useState('');
+  const [artistQuery, setArtistQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   
-  // Estado crucial de feedback visual para o usuário
   const [isSaving, setIsSaving] = useState(false); 
-  
   const [selectedTrack, setSelectedTrack] = useState(null);
   const [activePreviewTab, setActivePreviewTab] = useState('synced');
 
@@ -33,13 +33,25 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics }) {
 
   const handleSearch = async (e) => {
     e.preventDefault();
-    if (!query.trim()) return;
+    if (!trackQuery.trim()) return;
+    
     setLoading(true);
+    setHasSearched(true);
+    setResults([]); // Limpa resultados anteriores na hora
 
     try {
-      const response = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(query)}`);
+      let url = '';
+      if (artistQuery.trim()) {
+        // Busca precisa usando os parâmetros oficiais da API LRCLIB
+        url = `https://lrclib.net/api/search?track_name=${encodeURIComponent(trackQuery.trim())}&artist_name=${encodeURIComponent(artistQuery.trim())}`;
+      } else {
+        // Busca genérica se o artista não for fornecido
+        url = `https://lrclib.net/api/search?q=${encodeURIComponent(trackQuery.trim())}`;
+      }
+
+      const response = await fetch(url);
       const data = await response.json();
-      setResults(data);
+      setResults(data || []);
     } catch (err) {
       console.error('Erro ao buscar letras:', err);
     } finally {
@@ -54,14 +66,12 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics }) {
     return `${m}:${s}`;
   };
 
-  // PARSER COM EMBARGO DE REQUISIÇÃO (BLOQUEIA CLIQUE DUPLO)
   const processAndSave = async (track, forcePlain = false) => {
-    if (isSaving) return; // Se já estiver salvando, ignora qualquer clique extra
-    setIsSaving(true);    // Ativa imediatamente o carregamento visual
+    if (isSaving) return;
+    setIsSaving(true);
 
     const useSynced = track.syncedLyrics && activePreviewTab === 'synced' && !forcePlain;
     const rawText = useSynced ? track.syncedLyrics : track.plainLyrics;
-    
     let generatedBlocks = [];
 
     if (useSynced) {
@@ -117,7 +127,6 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics }) {
     }
 
     try {
-      // Espera a resposta real do banco (async/await) antes de fechar o modal
       await onSaveLyrics({
         title: track.trackName.toUpperCase(),
         artist: track.artistName.toUpperCase(),
@@ -129,80 +138,114 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics }) {
     } catch (err) {
       alert("Erro ao importar: " + err.message);
     } finally {
-      setIsSaving(false); // Libera o estado apenas após a conclusão
+      setIsSaving(false);
     }
   };
 
   return (
     <div className="w-full bg-white text-black font-sans p-4 max-w-xl mx-auto">
       
-      <form onSubmit={handleSearch} className="mb-6">
+      {/* FORMULÁRIO DE BUSCA INTELIGENTE */}
+      <form onSubmit={handleSearch} className="mb-6 space-y-3">
+        <div className="relative">
+          <Music size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40" />
+          <input
+            type="text"
+            required
+            value={trackQuery}
+            onChange={(e) => setTrackQuery(e.target.value)}
+            placeholder="Nome da Música (Obrigatório)"
+            className="w-full pl-10 pr-4 py-3 border-4 border-black outline-none rounded-xl text-sm font-bold bg-gray-50 focus:bg-white transition-colors"
+          />
+        </div>
+        
         <div className="flex gap-2">
           <div className="relative flex-1">
-            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40" />
+            <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40" />
             <input
               type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar música ou artista online..."
-              className="w-full pl-10 pr-4 py-3 border-4 border-black outline-none rounded-xl text-sm font-bold shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]"
+              value={artistQuery}
+              onChange={(e) => setArtistQuery(e.target.value)}
+              placeholder="Nome do Artista (Opcional, mas recomendado)"
+              className="w-full pl-10 pr-4 py-3 border-4 border-black outline-none rounded-xl text-sm font-bold bg-gray-50 focus:bg-white transition-colors"
             />
           </div>
           <button 
             type="submit"
-            className="px-5 bg-black text-white rounded-xl border-4 border-black font-black text-xs uppercase tracking-wider shadow-[3px_3px_0px_0px_rgba(234,179,8,1)]"
+            disabled={loading}
+            className="px-5 bg-black text-white rounded-xl border-4 border-black font-black text-xs uppercase tracking-wider shadow-[3px_3px_0px_0px_rgba(234,179,8,1)] active:scale-95 transition-all disabled:opacity-70 flex items-center justify-center min-w-[100px]"
           >
-            Buscar
+            {loading ? <Loader2 size={16} className="animate-spin" /> : "Buscar"}
           </button>
         </div>
       </form>
 
+      {/* SKELETON LOADER (Feedback visual enquanto a API carrega) */}
       {loading && (
-        <div className="text-center py-8 font-bold text-sm tracking-wide animate-pulse">
-          🔍 Vasculhando banco de dados mundial...
+        <div className="space-y-3">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="p-4 bg-gray-50 border-2 border-gray-100 rounded-xl flex items-center justify-between animate-pulse">
+              <div className="space-y-2 w-2/3">
+                <div className="h-4 bg-gray-200 rounded w-full"></div>
+                <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+              </div>
+              <div className="h-10 w-10 bg-gray-200 rounded-lg"></div>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* LISTA DE RESULTADOS */}
-      <div className="space-y-3">
-        {results.map((track) => (
-          <div 
-            key={track.id}
-            className="p-4 bg-white border-2 border-gray-200 rounded-xl flex items-center justify-between hover:border-black transition-colors"
-          >
-            <div className="space-y-1">
-              <h4 className="font-black text-sm uppercase tracking-tight text-black">{track.trackName}</h4>
-              <div className="flex items-center gap-2">
-                <span className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-[10px] font-black text-black/60">
-                  {formatDuration(track.duration)}
-                </span>
-                {track.syncedLyrics ? (
-                  <span className="px-1.5 py-0.5 bg-green-100 border border-green-400 text-green-700 rounded text-[10px] font-black uppercase tracking-wide">
-                    Synced
-                  </span>
-                ) : (
-                  <span className="px-1.5 py-0.5 bg-gray-800 text-white rounded text-[10px] font-black uppercase tracking-wide">
-                    Plain
-                  </span>
-                )}
-              </div>
-              <p className="text-xs font-medium text-black/50 mt-1">
-                {track.trackName} - {track.artistName}
-              </p>
-            </div>
+      {/* RESULTADOS VAZIOS */}
+      {!loading && hasSearched && results.length === 0 && (
+        <div className="text-center py-10 bg-gray-50 border-2 border-dashed border-gray-300 rounded-2xl">
+          <Search size={32} className="mx-auto text-gray-300 mb-3" />
+          <p className="text-sm font-black uppercase tracking-tight text-gray-500">Nenhuma letra encontrada</p>
+          <p className="text-xs font-bold text-gray-400 mt-1">Verifique a grafia ou tente buscar apenas pela música.</p>
+        </div>
+      )}
 
-            <button 
-              onClick={() => {
-                setSelectedTrack(track);
-                setActivePreviewTab(track.syncedLyrics ? 'synced' : 'plain');
-              }}
-              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+      {/* LISTA DE RESULTADOS REAIS */}
+      {!loading && results.length > 0 && (
+        <div className="space-y-3">
+          {results.map((track) => (
+            <div 
+              key={track.id}
+              className="p-4 bg-white border-2 border-gray-200 rounded-xl flex items-center justify-between hover:border-black transition-colors shadow-sm"
             >
-              <Eye size={20} />
-            </button>
-          </div>
-        ))}
-      </div>
+              <div className="space-y-1 min-w-0 pr-4">
+                <h4 className="font-black text-sm uppercase tracking-tight text-black truncate">{track.trackName}</h4>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-[10px] font-black text-black/60">
+                    {formatDuration(track.duration)}
+                  </span>
+                  {track.syncedLyrics ? (
+                    <span className="px-1.5 py-0.5 bg-green-100 border border-green-400 text-green-700 rounded text-[10px] font-black uppercase tracking-wide">
+                      Synced
+                    </span>
+                  ) : (
+                    <span className="px-1.5 py-0.5 bg-gray-800 text-white rounded text-[10px] font-black uppercase tracking-wide">
+                      Plain
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs font-medium text-black/50 mt-1 truncate">
+                  {track.artistName} {track.albumName ? `• ${track.albumName}` : ''}
+                </p>
+              </div>
+
+              <button 
+                onClick={() => {
+                  setSelectedTrack(track);
+                  setActivePreviewTab(track.syncedLyrics ? 'synced' : 'plain');
+                }}
+                className="p-2.5 text-blue-600 hover:bg-blue-50 border-2 border-transparent hover:border-blue-200 rounded-lg transition-all flex-shrink-0"
+              >
+                <Eye size={20} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* MODAL DE PREVIEW */}
       {selectedTrack && (
@@ -239,25 +282,24 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics }) {
               </pre>
             </div>
 
-            {/* BOTÕES DE CONFIRMAÇÃO COM CONTROLE DE CARREGAMENTO */}
             <div className="p-4 border-t border-gray-200 bg-white flex flex-col sm:flex-row items-center justify-between gap-3">
-              <span className="text-[10px] font-bold text-black/30 uppercase tracking-widest">
+              <span className="text-[10px] font-bold text-black/30 uppercase tracking-widest text-center sm:text-left">
                 Letras fornecidas por LRCLIB
               </span>
               <div className="flex gap-2 w-full sm:w-auto">
                 <button
                   onClick={() => setSelectedTrack(null)}
                   disabled={isSaving}
-                  className="flex-1 sm:flex-none px-5 py-2.5 bg-gray-200 text-black text-xs font-black uppercase tracking-wider rounded-xl border-2 border-black disabled:opacity-50"
+                  className="flex-1 sm:flex-none px-5 py-2.5 bg-gray-200 text-black text-xs font-black uppercase tracking-wider rounded-xl border-2 border-black disabled:opacity-50 active:scale-95"
                 >
                   Fechar
                 </button>
                 <button
                   onClick={() => processAndSave(selectedTrack)}
-                  disabled={isSaving} // Desativa o botão fisicamente ao ser clicado!
-                  className="flex-1 sm:flex-none px-5 py-2.5 bg-black text-white text-xs font-black uppercase tracking-wider rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(34,197,94,1)] disabled:opacity-70 disabled:cursor-not-allowed"
+                  disabled={isSaving}
+                  className="flex-1 sm:flex-none px-5 py-2.5 bg-black text-white text-xs font-black uppercase tracking-wider rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(34,197,94,1)] disabled:opacity-70 disabled:cursor-not-allowed active:scale-95"
                 >
-                  {isSaving ? "Importando para o App..." : "Salvar no App"}
+                  {isSaving ? "Importando..." : "Salvar no App"}
                 </button>
               </div>
             </div>
