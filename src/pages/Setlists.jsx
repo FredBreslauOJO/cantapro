@@ -4,6 +4,7 @@ import { Plus, Settings, Play, Archive, ArchiveRestore, Users } from "lucide-rea
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/AuthContext";
 import PaywallModal from "../components/PaywallModal";
+import LoadingScreen from "../components/LoadingScreen"; // <-- IMPORTAÇÃO AQUI
 
 // A MÁGICA DO FLICKER: Cache global em memória
 let globalSetlistsCache = null;
@@ -148,10 +149,9 @@ export default function Setlists() {
         <button onClick={() => setShowArchived(true)} className={`flex-1 min-h-[44px] rounded-lg text-[10px] font-bold tracking-wide transition-all uppercase ${showArchived ? "bg-white shadow-sm text-foreground" : "text-gray-400"}`}>Arquivados</button>
       </div>
 
+      {/* COMPONENTE DE LOADING INSERIDO AQUI */}
       {loading ? (
-        <div className="flex justify-center py-16">
-          <div className="w-6 h-6 border-2 border-gray-200 border-t-black rounded-full animate-spin" />
-        </div>
+        <LoadingScreen message="Carregando seus setlists..." />
       ) : visibleSetlists.length === 0 ? (
         <div className="text-center py-16">
           <p className="text-gray-400 text-sm font-bold uppercase tracking-widest mb-4">{showArchived ? "Nenhum setlist arquivado." : "Nenhum setlist encontrado."}</p>

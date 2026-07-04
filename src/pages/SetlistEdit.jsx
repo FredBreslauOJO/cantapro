@@ -8,6 +8,7 @@ import { PDFDownloadLink } from '@react-pdf/renderer';
 import { SetlistPdfDocument } from '../components/SetlistPdfDocument';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
+import LoadingScreen from '../components/LoadingScreen'; // <-- IMPORTAÇÃO AQUI
 
 // IMPORTAÇÕES DO DND-KIT
 import { 
@@ -225,7 +226,8 @@ export default function SetlistEdit() {
 
   let songCounter = 0;
 
-  if (loading) return <div className="min-h-screen bg-white flex items-center justify-center font-black uppercase text-xs tracking-widest text-black">Carregando edição...</div>;
+  // COMPONENTE DE LOADING INSERIDO AQUI
+  if (loading) return <LoadingScreen message="Carregando painel de edição..." />;
 
   return (
     <div className="min-h-screen bg-white pb-24 font-sans select-none text-black relative">
