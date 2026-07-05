@@ -96,8 +96,9 @@ export default function Songs() {
     <div className="py-6 max-w-2xl mx-auto px-4">
       
       {/* CABEÇALHO DINÂMICO */}
-      <div className="flex items-start justify-between mb-1">
-        <div>
+      <div className="mb-4">
+        {/* LINHA SUPERIOR: Seta de voltar e Botões */}
+        <div className="flex items-center justify-between mb-4">
           <button 
             onClick={() => {
               if (showOnlineSearch) {
@@ -106,49 +107,51 @@ export default function Songs() {
                 navigate("/");
               }
             }} 
-            className="mb-4 p-2 hover:bg-gray-100 rounded-full transition-colors text-black active:scale-95 w-fit"
+            className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors text-black active:scale-95"
             title="Voltar"
           >
             <ArrowLeft size={28} strokeWidth={2.5} />
           </button>
+          
+          {/* BOTÕES DE AÇÃO (Agora colados no topo) */}
+          <div className="flex items-center gap-2">
+            {!showOnlineSearch && (
+              <button
+                onClick={() => setShowOnlineSearch(true)}
+                className="px-4 h-12 bg-black text-white border-2 border-black font-black text-[10px] sm:text-xs uppercase tracking-wider rounded-xl flex items-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,0.3)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all hover:bg-gray-800"
+              >
+                <Globe size={16} /> Buscar Web
+              </button>
+            )}
+
+            {showOnlineSearch ? (
+              <button
+                onClick={() => setShowOnlineSearch(false)}
+                className="px-4 h-12 bg-white text-black border-2 border-black font-black text-xs uppercase tracking-wider rounded-xl flex items-center justify-center shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+            ) : (
+              <button 
+                onClick={handleCreateNew} 
+                className="w-12 h-12 bg-black rounded-full flex items-center justify-center text-white hover:opacity-80 transition-opacity active:scale-95 shadow-[2px_2px_0px_0px_rgba(0,0,0,0.3)]"
+              >
+                <Plus size={18} className="pointer-events-none" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* TÍTULO: Livre de obstáculos e em uma linha só */}
+        <div>
           <p className="text-xs tracking-[0.15em] uppercase text-gray-400 mb-0.5">
             {showOnlineSearch ? "Importação Global" : "Biblioteca"}
           </p>
-          <h1 className="text-2xl font-black tracking-tight uppercase text-foreground">
+          <h1 className="text-3xl font-black tracking-tight uppercase text-foreground whitespace-nowrap">
             {showOnlineSearch ? "Buscar na Web" : "Editar Letras"}
           </h1>
         </div>
-        
-        {/* BOTÕES DE AÇÃO SUPERIORES */}
-        <div className="flex items-center gap-2 mt-8">
-          {!showOnlineSearch && (
-            <button
-              onClick={() => setShowOnlineSearch(true)}
-              className="px-4 h-12 bg-black text-white border-2 border-black font-black text-[10px] sm:text-xs uppercase tracking-wider rounded-xl flex items-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,0.3)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all hover:bg-gray-800"
-            >
-              <Globe size={16} /> Buscar Web
-            </button>
-          )}
-
-          {showOnlineSearch ? (
-            <button
-              onClick={() => setShowOnlineSearch(false)}
-              className="px-4 h-12 bg-white text-black border-2 border-black font-black text-xs uppercase tracking-wider rounded-xl flex items-center justify-center shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all hover:bg-gray-50"
-            >
-              Cancelar
-            </button>
-          ) : (
-            <button 
-              onClick={handleCreateNew} 
-              className="w-12 h-12 bg-black rounded-full flex items-center justify-center text-white hover:opacity-80 transition-opacity active:scale-95"
-            >
-              <Plus size={18} className="pointer-events-none" />
-            </button>
-          )}
-        </div>
       </div>
-
-      <div className="border-b border-gray-200 mb-5 mt-3" />
 
       {/* RENDERIZAÇÃO CONDICIONAL */}
       {showOnlineSearch ? (
