@@ -270,8 +270,17 @@ export default function PlaySong() {
         const lastBlock = timecodes[timecodes.length - 1];
         const maxTimeMs = (lastBlock.end_time ?? lastBlock.endTime ?? lastBlock.end ?? lastBlock.timecode ?? 0) * 1000;
         
-        if (elapsed < maxTimeMs) playbackRef.current.animationId = requestAnimationFrame(loop);
-        else { stopAutoScroll(); setIsPlaying(false); }
+        // CONDIÇÃO DE FIM PARA MÚSICAS COM TIMECODE
+        if (elapsed < maxTimeMs) {
+          playbackRef.current.animationId = requestAnimationFrame(loop);
+        } else { 
+          stopAutoScroll(); 
+          setIsPlaying(false); 
+          // Pula automaticamente para a próxima, mas permanece pausado
+          if (currentIndexRef.current + 1 < songsLengthRef.current) {
+            navigate(`/setlists/${id}/play/${currentIndexRef.current + 1}`);
+          }
+        }
 
       } else {
         const durationSec = currentSong.duration_seconds || 0;
@@ -289,11 +298,16 @@ export default function PlaySong() {
           window.scrollTo(0, targetScrollPos);
         }
 
+        // CONDIÇÃO DE FIM PARA MÚSICAS PLAIN TEXT
         if (elapsed < durationMs && (Math.ceil(window.innerHeight + window.scrollY) < document.documentElement.scrollHeight)) {
           playbackRef.current.animationId = requestAnimationFrame(loop);
         } else {
           stopAutoScroll();
           setIsPlaying(false);
+          // Pula automaticamente para a próxima, mas permanece pausado
+          if (currentIndexRef.current + 1 < songsLengthRef.current) {
+            navigate(`/setlists/${id}/play/${currentIndexRef.current + 1}`);
+          }
         }
       }
     };
