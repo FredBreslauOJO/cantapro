@@ -5,9 +5,8 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/AuthContext";
 import PaywallModal from "../components/PaywallModal";
 import LoadingScreen from "../components/LoadingScreen";
-import HomeNotices from "../components/HomeNotices"; // <-- NOSSO NOVO COMPONENTE AQUI
+import HomeNotices from "../components/HomeNotices";
 
-// A MÁGICA DO FLICKER: Cache global em memória
 let globalSetlistsCache = null;
 
 export default function Setlists() {
@@ -35,7 +34,6 @@ export default function Setlists() {
       setIsPaywallOpen(true);
       return;
     }
-
     const { data, error } = await supabase.from('setlists').insert([{ 
       event_name: "NOVO SETLIST", band_name: "", created_by: user.email, archived: false
     }]).select().single();
@@ -44,8 +42,19 @@ export default function Setlists() {
   };
 
   const loadSetlists = async () => {
-    if (!globalSetlistsCache) setLoading(true); 
+    // 1. CARREGAMENTO OFFLINE INSTANTÂNEO (Puxa da memória física do aparelho)
+    const cachedData = localStorage.getItem('canta_setlists_offline');
+    if (cachedData && !globalSetlistsCache) {
+      const parsed = JSON.parse(cachedData);
+      setSetlists(parsed);
+      globalSetlistsCache = parsed;
+      setLoading(false); // Já libera a tela na hora!
+    } else if (!globalSetlistsCache) {
+      setLoading(true);
+    }
+
     try {
+      // 2. TENTA ATUALIZAR EM SEGUNDO PLANO (Se tiver internet)
       const { data: memberData } = await supabase.from('setlist_members').select('setlist_id').eq('member_email', user.email);
       const sharedIds = memberData ? memberData.map(m => m.setlist_id) : [];
 
@@ -61,7 +70,6 @@ export default function Setlists() {
       if (!error && allSetlists) {
         const setlistIds = allSetlists.map(sl => sl.id);
         let itemsData = [];
-        
         if (setlistIds.length > 0) {
           const { data: items } = await supabase.from('setlist_items').select('setlist_id, item_type, songs(duration_seconds)').in('setlist_id', setlistIds);
           itemsData = items || [];
@@ -79,9 +87,11 @@ export default function Setlists() {
 
         globalSetlistsCache = enriched; 
         setSetlists(enriched);
+        // 3. SALVA O CACHE NOVO PARA O PRÓXIMO SHOW
+        localStorage.setItem('canta_setlists_offline', JSON.stringify(enriched));
       }
     } catch (err) {
-      console.error(err);
+      console.error("Modo offline ativado na home ou erro de conexão.", err);
     } finally {
       setLoading(false);
     }
@@ -164,9 +174,7 @@ export default function Setlists() {
         </div>
       )}
 
-      {/* CHAMADA DO NOSSO COMPONENTE ISOLADO DE DICAS E AVISOS */}
       {!loading && <HomeNotices />}
-
       <PaywallModal isOpen={isPaywallOpen} onClose={() => setIsPaywallOpen(false)} currentPlan={plan} />
     </div>
   );

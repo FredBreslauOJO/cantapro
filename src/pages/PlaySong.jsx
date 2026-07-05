@@ -101,11 +101,28 @@ export default function PlaySong() {
 
   useEffect(() => {
     const loadSetlistAndSongs = async () => {
-      setLoading(true);
+      if (!id) return;
+      
+      // 1. TENTA CARREGAR OFFLINE PRIMEIRO
+      const cachedData = localStorage.getItem(`canta_play_offline_${id}`);
+      if (cachedData) {
+        try {
+          const parsed = JSON.parse(cachedData);
+          setSetlistName(parsed.setlistName);
+          setSongs(parsed.songs);
+          setLoading(false); // Já libera a tela na hora!
+        } catch(e) {
+          console.error("Erro ao ler cache offline");
+        }
+      } else {
+        setLoading(true);
+      }
+
       try {
-        if (!id) return;
+        // 2. ATUALIZA DA NUVEM SE TIVER CONEXÃO
         const { data: setlistData } = await supabase.from('setlists').select('event_name').eq('id', id).maybeSingle();
-        if (setlistData) setSetlistName(setlistData.event_name);
+        const currentName = setlistData ? setlistData.event_name : "";
+        if (setlistData) setSetlistName(currentName);
 
         const { data: pivotData } = await supabase
           .from('setlist_items')
@@ -125,8 +142,18 @@ export default function PlaySong() {
           }).filter(Boolean);
           
           setSongs(formattedItems);
+          
+          // 3. SALVA NA MEMÓRIA FÍSICA DO IPAD/CELULAR
+          localStorage.setItem(`canta_play_offline_${id}`, JSON.stringify({
+            setlistName: currentName,
+            songs: formattedItems
+          }));
         }
-      } catch (error) { console.error(error); } finally { setLoading(false); }
+      } catch (error) { 
+        console.error("Modo offline ativado no Teleprompter.", error); 
+      } finally { 
+        setLoading(false); 
+      }
     };
     loadSetlistAndSongs();
   }, [id]);
@@ -171,9 +198,6 @@ export default function PlaySong() {
     return bestString || "[ BLOCO SEM TEXTO ]";
   };
 
-  // =========================================================================
-  // RE-SYNC MANUAL: Clique no bloco para pular o timer para ele
-  // =========================================================================
   const handleBlockClick = (idx) => {
     const currentSong = songs[currentIndex];
     const timecodes = getParsedTimecodes(currentSong);
@@ -182,12 +206,10 @@ export default function PlaySong() {
     const tc = timecodes[idx];
     const startMs = (tc.start_time ?? tc.startTime ?? tc.start ?? tc.time ?? tc.timecode ?? 0) * 1000;
 
-    // Engana o relógio interno e atualiza os timers para o novo momento
     playbackRef.current.elapsed = startMs;
     playbackRef.current.startTime = Date.now() - startMs;
     setActiveIndex(idx);
 
-    // Ajusta a rolagem da tela para o centro visual imediatamente
     const blockElement = document.getElementById(`block-${idx}`);
     if (blockElement) {
       const blockTop = blockElement.offsetTop;
@@ -308,7 +330,6 @@ export default function PlaySong() {
   const hasTimecodes = timecodes.length > 0;
   const songText = currentSong?.lyrics_text || currentSong?.lyrics || currentSong?.content || currentSong?.text || currentSong?.body;
 
-  // Lógica de Performance: Descobre se o teleprompter já está rodando
   const isStarted = isPlaying || activeBlockIndex !== -1;
 
   return (
@@ -399,13 +420,12 @@ export default function PlaySong() {
               const isActive = activeBlockIndex === idx;
               const textContent = extractBlockText(tc);
               
-              // Lógica dinâmica de cor da letra
-              let blockStyle = 'text-white opacity-100 scale-100'; // Começa tudo branco
+              let blockStyle = 'text-white opacity-100 scale-100'; 
               if (isStarted) {
                 if (isActive) {
-                  blockStyle = 'text-white scale-105 opacity-100 drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]'; // Destacado se for a linha atual
+                  blockStyle = 'text-white scale-105 opacity-100 drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]'; 
                 } else {
-                  blockStyle = 'text-white/40 scale-100 hover:text-white/60'; // Linhas em volta ficam cinza mas destacam ao passar o mouse
+                  blockStyle = 'text-white/40 scale-100 hover:text-white/60'; 
                 }
               }
 
@@ -413,7 +433,7 @@ export default function PlaySong() {
                 <div 
                   key={tc.id || idx} 
                   id={`block-${idx}`} 
-                  onClick={() => handleBlockClick(idx)} // AÇÃO MATADORA DE RE-SYNC!
+                  onClick={() => handleBlockClick(idx)} 
                   className={`w-full transition-all duration-300 origin-left cursor-pointer hover:scale-[1.02] ${blockStyle}`}
                 >
                   <pre 

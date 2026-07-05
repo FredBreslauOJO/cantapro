@@ -8,7 +8,7 @@ import { PDFDownloadLink } from '@react-pdf/renderer';
 import { SetlistPdfDocument } from '../components/SetlistPdfDocument';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
-import LoadingScreen from '../components/LoadingScreen'; // <-- IMPORTAÇÃO AQUI
+import LoadingScreen from '../components/LoadingScreen';
 
 // IMPORTAÇÕES DO DND-KIT
 import { 
@@ -19,7 +19,6 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-// COMPONENTE DE LINHA ARRASTÁVEL (Isolado para performance)
 function SortableRow({ item, index, songCounter, onRemove, onUpdateDivider }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.itemId });
   
@@ -42,7 +41,6 @@ function SortableRow({ item, index, songCounter, onRemove, onUpdateDivider }) {
       
       {item.type === 'divider' ? (
         <div className="flex items-center gap-2 sm:gap-3 w-full mr-2">
-          {/* AREA GORDA DE TOQUE APENAS NO ÍCONE (listeners aqui) */}
           <div {...attributes} {...listeners} className="p-3 -ml-3 cursor-grab active:cursor-grabbing hover:bg-white/10 rounded-lg touch-none">
             <GripVertical size={20} className="text-white/40 flex-shrink-0" />
           </div>
@@ -55,7 +53,6 @@ function SortableRow({ item, index, songCounter, onRemove, onUpdateDivider }) {
         </div>
       ) : (
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 mr-2">
-          {/* AREA GORDA DE TOQUE APENAS NO ÍCONE */}
           <div {...attributes} {...listeners} className="p-3 -ml-3 cursor-grab active:cursor-grabbing hover:bg-gray-100 rounded-lg touch-none">
             <GripVertical size={20} className="text-black/30 flex-shrink-0" />
           </div>
@@ -94,13 +91,12 @@ export default function SetlistEdit() {
   const [date, setDate] = useState(""); 
   
   const [loading, setLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false); // NOVO: Controla apenas a barrinha do topo
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [librarySongs, setLibrarySongs] = useState([]); 
   const [setlistItems, setSetlistItems] = useState([]);
 
-  // CONFIGURAÇÃO DOS SENSORES DND (Ignora scroll da tela se não for no Grip)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -113,13 +109,25 @@ export default function SetlistEdit() {
   const loadSetlistAndLibrary = async (silentRefresh = false) => {
     try {
       if (silentRefresh) setIsRefreshing(true);
-      else setLoading(true);
+      else {
+        // 1. CARREGAMENTO OFFLINE DO CABEÇALHO
+        const cachedSetlist = localStorage.getItem(`canta_setlist_info_${id}`);
+        if (cachedSetlist) {
+          const parsed = JSON.parse(cachedSetlist);
+          setEventName(parsed.event_name || "");
+          setBandName(parsed.band_name || "");
+          setDate(parsed.date || "");
+        }
+        setLoading(true);
+      }
 
+      // 2. BUSCA NA NUVEM
       const { data: setlist } = await supabase.from('setlists').select('*').eq('id', id).single();
       if (setlist) {
         setEventName(setlist.event_name || "");
         setBandName(setlist.band_name || "");
         setDate(setlist.date || ""); 
+        localStorage.setItem(`canta_setlist_info_${id}`, JSON.stringify(setlist));
       }
 
       const { data: songsData } = await supabase.from('songs').select('*').eq('created_by', user.email).order('title', { ascending: true });
@@ -127,7 +135,9 @@ export default function SetlistEdit() {
 
       await loadSetlistItems();
     } catch (err) {
-      console.error("Erro ao carregar dados:", err.message);
+      console.error("Modo Offline ativado na Edição:", err.message);
+      // Se der erro, ele continua o fluxo chamando o loadSetlistItems que também puxa do cache
+      await loadSetlistItems();
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -135,16 +145,27 @@ export default function SetlistEdit() {
   };
 
   const loadSetlistItems = async () => {
-    const { data: items } = await supabase.from('setlist_items').select('id, song_id, order_index, item_type, content, songs(*)').eq('setlist_id', id).order('order_index', { ascending: true });
-    if (items) {
-      const formatted = items.map(item => ({
-        itemId: item.id,
-        type: item.item_type === 'divider' ? 'divider' : 'song',
-        content: item.content || "NOVO DIVISOR",
-        orderIndex: item.order_index ?? 0,
-        ...(item.songs || {})
-      }));
-      setSetlistItems(formatted);
+    // CARREGAMENTO OFFLINE DOS ITENS
+    const cachedItems = localStorage.getItem(`canta_setlist_items_${id}`);
+    if (cachedItems && setlistItems.length === 0) {
+      setSetlistItems(JSON.parse(cachedItems));
+    }
+
+    try {
+      const { data: items } = await supabase.from('setlist_items').select('id, song_id, order_index, item_type, content, songs(*)').eq('setlist_id', id).order('order_index', { ascending: true });
+      if (items) {
+        const formatted = items.map(item => ({
+          itemId: item.id,
+          type: item.item_type === 'divider' ? 'divider' : 'song',
+          content: item.content || "NOVO DIVISOR",
+          orderIndex: item.order_index ?? 0,
+          ...(item.songs || {})
+        }));
+        setSetlistItems(formatted);
+        localStorage.setItem(`canta_setlist_items_${id}`, JSON.stringify(formatted));
+      }
+    } catch (e) {
+      console.error("Offline: Usando músicas do cache.");
     }
   };
 
@@ -198,7 +219,6 @@ export default function SetlistEdit() {
     await supabase.from('setlist_items').update({ content: newText }).eq('id', itemId);
   };
 
-  // LOGICA DO NOVO DND KIT
   const handleDragEnd = async (event) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -226,53 +246,49 @@ export default function SetlistEdit() {
 
   let songCounter = 0;
 
-  // COMPONENTE DE LOADING INSERIDO AQUI
   if (loading) return <LoadingScreen message="Carregando painel de edição..." />;
 
   return (
     <div className="min-h-screen bg-white pb-24 font-sans select-none text-black relative">
       
-      {/* BARRA DE CARREGAMENTO FINA (Estilo YouTube) */}
       {isRefreshing && (
         <div className="fixed top-0 left-0 right-0 h-1 bg-yellow-400 animate-[loadingBar_1s_infinite] z-50 overflow-hidden shadow-[0_0_10px_rgba(250,204,21,0.8)]" />
       )}
 
       <div className="p-4 max-w-xl mx-auto">
         
-        {/* BOTÕES SUPERIORES */}
+        {/* BOTÕES SUPERIORES COM OVERFLOW E PADDING FIXO */}
         <div className="flex items-center justify-between mb-6">
           <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-black active:scale-95">
-            <ArrowLeft size={22} />
+            <ArrowLeft size={28} strokeWidth={2.5} />
           </button>
           
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 pr-1">
-            {/* NOVO BOTÃO DE REFRESH */}
             <button 
               onClick={() => loadSetlistAndLibrary(true)}
-              className="p-2 sm:p-2.5 bg-gray-100 border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-200 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all text-black"
+              className="p-2.5 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all text-black"
               title="Sincronizar Atualizações"
             >
-              <RefreshCw size={18} className={isRefreshing ? "animate-spin" : ""} />
+              <RefreshCw size={18} strokeWidth={2.5} className={isRefreshing ? "animate-spin" : ""} />
             </button>
 
             <PDFDownloadLink
               document={<SetlistPdfDocument eventName={eventName} bandName={bandName} date={date} orderedItems={setlistItems.map(item => item.type === 'divider' ? { id: item.itemId, item_type: 'divider', content: item.content } : { id: item.itemId, item_type: 'song', songs: { title: item.title || "Música sem título" } })} />}
               fileName={`${eventName || 'setlist'}.pdf`}
-              className="p-2 sm:p-2.5 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center text-black"
+              className="p-2.5 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center justify-center text-black"
             >
-              {({ loading }) => (loading ? "..." : <Printer size={18} />)}
+              {({ loading }) => (loading ? "..." : <Printer size={18} strokeWidth={2.5} />)}
             </PDFDownloadLink>
 
-            <button onClick={handleShare} className="p-2 sm:p-2.5 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-yellow-100 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all">
-              <Share2 size={18} />
+            <button onClick={handleShare} className="p-2.5 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all text-black">
+              <Share2 size={18} strokeWidth={2.5} />
             </button>
-            <button onClick={handleDeleteSetlist} className="p-2 sm:p-2.5 bg-white border-2 border-black text-red-500 rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-red-50 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all">
-              <Trash2 size={18} />
+            <button onClick={handleDeleteSetlist} className="p-2.5 bg-white border-2 border-black text-red-500 rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-red-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all">
+              <Trash2 size={18} strokeWidth={2.5} />
             </button>
           </div>
         </div>
 
-        {/* INPUTS CABEÇALHO */}
         <div className="mb-4">
           <input type="text" value={eventName} onChange={(e) => setEventName(e.target.value)} onBlur={() => handleUpdateField('event_name', eventName)} className="w-full font-black text-2xl sm:text-3xl uppercase tracking-tighter outline-none border-b-4 border-black pb-1 placeholder-black/20 bg-transparent" placeholder="NOME DO EVENTO" />
         </div>
@@ -289,7 +305,6 @@ export default function SetlistEdit() {
 
         <div className="border-b-4 border-black mb-6" />
 
-        {/* BUSCA / DIVISOR */}
         <div className="mb-6 relative">
           <div className="flex gap-2 mb-2">
             <div className="relative flex-1">
@@ -322,7 +337,6 @@ export default function SetlistEdit() {
           )}
         </div>
 
-        {/* LISTAGEM DO ROTEIRO COM DND-KIT */}
         {setlistItems.length === 0 ? (
           <div className="mt-8 border-4 border-dashed border-black rounded-3xl p-8 text-center bg-gray-50 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
             <div className="w-12 h-12 bg-yellow-400 border-2 border-black rounded-2xl flex items-center justify-center mx-auto mb-4"><Music size={22} /></div>
@@ -355,13 +369,11 @@ export default function SetlistEdit() {
 
       </div>
 
-      {/* FOOTER FIXO */}
       <nav className="fixed bottom-0 left-0 right-0 border-t-4 border-black bg-white px-4 py-3 flex gap-3 z-40">
         <button onClick={() => navigate('/')} className="flex-1 py-3 bg-black text-white text-xs font-black uppercase tracking-widest rounded-xl active:scale-95 transition-all">Setlists</button>
         <button onClick={() => navigate('/songs')} className="flex-1 py-3 bg-white border-2 border-black text-black text-xs font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:scale-95 transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"><Music size={14} /> Letras</button>
       </nav>
       
-      {/* Estilo para a animação da barra de loading */}
       <style>{`
         @keyframes loadingBar {
           0% { transform: translateX(-100%); }
