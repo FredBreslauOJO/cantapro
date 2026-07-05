@@ -4,6 +4,7 @@ import { ArrowLeft, Pencil, Download, Trash2, Check, Clock } from "lucide-react"
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/AuthContext";
 import PaywallModal from "../components/PaywallModal";
+import LoadingScreen from "../components/LoadingScreen"; // <-- SEGUNDO ESCUDO COMPLETO
 
 export default function SongEdit() {
   const { id } = useParams();
@@ -16,7 +17,6 @@ export default function SongEdit() {
   const [saving, setSaving] = useState(false);
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   
-  // Sistema de Avisos (Toast)
   const [toast, setToast] = useState({ show: false, message: "" });
   const showToast = (message) => {
     setToast({ show: true, message });
@@ -36,16 +36,44 @@ export default function SongEdit() {
   }, [id, user]);
 
   const loadSong = async () => {
-    const { data, error } = await supabase.from('songs').select('*').eq('id', id).single();
-    if (data && !error) {
-      setTitle(data.title || "");
-      setArtist(data.artist || "");
-      const totalSec = data.duration_seconds || 0;
-      setDurationMin(String(Math.floor(totalSec / 60)));
-      setDurationSec(String(totalSec % 60));
-      setLyrics(data.lyrics_text || "");
+    // 1. TENTA PUXAR A LETRA SALVA FISICAMENTE NO COMPONENTE
+    const cached = localStorage.getItem(`canta_song_single_${id}`);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        setTitle(parsed.title || "");
+        setArtist(parsed.artist || "");
+        const totalSec = parsed.duration_seconds || 0;
+        setDurationMin(String(Math.floor(totalSec / 60)));
+        setDurationSec(String(totalSec % 60));
+        setLyrics(parsed.lyrics_text || "");
+        setLoading(false); // Libera o teleprompter na hora!
+      } catch (e) {
+        console.error(e);
+      }
+    } else {
+      setLoading(true);
     }
-    setLoading(false);
+
+    try {
+      // 2. BUSCA DO SERVIDOR SE ESTIVER ONLINE
+      const { data, error } = await supabase.from('songs').select('*').eq('id', id).single();
+      if (data && !error) {
+        setTitle(data.title || "");
+        setArtist(data.artist || "");
+        const totalSec = data.duration_seconds || 0;
+        setDurationMin(String(Math.floor(totalSec / 60)));
+        setDurationSec(String(totalSec % 60));
+        setLyrics(data.lyrics_text || "");
+        
+        // 3. CACHEIA ESSA LETRA INDIVIDUALMENTE
+        localStorage.setItem(`canta_song_single_${id}`, JSON.stringify(data));
+      }
+    } catch (err) {
+      console.error("Offline: Usando a cópia local desta música.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSave = async () => {
@@ -59,19 +87,29 @@ export default function SongEdit() {
       created_by: user.email 
     };
 
-    if (isNew) {
-      await supabase.from('songs').insert([songData]);
-      navigate("/songs");
-    } else {
-      await supabase.from('songs').update(songData).eq('id', id);
-      setEditing(false);
+    try {
+      if (isNew) {
+        await supabase.from('songs').insert([songData]);
+        navigate("/songs");
+      } else {
+        await supabase.from('songs').update(songData).eq('id', id);
+        // Atualiza a memória física local imediatamente ao salvar
+        localStorage.setItem(`canta_song_single_${id}`, JSON.stringify({ ...songData, id }));
+        setEditing(false);
+      }
+    } catch (err) {
+      alert("Erro ao salvar letra: " + err.message);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const handleDelete = async () => {
     if (!window.confirm("Remover esta música?")) return;
-    await supabase.from('songs').delete().eq('id', id);
+    try {
+      await supabase.from('songs').delete().eq('id', id);
+      localStorage.removeItem(`canta_song_single_${id}`);
+    } catch(e){}
     navigate("/songs");
   };
 
@@ -88,7 +126,6 @@ export default function SongEdit() {
   };
 
   const goToTimecode = () => {
-    // GUARDA-COSTAS: Timecode exige plano PRO
     if (plan !== 'pro') {
       setIsPaywallOpen(true);
       return;
@@ -97,17 +134,12 @@ export default function SongEdit() {
   };
 
   if (loading) {
-    return (
-      <div className="flex justify-center py-20">
-        <div className="w-6 h-6 border-2 border-gray-200 border-t-black rounded-full animate-spin" />
-      </div>
-    );
+    return <LoadingScreen message="Abrindo letra da música..." />;
   }
 
   return (
-    <div className="py-4 max-w-2xl mx-auto px-4 relative">
+    <div className="py-4 max-w-2xl mx-auto px-4 relative font-sans select-none text-black">
       
-      {/* AVISO GIGANTE (TOAST) */}
       {toast.show && (
         <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] border-4 border-black font-black uppercase tracking-widest text-sm text-center bg-green-400 text-black animate-fadeIn">
           {toast.message}
@@ -124,7 +156,7 @@ export default function SongEdit() {
               <button 
                 onClick={editing ? handleSave : () => setEditing(true)} 
                 disabled={saving || (editing && !title)}
-                className="w-11 h-11 flex items-center justify-center bg-gray-100 rounded-xl transition-all active:scale-95 disabled:opacity-50"
+                className="w-11 h-11 flex items-center justify-center bg-gray-100 rounded-xl transition-all active:scale-95 disabled:opacity-50 border border-black/10 shadow-sm"
               >
                 {saving ? (
                   <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
@@ -135,11 +167,11 @@ export default function SongEdit() {
                 )}
               </button>
               
-              <button onClick={goToTimecode} className="w-11 h-11 flex items-center justify-center bg-yellow-100 text-yellow-700 rounded-xl hover:opacity-80 transition-opacity active:scale-95">
+              <button onClick={goToTimecode} className="w-11 h-11 flex items-center justify-center bg-yellow-100 text-yellow-700 rounded-xl hover:opacity-80 transition-opacity active:scale-95 border border-yellow-200">
                 <Clock size={20} className="pointer-events-none" />
               </button>
               
-              <button onClick={handleDownload} className="w-11 h-11 flex items-center justify-center bg-gray-100 text-black rounded-xl hover:opacity-80 transition-opacity active:scale-95">
+              <button onClick={handleDownload} className="w-11 h-11 flex items-center justify-center bg-gray-100 text-black rounded-xl hover:opacity-80 transition-opacity active:scale-95 border border-black/10">
                 <Download size={20} className="pointer-events-none" />
               </button>
               

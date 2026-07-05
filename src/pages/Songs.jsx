@@ -5,6 +5,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/AuthContext";
 import PaywallModal from "../components/PaywallModal";
 import OnlineLyricsSearch from "../components/OnlineLyricsSearch";
+import LoadingScreen from "../components/LoadingScreen"; // <-- SINALIZADOR OFFLINE UNIFICADO
 
 export default function Songs() {
   const [songs, setSongs] = useState([]);
@@ -16,29 +17,43 @@ export default function Songs() {
   const navigate = useNavigate();
   const { user, plan } = useAuth();
 
-  // DESTRAVA DE LOADING NA ABERTURA DO APP
   useEffect(() => {
     if (user) {
       loadSongs();
     } else {
-      // Se o status do usuário terminar de verificar e ele não existir (ou falhar), 
-      // desativa o loading para não travar a tela em um loop infinito.
       setLoading(false); 
     }
   }, [user]);
 
   const loadSongs = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('songs')
-      .select('*')
-      .eq('created_by', user.email)
-      .order('created_date', { ascending: false });
-    
-    if (!error && data) {
-      setSongs(data);
+    // 1. CARREGAMENTO OFFLINE INSTANTÂNEO (Puxa as letras salvas no aparelho)
+    const cached = localStorage.getItem('canta_songs_offline');
+    if (cached && songs.length === 0) {
+      const parsed = JSON.parse(cached);
+      setSongs(parsed);
+      setLoading(false); // Já libera a lista na hora!
+    } else if (songs.length === 0) {
+      setLoading(true);
     }
-    setLoading(false);
+
+    try {
+      // 2. TENTA ATUALIZAR EM SEGUNDO PLANO VIA NUVEM
+      const { data, error } = await supabase
+        .from('songs')
+        .select('*')
+        .eq('created_by', user.email)
+        .order('created_date', { ascending: false });
+      
+      if (!error && data) {
+        setSongs(data);
+        // 3. ATUALIZA A MEMÓRIA INTERNA PARA O PRÓXIMO SHOW
+        localStorage.setItem('canta_songs_offline', JSON.stringify(data));
+      }
+    } catch (err) {
+      console.error("Modo offline ativado na listagem de letras.", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCreateNew = () => {
@@ -49,7 +64,6 @@ export default function Songs() {
     navigate("/songs/new");
   };
 
-  // REPARO CRÍTICO: CONVERTE FLOAT PARA INTEGER ANTES DE SALVAR (Mata o erro 428.8)
   const handleSaveLyricsFromWeb = async (songData) => {
     try {
       const { error } = await supabase
@@ -58,14 +72,13 @@ export default function Songs() {
           created_by: user.email, 
           title: songData.title,
           artist: songData.artist,
-          duration_seconds: Math.round(songData.duration) || 0, // Arredonda o número para inteiro!
+          duration_seconds: Math.round(songData.duration) || 0,
           lyrics_text: songData.raw_text || "",     
           timecode_blocks: songData.blocks 
         });
 
       if (error) throw error;
 
-      // Fecha a busca online e recarrega a sua lista local
       setShowOnlineSearch(false);
       loadSongs();
     } catch (err) {
@@ -93,11 +106,10 @@ export default function Songs() {
   });
 
   return (
-    <div className="py-6 max-w-2xl mx-auto px-4">
+    <div className="py-6 max-w-2xl mx-auto px-4 font-sans select-none text-black">
       
       {/* CABEÇALHO DINÂMICO */}
       <div className="mb-4">
-        {/* LINHA SUPERIOR: Seta de voltar e Botões */}
         <div className="flex items-center justify-between mb-4">
           <button 
             onClick={() => {
@@ -113,7 +125,6 @@ export default function Songs() {
             <ArrowLeft size={28} strokeWidth={2.5} />
           </button>
           
-          {/* BOTÕES DE AÇÃO (Agora colados no topo) */}
           <div className="flex items-center gap-2">
             {!showOnlineSearch && (
               <button
@@ -142,7 +153,6 @@ export default function Songs() {
           </div>
         </div>
 
-        {/* TÍTULO: Livre de obstáculos e em uma linha só */}
         <div>
           <p className="text-xs tracking-[0.15em] uppercase text-gray-400 mb-0.5">
             {showOnlineSearch ? "Importação Global" : "Biblioteca"}
@@ -153,7 +163,6 @@ export default function Songs() {
         </div>
       </div>
 
-      {/* RENDERIZAÇÃO CONDICIONAL */}
       {showOnlineSearch ? (
         <div className="animate-fadeIn">
           <OnlineLyricsSearch 
@@ -163,7 +172,6 @@ export default function Songs() {
         </div>
       ) : (
         <>
-          {/* BARRA DE PESQUISA LOCAL */}
           <div className="relative mb-3">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -175,7 +183,6 @@ export default function Songs() {
             />
           </div>
 
-          {/* BOTÕES DE ORDENAÇÃO */}
           <div className="flex gap-1 mb-4 bg-gray-100 rounded-xl p-1 w-full max-w-[240px]">
             <button
               onClick={() => setSortBy("title")}
@@ -191,11 +198,8 @@ export default function Songs() {
             </button>
           </div>
 
-          {/* LISTAGEM PRINCIPAL */}
           {loading ? (
-            <div className="flex justify-center py-16">
-              <div className="w-6 h-6 border-2 border-gray-200 border-t-black rounded-full animate-spin" />
-            </div>
+            <LoadingScreen message="Carregando biblioteca..." />
           ) : filtered.length === 0 ? (
             <div className="text-center py-16">
               <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-4">Nenhuma música encontrada.</p>
