@@ -238,7 +238,7 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics }) {
                   setSelectedTrack(track);
                   setActivePreviewTab(track.syncedLyrics ? 'synced' : 'plain');
                 }}
-                className="p-2.5 text-blue-600 hover:bg-blue-50 border-2 border-transparent hover:border-blue-200 rounded-lg transition-all flex-shrink-0"
+                className="p-2.5 bg-black text-white border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-[2px] active:translate-x-[2px] active:shadow-none transition-all flex-shrink-0"
               >
                 <Eye size={20} />
               </button>
