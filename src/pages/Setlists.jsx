@@ -4,13 +4,13 @@ import { Plus, Settings, Play, Archive, ArchiveRestore, Users } from "lucide-rea
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/AuthContext";
 import PaywallModal from "../components/PaywallModal";
-import LoadingScreen from "../components/LoadingScreen"; // <-- IMPORTAÇÃO AQUI
+import LoadingScreen from "../components/LoadingScreen";
+import HomeNotices from "../components/HomeNotices"; // <-- NOSSO NOVO COMPONENTE AQUI
 
 // A MÁGICA DO FLICKER: Cache global em memória
 let globalSetlistsCache = null;
 
 export default function Setlists() {
-  // Já inicia com o cache se existir, matando o flicker na hora!
   const [setlists, setSetlists] = useState(globalSetlistsCache || []);
   const [loading, setLoading] = useState(!globalSetlistsCache);
   const [showArchived, setShowArchived] = useState(false);
@@ -44,7 +44,7 @@ export default function Setlists() {
   };
 
   const loadSetlists = async () => {
-    if (!globalSetlistsCache) setLoading(true); // Só exibe tela de loading se não tiver cache
+    if (!globalSetlistsCache) setLoading(true); 
     try {
       const { data: memberData } = await supabase.from('setlist_members').select('setlist_id').eq('member_email', user.email);
       const sharedIds = memberData ? memberData.map(m => m.setlist_id) : [];
@@ -77,7 +77,7 @@ export default function Setlists() {
           };
         });
 
-        globalSetlistsCache = enriched; // Salva no cache
+        globalSetlistsCache = enriched; 
         setSetlists(enriched);
       }
     } catch (err) {
@@ -131,7 +131,7 @@ export default function Setlists() {
   );
 
   return (
-    <div className="py-6 max-w-4xl mx-auto px-4">
+    <div className="py-6 max-w-4xl mx-auto px-4 pb-28">
       <div className="flex items-start justify-between mb-1">
         <div>
           <p className="text-xs tracking-[0.15em] uppercase text-gray-400 mb-0.5">Repertórios</p>
@@ -143,13 +143,14 @@ export default function Setlists() {
           </button>
         </div>
       </div>
+      
       <div className="border-b border-gray-200 mb-5 mt-3" />
+      
       <div className="flex gap-1 mb-6 bg-gray-100 rounded-xl p-1 w-full max-w-[240px]">
         <button onClick={() => setShowArchived(false)} className={`flex-1 min-h-[44px] rounded-lg text-[10px] font-bold tracking-wide transition-all uppercase ${!showArchived ? "bg-white shadow-sm text-foreground" : "text-gray-400"}`}>Ativos</button>
         <button onClick={() => setShowArchived(true)} className={`flex-1 min-h-[44px] rounded-lg text-[10px] font-bold tracking-wide transition-all uppercase ${showArchived ? "bg-white shadow-sm text-foreground" : "text-gray-400"}`}>Arquivados</button>
       </div>
 
-      {/* COMPONENTE DE LOADING INSERIDO AQUI */}
       {loading ? (
         <LoadingScreen message="Carregando seus setlists..." />
       ) : visibleSetlists.length === 0 ? (
@@ -158,10 +159,14 @@ export default function Setlists() {
           {!showArchived && <button onClick={handleCreateNew} className="px-6 py-4 bg-black text-white text-xs font-black tracking-widest uppercase rounded-xl hover:opacity-80 active:scale-95">Criar primeiro setlist</button>}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-20">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {visibleSetlists.map(sl => <SetlistCard key={sl.id} sl={sl} />)}
         </div>
       )}
+
+      {/* CHAMADA DO NOSSO COMPONENTE ISOLADO DE DICAS E AVISOS */}
+      {!loading && <HomeNotices />}
+
       <PaywallModal isOpen={isPaywallOpen} onClose={() => setIsPaywallOpen(false)} currentPlan={plan} />
     </div>
   );
