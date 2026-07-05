@@ -245,7 +245,7 @@ export default function SetlistEdit() {
             <ArrowLeft size={22} />
           </button>
           
-          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 pr-1">
             {/* NOVO BOTÃO DE REFRESH */}
             <button 
               onClick={() => loadSetlistAndLibrary(true)}
