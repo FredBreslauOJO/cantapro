@@ -106,9 +106,10 @@ export default function Songs() {
                 navigate("/");
               }
             }} 
-            className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-black/50 hover:text-black transition-colors"
+            className="mb-4 p-2 hover:bg-gray-100 rounded-full transition-colors text-black active:scale-95 w-fit"
+            title="Voltar"
           >
-            <ArrowLeft size={14} /> {showOnlineSearch ? "Voltar para Biblioteca" : "Voltar para Setlists"}
+            <ArrowLeft size={28} strokeWidth={2.5} />
           </button>
           <p className="text-xs tracking-[0.15em] uppercase text-gray-400 mb-0.5">
             {showOnlineSearch ? "Importação Global" : "Biblioteca"}
@@ -123,9 +124,9 @@ export default function Songs() {
           {!showOnlineSearch && (
             <button
               onClick={() => setShowOnlineSearch(true)}
-              className="px-4 h-12 bg-blue-600 text-white border-2 border-black font-black text-xs uppercase tracking-wider rounded-xl flex items-center gap-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all hover:bg-blue-700"
+              className="px-4 h-12 bg-black text-white border-2 border-black font-black text-[10px] sm:text-xs uppercase tracking-wider rounded-xl flex items-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,0.3)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all hover:bg-gray-800"
             >
-              <Globe size={14} /> Buscar Web
+              <Globe size={16} /> Buscar Web
             </button>
           )}
 

@@ -263,7 +263,7 @@ export default function SetlistEdit() {
               {({ loading }) => (loading ? "..." : <Printer size={18} />)}
             </PDFDownloadLink>
 
-            <button onClick={handleShare} className="p-2 sm:p-2.5 bg-yellow-200 border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-yellow-100 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all">
+            <button onClick={handleShare} className="p-2 sm:p-2.5 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-yellow-100 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all">
               <Share2 size={18} />
             </button>
             <button onClick={handleDeleteSetlist} className="p-2 sm:p-2.5 bg-white border-2 border-black text-red-500 rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-red-50 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all">
