@@ -164,9 +164,16 @@ export default function Setlists() {
       {loading ? (
         <LoadingScreen message="Carregando seus setlists..." />
       ) : visibleSetlists.length === 0 ? (
-        <div className="text-center py-16">
-          <p className="text-gray-400 text-sm font-bold uppercase tracking-widest mb-4">{showArchived ? "Nenhum setlist arquivado." : "Nenhum setlist encontrado."}</p>
-          {!showArchived && <button onClick={handleCreateNew} className="px-6 py-4 bg-black text-white text-xs font-black tracking-widest uppercase rounded-xl hover:opacity-80 active:scale-95">Criar primeiro setlist</button>}
+        <div className="text-center py-12 px-4 bg-gray-50 border-2 border-dashed border-gray-300 rounded-3xl mt-4">
+          <p className="text-black font-black uppercase tracking-widest mb-2 text-sm">Seu roteiro está vazio</p>
+          <p className="text-black/50 text-xs font-bold mb-6 max-w-xs mx-auto leading-relaxed">
+            {showArchived ? "Você não tem nenhum setlist arquivado." : "Para criar um show, você precisa ter músicas salvas na sua biblioteca primeiro."}
+          </p>
+          {!showArchived && (
+            <button onClick={() => navigate('/songs')} className="px-6 py-4 bg-black text-white text-xs font-black tracking-widest uppercase rounded-xl hover:opacity-80 active:scale-95 transition-all shadow-[4px_4px_0px_0px_rgba(250,204,21,1)]">
+              Ir para Biblioteca de Letras
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

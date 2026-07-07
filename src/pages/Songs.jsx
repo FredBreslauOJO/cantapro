@@ -168,6 +168,7 @@ export default function Songs() {
           <OnlineLyricsSearch 
             userPlan={plan} 
             onSaveLyrics={handleSaveLyricsFromWeb} 
+            onUpgradeClick={() => setIsPaywallOpen(true)}
           />
         </div>
       ) : (

@@ -20,9 +20,9 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 
 function SortableRow({ item, index, songCounter, onRemove, onUpdateDivider }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.itemId });
-  
-  const style = {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.itemId });
+    const [confirmDelete, setConfirmDelete] = useState(false); // NOVO ESTADO
+    const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     zIndex: isDragging ? 50 : 'auto',
@@ -74,7 +74,24 @@ function SortableRow({ item, index, songCounter, onRemove, onUpdateDivider }) {
           : 'border-transparent hover:border-black text-red-500 hover:bg-red-50'
         }`}
       >
-        <Minus size={18} strokeWidth={3} />
+        <button 
+        onClick={() => {
+          if (confirmDelete) {
+            onRemove(item.itemId);
+          } else {
+            setConfirmDelete(true);
+            setTimeout(() => setConfirmDelete(false), 3000); // Desfaz a lixeira após 3s
+          }
+        }}
+        className={`flex-shrink-0 p-2 sm:p-3 border-2 rounded-xl transition-all ${
+          confirmDelete 
+            ? 'bg-red-500 border-red-500 text-white scale-105' 
+            : item.type === 'divider' 
+              ? 'border-white/20 text-white hover:bg-red-500 hover:border-red-500' 
+              : 'border-transparent hover:border-black text-red-500 hover:bg-red-50'
+        }`}
+      >
+        {confirmDelete ? <Trash2 size={18} strokeWidth={3} /> : <Minus size={18} strokeWidth={3} />}
       </button>
 
     </div>

@@ -52,15 +52,13 @@ export default function HomeNotices() {
   if (!currentTip) return null;
 
   return (
-    <div className="mt-6 bg-black rounded-[2rem] p-6 relative shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)]">
-      <h3 className="text-white font-black uppercase tracking-widest text-sm mb-3">
+    <div className="mt-6 bg-yellow-50 border-2 border-black rounded-[2rem] p-6 relative shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+      <h3 className="text-black font-black uppercase tracking-widest text-sm mb-3">
         {currentTip.title}
       </h3>
-      <p className="text-white/90 text-xs font-medium leading-relaxed max-w-[95%] whitespace-pre-wrap">
+      <p className="text-black/80 font-bold text-xs leading-relaxed max-w-[95%] whitespace-pre-wrap">
         {currentTip.text}
       </p>
-      {/* LED Vermelho no canto */}
-      <div className="absolute bottom-6 right-6 w-1.5 h-1.5 bg-red-500 rounded-sm"></div>
     </div>
   );
 }

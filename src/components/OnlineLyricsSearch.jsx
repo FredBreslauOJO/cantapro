@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Search, Eye, X, Sparkles, Loader2, User, Music } from 'lucide-react';
 
-export default function OnlineLyricsSearch({ userPlan, onSaveLyrics }) {
+export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onUpgradeClick }) {
   const [trackQuery, setTrackQuery] = useState('');
   const [artistQuery, setArtistQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -24,7 +24,7 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics }) {
         <p className="text-xs font-bold text-black/70 mb-6 leading-relaxed">
           A busca automatizada de repertório e importação com timecodes é exclusiva para assinantes dos planos **BASE** e **PRO**.
         </p>
-        <button className="w-full py-3 bg-black text-white text-xs font-black uppercase tracking-widest rounded-xl">
+        <button onClick={onUpgradeClick} className="w-full py-3 bg-black text-white text-xs font-black uppercase tracking-widest rounded-xl hover:opacity-80 active:scale-95 transition-all">
           Fazer Upgrade Agora
         </button>
       </div>
