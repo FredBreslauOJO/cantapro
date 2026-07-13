@@ -224,7 +224,7 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onUpgradeCl
                     </span>
                   ) : (
                     <span className="px-1.5 py-0.5 bg-gray-800 text-white rounded text-[10px] font-black uppercase tracking-wide">
-                      Plain
+                      Simples
                     </span>
                   )}
                 </div>
