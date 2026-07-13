@@ -108,7 +108,7 @@ const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
 
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t-4 border-black p-3 flex gap-3 z-40 select-none max-w-xl mx-auto sm:rounded-t-2xl sm:border-x-4">
         <Link to="/" className={`flex-1 min-h-[48px] rounded-xl flex items-center justify-center gap-2 text-xs font-black uppercase tracking-widest border-2 border-black transition-all active:scale-95 ${isActive('/') ? 'bg-black text-white shadow-none translate-y-0.5' : 'bg-white text-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]'}`}>
-          <List size={16} /> Setlists
+          <List size={16} /> Repertórios
         </Link>
         <Link to="/songs" className={`flex-1 min-h-[48px] rounded-xl flex items-center justify-center gap-2 text-xs font-black uppercase tracking-widest border-2 border-black transition-all active:scale-95 ${isActive('/songs') ? 'bg-black text-white shadow-none translate-y-0.5' : 'bg-white text-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]'}`}>
           <Music size={16} /> Letras

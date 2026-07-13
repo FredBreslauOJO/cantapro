@@ -7,8 +7,8 @@ export default function PaywallModal({ isOpen, onClose, currentPlan }) {
   if (!isOpen) return null;
 
   // LINKS OFICIAIS DE PRODUÇÃO (LIVE)
-  const BASE_CHECKOUT_LINK = `https://buy.stripe.com/bJe28r4VTboafjVeP567S00?prefilled_email=${user?.email || ''}`;
-  const PRO_CHECKOUT_LINK = `https://buy.stripe.com/9B6eVddsp77U4FhbCT67S01?prefilled_email=${user?.email || ''}`;
+  const BASE_CHECKOUT_LINK = `https://buy.stripe.com/bJe28r4VTboafjVeP567S00?prefilled_email=${user?.email || ''}&locale=pt-BR`;
+  const PRO_CHECKOUT_LINK = `https://buy.stripe.com/9B6eVddsp77U4FhbCT67S01?prefilled_email=${user?.email || ''}&locale=pt-BR`;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-fadeIn select-none bg-black/80 backdrop-blur-sm" onClick={onClose}>
@@ -33,7 +33,7 @@ export default function PaywallModal({ isOpen, onClose, currentPlan }) {
             </div>
 
             <ul className="space-y-4 mb-8">
-              <li className="flex items-start gap-3 text-sm font-bold text-black/80"><Check size={18} className="text-black shrink-0 mt-0.5" /> Músicas e Setlists Ilimitados</li>
+              <li className="flex items-start gap-3 text-sm font-bold text-black/80"><Check size={18} className="text-black shrink-0 mt-0.5" /> Músicas e Repertórios Ilimitados</li>
               <li className="flex items-start gap-3 text-sm font-bold text-black/80"><Check size={18} className="text-black shrink-0 mt-0.5" /> Modo Performance (Teleprompter)</li>
               <li className="flex items-start gap-3 text-sm font-bold text-black/80"><Check size={18} className="text-black shrink-0 mt-0.5" /> Organização de Repertório (Arrastar/Soltar)</li>
               <li className="flex items-start gap-3 text-sm font-bold text-black/80"><Check size={18} className="text-black shrink-0 mt-0.5" /> Divisores e Notas de Palco</li>
@@ -65,7 +65,7 @@ export default function PaywallModal({ isOpen, onClose, currentPlan }) {
 
             <ul className="space-y-4 mb-8">
               <li className="flex items-start gap-3 text-sm font-bold text-black"><Check size={18} className="text-black shrink-0 mt-0.5" /> Compartilhamento Colab c/ Banda</li>
-              <li className="flex items-start gap-3 text-sm font-bold text-black"><Check size={18} className="text-black shrink-0 mt-0.5" /> Geração de Setlist em PDF (Impressão)</li>
+              <li className="flex items-start gap-3 text-sm font-bold text-black"><Check size={18} className="text-black shrink-0 mt-0.5" /> Geração de Repertório em PDF (Impressão)</li>
               <li className="flex items-start gap-3 text-sm font-bold text-black"><Check size={18} className="text-black shrink-0 mt-0.5" /> Editor de Timecode (Blocos Inteligentes)</li>
               <li className="flex items-start gap-3 text-sm font-bold text-black"><Check size={18} className="text-black shrink-0 mt-0.5" /> Sincronia Perfeita com a Música</li>
               <li className="flex items-start gap-3 text-sm font-bold text-black"><Check size={18} className="text-black shrink-0 mt-0.5" /> Suporte Prioritário</li>

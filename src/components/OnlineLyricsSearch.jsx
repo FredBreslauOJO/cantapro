@@ -220,7 +220,7 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onUpgradeCl
                   </span>
                   {track.syncedLyrics ? (
                     <span className="px-1.5 py-0.5 bg-green-100 border border-green-400 text-green-700 rounded text-[10px] font-black uppercase tracking-wide">
-                      Synced
+                      SINCRONIZADA
                     </span>
                   ) : (
                     <span className="px-1.5 py-0.5 bg-gray-800 text-white rounded text-[10px] font-black uppercase tracking-wide">
@@ -272,7 +272,7 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onUpgradeCl
                 onClick={() => !isSaving && setActivePreviewTab('plain')}
                 className={`px-4 py-2 text-xs font-black uppercase tracking-widest rounded-t-xl transition-all border-t-2 border-x-2 ${activePreviewTab === 'plain' || !selectedTrack.syncedLyrics ? 'bg-white border-black text-black' : 'bg-transparent border-transparent text-black/40'}`}
               >
-                Plain Lyrics
+                SIMPLES
               </button>
             </div>
 

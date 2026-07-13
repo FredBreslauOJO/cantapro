@@ -178,7 +178,7 @@ export const SetlistPdfDocument = ({ eventName, bandName, date, orderedItems }) 
           
           {pageData.isFirstPage ? (
             <View style={styles.header}>
-              <Text style={styles.eventName}>{eventName || "MEU SETLIST"}</Text>
+              <Text style={styles.eventName}>{eventName || "MEU REPERTÓRIO"}</Text>
               <View style={styles.bandDateRow}>
                 <Text style={styles.subtitle}>{bandName || "Banda / Artista"}</Text>
                 <Text style={styles.subtitle}>
@@ -189,7 +189,7 @@ export const SetlistPdfDocument = ({ eventName, bandName, date, orderedItems }) 
           ) : (
             <View style={[styles.header, { marginBottom: 15, paddingBottom: 4, borderBottomWidth: 2 }]}>
               <Text style={[styles.subtitle, { fontSize: 10, color: '#999999' }]}>
-                {eventName || "SETLIST"} · PAGINA {pageIdx + 1}
+                {eventName || "REPERTÓRIO"} · PAGINA {pageIdx + 1}
               </Text>
             </View>
           )}

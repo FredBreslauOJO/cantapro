@@ -22,7 +22,7 @@ export default function TermsOfServiceModal({ isOpen, onClose }) {
           <p>Seja bem-vindo ao <strong>CANTA.PRO</strong>. Ao acessar ou usar nosso aplicativo, plataforma web ou qualquer serviço fornecido por nós, você concorda em cumprir e estar vinculado a estes Termos de Serviço ("Termos"). Se você não concorda com qualquer parte destes termos, você não deve utilizar o aplicativo.</p>
 
           <h3 className="text-xl font-black uppercase text-black mt-8">1. Definição do Serviço</h3>
-          <p>O CANTA.PRO é uma plataforma de Software como Serviço (SaaS) que fornece ferramentas de organização de repertório, teleprompter (Modo Performance), edição de timecodes e compartilhamento de setlists para músicos, bandas e profissionais do setor artístico. O serviço é oferecido em modalidades gratuitas (com limitações) e planos pagos por assinatura (Base e Pro).</p>
+          <p>O CANTA.PRO é uma plataforma de Software como Serviço (SaaS) que fornece ferramentas de organização de repertório, teleprompter (Modo Performance), edição de timecodes e compartilhamento de repertórios para músicos, bandas e profissionais do setor artístico. O serviço é oferecido em modalidades gratuitas (com limitações) e planos pagos por assinatura (Base e Pro).</p>
 
           <h3 className="text-xl font-black uppercase text-black mt-8">2. Cadastro e Segurança da Conta</h3>
           <p><strong>Idade Mínima:</strong> Ao criar uma conta, você declara ter capacidade legal para celebrar contratos.</p>
@@ -51,7 +51,7 @@ export default function TermsOfServiceModal({ isOpen, onClose }) {
           <h3 className="text-xl font-black uppercase text-black mt-8">5. Propriedade Intelectual e Responsabilidade pelo Conteúdo (Escudo de Direitos Autorais)</h3>
           <p className="font-black text-black border-b-2 border-black pb-1 inline-block uppercase tracking-wide text-xs bg-gray-100 px-2 py-0.5 rounded">Importante para a segurança jurídica da plataforma</p>
           <p className="mt-2"><strong>Propriedade do Aplicativo:</strong> O código-fonte, design, identidade visual, logotipos e estrutura do CANTA.PRO são de propriedade exclusiva do desenvolvedor e protegidos por leis de propriedade intelectual.</p>
-          <p><strong>Conteúdo do Usuário:</strong> O usuário retém todos os direitos sobre os dados, textos, notas de palco e setlists que inserir manualmente no aplicativo.</p>
+          <p><strong>Conteúdo do Usuário:</strong> O usuário retém todos os direitos sobre os dados, textos, notas de palco e repertórios que inserir manualmente no aplicativo.</p>
           
           <div className="bg-red-50 p-5 border-2 border-black rounded-2xl my-4 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
             <p className="font-black text-red-600 flex items-center gap-2 uppercase tracking-tight">

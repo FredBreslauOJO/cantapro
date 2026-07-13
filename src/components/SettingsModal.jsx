@@ -96,7 +96,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
                 </button>
               )}
               {plan !== 'free' && (
-                <a href="https://billing.stripe.com/p/login/bJe28r4VTboafjVeP567S00" target="_blank" rel="noopener noreferrer" className="w-full py-4 bg-yellow-400 border-2 border-black text-black text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-yellow-300 transition-all flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:scale-95">
+                <a href="https://billing.stripe.com/p/login/bJe28r4VTboafjVeP567S00?locale=pt-BR" target="_blank" rel="noopener noreferrer" className="w-full py-4 bg-yellow-400 border-2 border-black text-black text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-yellow-300 transition-all flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:scale-95">
                   <CreditCard size={14} /> Gerenciar Assinatura
                 </a>
               )}

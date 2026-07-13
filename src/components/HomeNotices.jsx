@@ -16,8 +16,8 @@ const DICAS_ROTATIVAS = [
     text: "O visual do CANTA.PRO foi desenhado especificamente para ambientes escuros. O fundo preto economiza bateria do seu tablet no palco e não ofusca a sua visão."
   },
   {
-    title: "IMPRESSÃO DE SETLISTS",
-    text: "Entre na edição do seu setlist e clique no ícone da impressora. O app gera um PDF lindo e formatado, prontinho para compartilhar ou imprimir. Perfeito para ler no palco!"
+    title: "IMPRESSÃO DE REPERTÓRIOS",
+    text: "Entre na edição do seu repertório e clique no ícone da impressora. O app gera um PDF lindo e formatado, prontinho para compartilhar ou imprimir. Perfeito para ler no palco!"
   },
   {
     title: "IMPORTAÇÃO INTELIGENTE",
@@ -25,11 +25,11 @@ const DICAS_ROTATIVAS = [
   },
   {
     title: "COMPARTILHE NO WHATSAPP",
-    text: "Na edição do setlist, clique no ícone de compartilhar. O app cria uma mensagem pronta com o link do show. É só colar no grupo do WhatsApp da banda e todos entram na mesma hora!"
+    text: "Na edição do repertório, clique no ícone de compartilhar. O app cria uma mensagem pronta com o link do show. É só colar no grupo do WhatsApp da banda e todos entram na mesma hora!"
   },
   {
     title: "SINTONIA FINA DA BANDA",
-    text: "Chega de perder o papel do repertório. Organize sua banda para não perder nenhum detalhe. O setlist fica na nuvem e todo mundo tem acesso à ordem das músicas em tempo real."
+    text: "Chega de perder o papel do repertório. Organize sua banda para não perder nenhum detalhe. O repertório fica na nuvem e todo mundo tem acesso à ordem das músicas em tempo real."
   },
   {
     title: "DIVISORES E NOTAS DE PALCO",
