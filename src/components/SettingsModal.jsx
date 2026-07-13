@@ -120,7 +120,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
             </button>
             
             <div className="text-center text-[10px] font-bold text-black/30 space-y-1.5 leading-relaxed">
-              <p>Feito com ❤️ por <a href="https://www.ojo-studio.com" target="_blank" rel="noopener noreferrer" className="hover:text-black transition-colors underline decoration-black/20 underline-offset-2">OJO STUDIO</a></p>
+              <p>Feito com 🖤 por <a href="https://www.ojo-studio.com" target="_blank" rel="noopener noreferrer" className="hover:text-black transition-colors underline decoration-black/20 underline-offset-2">OJO STUDIO</a></p>
               <p>Todos os direitos reservados.<br/>CANTA.PRO é uma marca registrada.</p>
             </div>
           </div>
