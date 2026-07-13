@@ -253,7 +253,7 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onUpgradeCl
           <div className="bg-white border-4 border-black w-full max-w-lg rounded-3xl overflow-hidden flex flex-col max-h-[85vh] shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
             
             <div className="p-4 border-b-2 border-gray-200 flex items-center justify-between">
-              <h3 className="font-black text-base uppercase text-black">Preview</h3>
+              <h3 className="font-black text-base uppercase text-black">Prévia</h3>
               <button onClick={() => !isSaving && setSelectedTrack(null)} disabled={isSaving} className="p-1 hover:bg-gray-100 rounded-full">
                 <X size={20} />
               </button>
