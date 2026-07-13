@@ -26,7 +26,12 @@ export default function Login() {
       if (error) throw error;
       
       if (data?.user) {
-        navigate('/'); 
+        const redirectUrl = localStorage.getItem('canta_invite_redirect');
+        if (redirectUrl) {
+          navigate(redirectUrl);
+        } else {
+          navigate('/');
+        }
       }
     } catch (err) {
       console.error(err.message);

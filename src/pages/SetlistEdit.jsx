@@ -186,12 +186,15 @@ export default function SetlistEdit() {
 
   const handleShare = async () => {
     try {
-      const shareUrl = `${window.location.origin}/setlists/${id}/play/0`;
+      // NOVA URL INTELIGENTE DE CONVITE
+      const shareUrl = `${window.location.origin}/join/${id}`;
       const userName = user?.email ? user.email.split('@')[0].toUpperCase() : "Seu parceiro de banda";
-      const shareMessage = `🎤 *${userName}* compartilhou o setlist *${eventName.toUpperCase() || 'ROTEIRO DO SHOW'}* com você!\n\n👉 Clique no link para acessar o Teleprompter de Palco:\n${shareUrl}\n\n🎸 Já tem o APP *CANTA.PRO*? Instale agora de graça direto pelo menu lateral!`;
+      const shareMessage = `🎤 *${userName}* compartilhou o setlist *${eventName.toUpperCase() || 'ROTEIRO DO SHOW'}* com você!\n\n👉 Clique no link para aceitar o convite e acessar o Teleprompter:\n${shareUrl}\n\n🎸 Já tem o APP *CANTA.PRO*? Crie sua conta grátis para salvar na sua biblioteca!`;
       await navigator.clipboard.writeText(shareMessage);
-      alert("Mensagem completa com o link copiada! Pronto para colar no WhatsApp da banda.");
-    } catch (err) { alert("Não foi possível copiar a mensagem automaticamente."); }
+      alert("Mensagem de convite copiada! Pronto para colar no WhatsApp da banda.");
+    } catch (err) { 
+      alert("Não foi possível copiar a mensagem automaticamente."); 
+    }
   };
 
   const handleDeleteSetlist = async () => {

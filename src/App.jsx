@@ -150,7 +150,7 @@ const AuthenticatedApp = () => {
     location.pathname === '/tutorial' || 
     location.pathname.includes('/play/') || 
     location.pathname.includes('/timecode') ||
-    location.pathname.includes('/join-setlist');
+    location.pathname.includes('/join/');
 
   if (!hasAcceptedTerms) {
     return <ForceTerms user={user} onAccepted={() => setHasAcceptedTerms(true)} />;
@@ -177,7 +177,7 @@ const AuthenticatedApp = () => {
           <Route path="/" element={<ProtectedRoute><Setlists /></ProtectedRoute>} />
           <Route path="/setlists/:id/edit" element={<ProtectedRoute><SetlistEdit /></ProtectedRoute>} />
           <Route path="/setlists/:id/play/:songIndex" element={<ProtectedRoute><PlaySong /></ProtectedRoute>} />
-          <Route path="/join-setlist/:id" element={<ProtectedRoute><JoinSetlist /></ProtectedRoute>} />
+          <Route path="/join/:id" element={<JoinSetlist />} />
           
           <Route path="/songs" element={<ProtectedRoute><Songs /></ProtectedRoute>} />
           <Route path="/songs/:id" element={<ProtectedRoute><SongEdit /></ProtectedRoute>} />
