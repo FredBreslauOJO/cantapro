@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Loader2, Music, CheckCircle2, X } from 'lucide-react';
@@ -7,77 +7,61 @@ import LoadingScreen from '../components/LoadingScreen';
 
 export default function JoinSetlist() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams(); // LÊ OS DADOS DA URL
   const navigate = useNavigate();
   const { user } = useAuth();
   
   const [loading, setLoading] = useState(true);
-  const [setlist, setSetlist] = useState(null);
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState('');
 
+  // Puxa os dados direto do Link (Bypassa a segurança do Supabase)
+  const setlistName = searchParams.get('n') || "REPERTÓRIO COMPARTILHADO";
+  const invitedBy = searchParams.get('by') || "SUA BANDA";
+
   useEffect(() => {
-    const checkAuthAndFetch = async () => {
-      // 1. Pergunta diretamente ao Supabase o status REAL do usuário antes de agir
+    const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
 
-      // 2. Se realmente não estiver logado: Salva o destino e manda pro Login
       if (!session) {
-        localStorage.setItem('canta_invite_redirect', `/join/${id}`);
+        // Salva a URL completa (incluindo as variáveis ?n= e by=)
+        localStorage.setItem('canta_invite_redirect', window.location.pathname + window.location.search);
         navigate('/login'); 
         return;
       }
 
-      // 3. Se estiver logado: Busca os dados do convite para mostrar a tela de "Aceitar"
-      try {
-        const { data, error } = await supabase
-          .from('setlists')
-          .select('event_name, created_by')
-          .eq('id', id)
-          .single();
-        
-        if (error || !data) throw new Error("Setlist não encontrado.");
-        setSetlist(data);
-      } catch (err) {
-        setError("Este link de convite é inválido ou o setlist foi apagado.");
-      } finally {
-        setLoading(false);
-      }
+      setLoading(false); // Já está logado? Libera a tela na hora!
     };
 
-    checkAuthAndFetch();
+    checkAuth();
   }, [id, navigate]);
 
   const handleAcceptInvite = async () => {
     setJoining(true);
     try {
-      // Verifica se a pessoa já faz parte do setlist para não duplicar
-      const { data: existing } = await supabase
+      // Tenta inserir o usuário como membro da playlist
+      const { error: insertError } = await supabase
         .from('setlist_members')
-        .select('*')
-        .eq('setlist_id', id)
-        .eq('member_email', user.email)
-        .single();
+        .insert({ setlist_id: id, member_email: user.email });
 
-      if (!existing) {
-        const { error } = await supabase
-          .from('setlist_members')
-          .insert({ setlist_id: id, member_email: user.email });
-        if (error) throw error;
+      // Se der erro de duplicação (ele já clicou antes), nós ignoramos e deixamos ele entrar
+      if (insertError && !insertError.message.includes('duplicate')) {
+        throw insertError;
       }
 
-      // Limpa a memória do redirecionamento e manda pra Home
+      // Limpa a memória e manda pra Home!
       localStorage.removeItem('canta_invite_redirect');
       navigate('/');
     } catch (err) {
-      alert("Erro ao aceitar convite: " + err.message);
+      setError("Não foi possível entrar nesta playlist. O link pode ser muito antigo.");
       setJoining(false);
     }
   };
 
   if (!user) return null; 
-  if (loading) return <LoadingScreen message="Buscando convite..." />;
+  if (loading) return <LoadingScreen message="Preparando convite..." />;
 
-  // TELA DE ERRO (Link quebrado)
+  // TELA DE ERRO SE ALGO DER MUITO ERRADO NO INSERT
   if (error) {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-center font-sans">
@@ -86,12 +70,12 @@ export default function JoinSetlist() {
         </div>
         <h2 className="text-xl font-black uppercase tracking-tight mb-2">Ops!</h2>
         <p className="text-sm font-bold text-gray-500">{error}</p>
-        <button onClick={() => navigate('/')} className="mt-8 px-6 py-3 bg-black text-white rounded-xl font-black uppercase tracking-widest text-xs">Ir para Home</button>
+        <button onClick={() => navigate('/')} className="mt-8 px-6 py-3 bg-black text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:scale-95 transition-all">Ir para Home</button>
       </div>
     );
   }
 
-  // TELA DE CONVITE (Sucesso)
+  // TELA DE CONVITE (SUCESSO)
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-center font-sans relative overflow-hidden">
       <video autoPlay muted loop playsInline className="absolute top-0 left-0 w-full h-full object-cover z-0 opacity-40">
@@ -105,11 +89,11 @@ export default function JoinSetlist() {
         
         <h2 className="text-2xl font-black uppercase tracking-tighter mb-2">Convite para Banda</h2>
         <p className="text-sm font-bold text-gray-500 mb-6 leading-relaxed">
-          <span className="text-black">{setlist.created_by.split('@')[0]}</span> convidou você para colaborar no repertório:
+          <span className="text-black font-black">{invitedBy}</span> convidou você para colaborar no repertório:
         </p>
         
         <div className="bg-gray-50 border-2 border-black rounded-xl p-4 mb-8">
-          <p className="font-black text-lg uppercase tracking-tight text-black truncate">{setlist.event_name}</p>
+          <p className="font-black text-lg uppercase tracking-tight text-black truncate">{setlistName}</p>
         </div>
 
         <button 

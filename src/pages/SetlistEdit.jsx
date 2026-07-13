@@ -186,10 +186,14 @@ export default function SetlistEdit() {
 
   const handleShare = async () => {
     try {
-      // NOVA URL INTELIGENTE DE CONVITE
-      const shareUrl = `${window.location.origin}/join/${id}`;
-      const userName = user?.email ? user.email.split('@')[0].toUpperCase() : "Seu parceiro de banda";
-      const shareMessage = `🎤 *${userName}* compartilhou o setlist *${eventName.toUpperCase() || 'ROTEIRO DO SHOW'}* com você!\n\n👉 Clique no link para aceitar o convite e acessar o Teleprompter:\n${shareUrl}\n\n🎸 Já tem o APP *CANTA.PRO*? Crie sua conta grátis para salvar na sua biblioteca!`;
+      const safeName = encodeURIComponent(eventName || 'ROTEIRO DO SHOW');
+      const safeOwner = encodeURIComponent(user?.email ? user.email.split('@')[0].toUpperCase() : 'BANDA');
+
+      // O LINK AGORA CARREGA OS DADOS PARA DRIBLAR O BLOQUEIO DE SEGURANÇA (RLS)
+      const shareUrl = `${window.location.origin}/join/${id}?n=${safeName}&by=${safeOwner}`;
+
+      const shareMessage = `🎤 *${decodeURIComponent(safeOwner)}* compartilhou o setlist *${decodeURIComponent(safeName)}* com você!\n\n👉 Clique no link para aceitar o convite e acessar o Teleprompter:\n${shareUrl}\n\n🎸 Já tem o APP *CANTA.PRO*? Crie sua conta grátis para salvar na sua biblioteca!`;
+      
       await navigator.clipboard.writeText(shareMessage);
       alert("Mensagem de convite copiada! Pronto para colar no WhatsApp da banda.");
     } catch (err) { 
