@@ -265,7 +265,7 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onUpgradeCl
                   onClick={() => !isSaving && setActivePreviewTab('synced')}
                   className={`px-4 py-2 text-xs font-black uppercase tracking-widest rounded-t-xl transition-all border-t-2 border-x-2 ${activePreviewTab === 'synced' ? 'bg-white border-black text-black' : 'bg-transparent border-transparent text-black/40'}`}
                 >
-                  Synced Lyrics
+                  SINCRONIZADA
                 </button>
               )}
               <button
