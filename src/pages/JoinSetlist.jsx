@@ -16,15 +16,18 @@ export default function JoinSetlist() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    // 1. SE NÃO ESTIVER LOGADO: Salva o destino e manda criar conta/logar
-    if (!user) {
-      localStorage.setItem('canta_invite_redirect', `/join/${id}`);
-      navigate('/register'); 
-      return;
-    }
+    const checkAuthAndFetch = async () => {
+      // 1. Pergunta diretamente ao Supabase o status REAL do usuário antes de agir
+      const { data: { session } } = await supabase.auth.getSession();
 
-    // 2. SE ESTIVER LOGADO: Busca os dados do convite
-    const fetchSetlist = async () => {
+      // 2. Se realmente não estiver logado: Salva o destino e manda pro Login
+      if (!session) {
+        localStorage.setItem('canta_invite_redirect', `/join/${id}`);
+        navigate('/login'); 
+        return;
+      }
+
+      // 3. Se estiver logado: Busca os dados do convite para mostrar a tela de "Aceitar"
       try {
         const { data, error } = await supabase
           .from('setlists')
@@ -41,8 +44,8 @@ export default function JoinSetlist() {
       }
     };
 
-    fetchSetlist();
-  }, [id, user, navigate]);
+    checkAuthAndFetch();
+  }, [id, navigate]);
 
   const handleAcceptInvite = async () => {
     setJoining(true);
