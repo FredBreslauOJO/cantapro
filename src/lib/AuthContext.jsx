@@ -35,8 +35,6 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const fetchUserData = async (userId) => {
-    setLoading(true);
-
     // 1. CARREGAMENTO OFFLINE INSTANTÂNEO E BLINDADO
     const cachedProfile = localStorage.getItem(`canta_profile_${userId}`);
     const cachedSub = localStorage.getItem(`canta_sub_${userId}`);
@@ -44,8 +42,16 @@ export const AuthProvider = ({ children }) => {
     if (cachedProfile) setProfile(JSON.parse(cachedProfile));
     if (cachedSub) setSubscription(JSON.parse(cachedSub));
 
+    // A MÁGICA ESTÁ AQUI: Se já temos algo na memória física, libera a tela IMEDIATAMENTE!
+    if (cachedProfile || cachedSub) {
+      setLoading(false); 
+    } else {
+      // Só tranca a tela se for a primeira vez na vida que o cara abre o app
+      setLoading(true);
+    }
+
     try {
-      // 2. ATUALIZA DA NUVEM SE TIVER CONEXÃO
+      // 2. ATUALIZA DA NUVEM SE TIVER CONEXÃO (Roda de forma invisível)
       const { data: prof, error: profError } = await supabase.from('profiles').select('*').eq('id', userId).single();
       if (prof && !profError) {
         setProfile(prof);
@@ -62,9 +68,10 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       console.warn("Modo Offline ativado na Autenticação.", error);
+    } finally {
+      // Garante que a tela sempre seja destrancada no final, mesmo se der erro e não tiver cache
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   const logout = async () => {
