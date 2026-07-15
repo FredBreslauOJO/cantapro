@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Play, Pause, ChevronLeft, ChevronRight, X, Settings, ListMusic, Type } from 'lucide-react';
+import { Play, Pause, ChevronLeft, ChevronRight, X, Settings, ListMusic, Type, Timer, FastForward } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export default function PlaySong() {
@@ -15,18 +15,36 @@ export default function PlaySong() {
   const [isSetlistOpen, setIsSetlistOpen] = useState(false);
   
   const [activeBlockIndex, setActiveIndex] = useState(-1);
+  
+  // NOVOS ESTADOS: UX DO PALCO
+  const [countdown, setCountdown] = useState(null);
+  
   const [fontSize, setFontSize] = useState(() => {
-    const savedSize = localStorage.getItem('cantapro_fontSize');
-    return savedSize ? parseInt(savedSize, 10) : 24;
+    const saved = localStorage.getItem('cantapro_fontSize');
+    return saved ? parseInt(saved, 10) : 24;
+  });
+
+  const [autoSkip, setAutoSkip] = useState(() => {
+    return localStorage.getItem('cantapro_autoSkip') !== 'false'; // Padrão: Ligado
+  });
+
+  const [playbackSpeed, setPlaybackSpeed] = useState(() => {
+    const saved = localStorage.getItem('cantapro_speed');
+    return saved ? parseFloat(saved) : 1.0;
   });
   
+  // Refs de controle para o loop de animação
+  const speedRef = useRef(playbackSpeed);
+  useEffect(() => { speedRef.current = playbackSpeed; }, [playbackSpeed]);
+
   const currentIndex = parseInt(songIndex, 10) || 0;
   const contentRef = useRef(null);
   const wakeLockRef = useRef(null);
 
-  const playbackRef = useRef({ playing: false, startTime: 0, elapsed: 0, animationId: null });
+  // O motor de tempo refatorado (usa lastFrameTime em vez de startTime)
+  const playbackRef = useRef({ playing: false, lastFrameTime: 0, elapsed: 0, animationId: null });
 
-  // REFS PARA O PEDAL BLUETOOTH NÃO PEGAR ESTADOS VELHOS
+  // Refs de estado para eventos de teclado (Bluetooth)
   const isPlayingRef = useRef(isPlaying);
   useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
 
@@ -36,12 +54,25 @@ export default function PlaySong() {
   const songsLengthRef = useRef(songs.length);
   useEffect(() => { songsLengthRef.current = songs.length; }, [songs.length]);
 
-  // CONTROLE DE PEDAL BLUETOOTH (TECLADO)
+  // CONTADOR REGRESSIVO (Estilo Netflix)
+  useEffect(() => {
+    if (countdown === null) return;
+    if (countdown === 0) {
+      setCountdown(null);
+      if (currentIndexRef.current + 1 < songsLengthRef.current) {
+        navigate(`/setlists/${id}/play/${currentIndexRef.current + 1}`);
+      }
+      return;
+    }
+    const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [countdown, id, navigate]);
+
+  // CONTROLE DE PEDAL BLUETOOTH
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
-      // PEDAL 1: PLAY/PAUSE (Espaço ou Enter)
       if (e.code === 'Space' || e.code === 'Enter') {
         e.preventDefault(); 
         if (isPlayingRef.current) {
@@ -52,14 +83,12 @@ export default function PlaySong() {
           setIsPlaying(true);
         }
       } 
-      // PEDAL 2: PRÓXIMA MÚSICA (Seta Direita ou Page Down)
       else if (e.code === 'ArrowRight' || e.code === 'PageDown') {
         e.preventDefault();
         if (currentIndexRef.current + 1 < songsLengthRef.current) {
           navigate(`/setlists/${id}/play/${currentIndexRef.current + 1}`);
         }
       } 
-      // PEDAL 3: MÚSICA ANTERIOR (Seta Esquerda ou Page Up)
       else if (e.code === 'ArrowLeft' || e.code === 'PageUp') {
         e.preventDefault();
         if (currentIndexRef.current - 1 >= 0) {
@@ -67,7 +96,6 @@ export default function PlaySong() {
         }
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [id, navigate]);
@@ -89,13 +117,15 @@ export default function PlaySong() {
     };
   }, []);
 
+  // RESET AO MUDAR DE MÚSICA
   useEffect(() => {
     stopAutoScroll();
-    playbackRef.current = { playing: false, startTime: 0, elapsed: 0, animationId: null };
+    playbackRef.current = { playing: false, lastFrameTime: 0, elapsed: 0, animationId: null };
     setActiveIndex(-1);
     setIsPlaying(false);
     setIsMenuOpen(false);
     setIsSetlistOpen(false);
+    setCountdown(null); // Cancela contador se o usuário pular a música manualmente
     window.scrollTo(0, 0);
   }, [currentIndex]);
 
@@ -103,14 +133,13 @@ export default function PlaySong() {
     const loadSetlistAndSongs = async () => {
       if (!id) return;
       
-      // 1. TENTA CARREGAR OFFLINE PRIMEIRO
       const cachedData = localStorage.getItem(`canta_play_offline_${id}`);
       if (cachedData) {
         try {
           const parsed = JSON.parse(cachedData);
           setSetlistName(parsed.setlistName);
           setSongs(parsed.songs);
-          setLoading(false); // Já libera a tela na hora!
+          setLoading(false); 
         } catch(e) {
           console.error("Erro ao ler cache offline");
         }
@@ -119,7 +148,6 @@ export default function PlaySong() {
       }
 
       try {
-        // 2. ATUALIZA DA NUVEM SE TIVER CONEXÃO
         const { data: setlistData } = await supabase.from('setlists').select('event_name').eq('id', id).maybeSingle();
         const currentName = setlistData ? setlistData.event_name : "";
         if (setlistData) setSetlistName(currentName);
@@ -143,7 +171,6 @@ export default function PlaySong() {
           
           setSongs(formattedItems);
           
-          // 3. SALVA NA MEMÓRIA FÍSICA DO IPAD/CELULAR
           localStorage.setItem(`canta_play_offline_${id}`, JSON.stringify({
             setlistName: currentName,
             songs: formattedItems
@@ -207,7 +234,7 @@ export default function PlaySong() {
     const startMs = (tc.start_time ?? tc.startTime ?? tc.start ?? tc.time ?? tc.timecode ?? 0) * 1000;
 
     playbackRef.current.elapsed = startMs;
-    playbackRef.current.startTime = Date.now() - startMs;
+    playbackRef.current.lastFrameTime = Date.now(); // Reseta o timer de delta
     setActiveIndex(idx);
 
     const blockElement = document.getElementById(`block-${idx}`);
@@ -219,6 +246,15 @@ export default function PlaySong() {
     }
   };
 
+  const handleSongEnd = () => {
+    stopAutoScroll(); 
+    setIsPlaying(false);
+    
+    if (autoSkip && currentIndexRef.current + 1 < songsLengthRef.current) {
+      setCountdown(5); // Inicia o overlay da Netflix
+    }
+  };
+
   const startAutoScroll = () => {
     const currentSong = songs[currentIndex];
     if (!currentSong) return;
@@ -227,14 +263,18 @@ export default function PlaySong() {
     const hasTimecodes = timecodes.length > 0;
 
     playbackRef.current.playing = true;
-    playbackRef.current.startTime = Date.now() - playbackRef.current.elapsed;
+    playbackRef.current.lastFrameTime = Date.now();
 
     const loop = () => {
       if (!playbackRef.current.playing) return;
       
       const now = Date.now();
-      const elapsed = now - playbackRef.current.startTime;
-      playbackRef.current.elapsed = elapsed;
+      const delta = now - playbackRef.current.lastFrameTime;
+      playbackRef.current.lastFrameTime = now;
+      
+      // O Segredo: O delta de tempo é multiplicado pela velocidade escolhida!
+      playbackRef.current.elapsed += (delta * speedRef.current);
+      const elapsed = playbackRef.current.elapsed;
 
       if (hasTimecodes) {
         const currentBlockIdx = timecodes.findIndex(tc => {
@@ -270,16 +310,10 @@ export default function PlaySong() {
         const lastBlock = timecodes[timecodes.length - 1];
         const maxTimeMs = (lastBlock.end_time ?? lastBlock.endTime ?? lastBlock.end ?? lastBlock.timecode ?? 0) * 1000;
         
-        // CONDIÇÃO DE FIM PARA MÚSICAS COM TIMECODE
         if (elapsed < maxTimeMs) {
           playbackRef.current.animationId = requestAnimationFrame(loop);
         } else { 
-          stopAutoScroll(); 
-          setIsPlaying(false); 
-          // Pula automaticamente para a próxima, mas permanece pausado
-          if (currentIndexRef.current + 1 < songsLengthRef.current) {
-            navigate(`/setlists/${id}/play/${currentIndexRef.current + 1}`);
-          }
+          handleSongEnd();
         }
 
       } else {
@@ -298,16 +332,10 @@ export default function PlaySong() {
           window.scrollTo(0, targetScrollPos);
         }
 
-        // CONDIÇÃO DE FIM PARA MÚSICAS PLAIN TEXT
         if (elapsed < durationMs && (Math.ceil(window.innerHeight + window.scrollY) < document.documentElement.scrollHeight)) {
           playbackRef.current.animationId = requestAnimationFrame(loop);
         } else {
-          stopAutoScroll();
-          setIsPlaying(false);
-          // Pula automaticamente para a próxima, mas permanece pausado
-          if (currentIndexRef.current + 1 < songsLengthRef.current) {
-            navigate(`/setlists/${id}/play/${currentIndexRef.current + 1}`);
-          }
+          handleSongEnd();
         }
       }
     };
@@ -371,6 +399,21 @@ export default function PlaySong() {
         </div>
       </div>
 
+      {/* OVERLAY NETFLIX (CONTADOR REGRESSIVO) */}
+      {countdown !== null && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-neutral-900 border-2 border-white/10 p-6 rounded-[2rem] flex flex-col items-center justify-center z-50 shadow-[0_10px_40px_rgba(0,0,0,0.8)] backdrop-blur-md w-[90%] max-w-sm animate-fadeIn">
+          <p className="text-xs font-bold uppercase tracking-widest text-white/50 mb-2">Próxima música em</p>
+          <div className="text-6xl font-black text-white mb-2 leading-none">{countdown}</div>
+          <p className="text-lg font-black uppercase tracking-tight text-yellow-400 mb-6 text-center truncate w-full">
+            {songs[currentIndex + 1]?.title}
+          </p>
+          <div className="flex gap-3 w-full">
+            <button onClick={() => { setCountdown(null); navigate(`/setlists/${id}/play/${currentIndex + 1}`); }} className="flex-1 py-4 bg-white text-black rounded-xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all">Pular</button>
+            <button onClick={() => setCountdown(null)} className="flex-1 py-4 bg-neutral-800 text-white rounded-xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all">Cancelar</button>
+          </div>
+        </div>
+      )}
+
       {/* OVERLAY SETLIST */}
       {isSetlistOpen && (
         <div className="fixed inset-0 bg-black z-50 flex flex-col animate-fadeIn">
@@ -406,22 +449,70 @@ export default function PlaySong() {
         </div>
       )}
 
-      {/* OVERLAY CONFIGURAÇÕES */}
+      {/* OVERLAY CONFIGURAÇÕES DE PALCO */}
       {isMenuOpen && (
-        <div className="fixed inset-0 bg-black/80 z-40 flex justify-end animate-fadeIn">
-          <div className="w-80 bg-neutral-900 h-full border-l border-white/10 p-6 flex flex-col">
-            <div className="flex items-center justify-between mb-8">
-              <h3 className="font-black uppercase tracking-widest text-sm">Opções de Palco</h3>
-              <button onClick={() => setIsMenuOpen(false)} className="text-white/50 hover:text-white"><X size={20}/></button>
+        <div className="fixed inset-0 bg-black/80 z-40 flex justify-end animate-fadeIn" onClick={() => setIsMenuOpen(false)}>
+          <div className="w-[85%] max-w-sm bg-neutral-900 h-full border-l border-white/10 p-6 flex flex-col overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-8 pb-4 border-b border-white/10">
+              <h3 className="font-black uppercase tracking-widest text-lg">Opções de Palco</h3>
+              <button onClick={() => setIsMenuOpen(false)} className="text-white/50 hover:text-white p-2 bg-white/5 rounded-full"><X size={20}/></button>
             </div>
-            <div className="mb-8">
-              <p className="text-xs font-bold uppercase tracking-widest text-white/50 mb-3 flex items-center gap-2"><Type size={14}/> Tamanho da Letra</p>
-              <div className="flex items-center gap-3">
-                <button onClick={() => changeFontSize(-4)} className="w-12 h-12 bg-neutral-800 rounded-xl font-black text-xl active:scale-95">-</button>
-                <div className="flex-1 text-center font-black text-xl">{fontSize}px</div>
-                <button onClick={() => changeFontSize(4)} className="w-12 h-12 bg-neutral-800 rounded-xl font-black text-xl active:scale-95">+</button>
+            
+            {/* TAMANHO DA LETRA */}
+            <div className="mb-10">
+              <p className="text-xs font-bold uppercase tracking-widest text-white/50 mb-4 flex items-center gap-2"><Type size={16}/> Tamanho da Letra</p>
+              <div className="flex items-center gap-3 bg-black/30 p-2 rounded-2xl">
+                <button onClick={() => changeFontSize(-4)} className="w-14 h-14 bg-neutral-800 rounded-xl font-black text-2xl active:scale-95">-</button>
+                <div className="flex-1 text-center font-black text-2xl">{fontSize}px</div>
+                <button onClick={() => changeFontSize(4)} className="w-14 h-14 bg-neutral-800 rounded-xl font-black text-2xl active:scale-95">+</button>
               </div>
             </div>
+
+            {/* AUTO SKIP (TOGGLE) */}
+            <div className="mb-10">
+              <p className="text-xs font-bold uppercase tracking-widest text-white/50 mb-4 flex items-center gap-2">Pular Automático</p>
+              <div className="flex bg-black/30 rounded-2xl p-2">
+                <button 
+                  onClick={() => { setAutoSkip(false); localStorage.setItem('cantapro_autoSkip', 'false'); }}
+                  className={`flex-1 py-4 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${!autoSkip ? 'bg-white text-black shadow-lg' : 'text-white/40 hover:bg-white/5'}`}
+                >
+                  Desligado
+                </button>
+                <button 
+                  onClick={() => { setAutoSkip(true); localStorage.setItem('cantapro_autoSkip', 'true'); }}
+                  className={`flex-1 py-4 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${autoSkip ? 'bg-white text-black shadow-lg' : 'text-white/40 hover:bg-white/5'}`}
+                >
+                  Ligado
+                </button>
+              </div>
+            </div>
+
+            {/* VELOCIDADE DE REPRODUÇÃO (SLIDER) */}
+            <div className="mb-10">
+              <p className="text-xs font-bold uppercase tracking-widest text-white/50 mb-4 flex items-center gap-2"><FastForward size={16}/> Velocidade de Rolagem</p>
+              <div className="bg-black/30 p-6 rounded-2xl">
+                <div className="flex justify-center mb-6">
+                  <span className="text-4xl font-black">{playbackSpeed.toFixed(1)}x</span>
+                </div>
+                <input 
+                  type="range" 
+                  min="0.5" max="2" step="0.1" 
+                  value={playbackSpeed} 
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    setPlaybackSpeed(val);
+                    localStorage.setItem('cantapro_speed', val);
+                  }}
+                  className="w-full accent-white h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer"
+                />
+                <div className="flex justify-between text-[10px] font-bold text-white/40 mt-4 uppercase tracking-widest">
+                  <span>Lento 0.5x</span>
+                  <span>Normal</span>
+                  <span>Rápido 2.0x</span>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       )}
