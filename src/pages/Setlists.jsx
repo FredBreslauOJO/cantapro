@@ -48,13 +48,20 @@ export default function Setlists() {
       const parsed = JSON.parse(cachedData);
       setSetlists(parsed);
       globalSetlistsCache = parsed;
-      setLoading(false); // Já libera a tela na hora!
+      setLoading(false); 
     } else if (!globalSetlistsCache) {
       setLoading(true);
     }
 
+    // INTERCEPTAÇÃO: Se estiver offline, aborta a chamada de rede silenciosamente!
+    if (!navigator.onLine) {
+      console.log("Aplicativo rodando 100% Offline via Cache.");
+      setLoading(false);
+      return; 
+    }
+
     try {
-      // 2. TENTA ATUALIZAR EM SEGUNDO PLANO (Se tiver internet)
+      // 2. TENTA ATUALIZAR EM SEGUNDO PLANO (Apenas se tiver internet)
       const { data: memberData } = await supabase.from('setlist_members').select('setlist_id').eq('member_email', user.email);
       const sharedIds = memberData ? memberData.map(m => m.setlist_id) : [];
 
@@ -91,7 +98,7 @@ export default function Setlists() {
         localStorage.setItem('canta_setlists_offline', JSON.stringify(enriched));
       }
     } catch (err) {
-      console.error("Modo offline ativado na home ou erro de conexão.", err);
+      console.warn("Falha silenciosa de rede evitada.", err);
     } finally {
       setLoading(false);
     }

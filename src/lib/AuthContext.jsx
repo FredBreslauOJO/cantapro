@@ -36,14 +36,33 @@ export const AuthProvider = ({ children }) => {
 
   const fetchUserData = async (userId) => {
     setLoading(true);
-    // Busca o Perfil (Nome)
-    const { data: prof } = await supabase.from('profiles').select('*').eq('id', userId).single();
-    if (prof) setProfile(prof);
 
-    // Busca o Plano
-    const { data: sub } = await supabase.from('user_subscriptions').select('*').eq('user_id', userId).single();
-    if (sub) setSubscription(sub);
-    else setSubscription({ plan_type: 'free' }); // Fallback de segurança
+    // 1. CARREGAMENTO OFFLINE INSTANTÂNEO E BLINDADO
+    const cachedProfile = localStorage.getItem(`canta_profile_${userId}`);
+    const cachedSub = localStorage.getItem(`canta_sub_${userId}`);
+
+    if (cachedProfile) setProfile(JSON.parse(cachedProfile));
+    if (cachedSub) setSubscription(JSON.parse(cachedSub));
+
+    try {
+      // 2. ATUALIZA DA NUVEM SE TIVER CONEXÃO
+      const { data: prof, error: profError } = await supabase.from('profiles').select('*').eq('id', userId).single();
+      if (prof && !profError) {
+        setProfile(prof);
+        localStorage.setItem(`canta_profile_${userId}`, JSON.stringify(prof));
+      }
+
+      const { data: sub, error: subError } = await supabase.from('user_subscriptions').select('*').eq('user_id', userId).single();
+      if (sub && !subError) {
+        setSubscription(sub);
+        localStorage.setItem(`canta_sub_${userId}`, JSON.stringify(sub));
+      } else if (!sub && !cachedSub) {
+        // Só define como FREE se realmente não tiver assinatura na nuvem E não tiver no cache físico
+        setSubscription({ plan_type: 'free' });
+      }
+    } catch (error) {
+      console.warn("Modo Offline ativado na Autenticação.", error);
+    }
 
     setLoading(false);
   };

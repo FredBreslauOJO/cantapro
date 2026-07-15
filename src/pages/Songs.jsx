@@ -6,6 +6,7 @@ import { useAuth } from "../lib/AuthContext";
 import PaywallModal from "../components/PaywallModal";
 import OnlineLyricsSearch from "../components/OnlineLyricsSearch";
 import LoadingScreen from "../components/LoadingScreen"; 
+import SyncStatus from "../components/SyncStatus";
 
 export default function Songs() {
   const [songs, setSongs] = useState([]);
@@ -259,14 +260,18 @@ export default function Songs() {
               </button>
             </div>
             
-            {/* O NOVO BOTÃO DE SELECIONAR */}
+            {/* O NOVO BOTÃO DE SELECIONAR + INDICADOR OFFLINE */}
             {!isEditingMode && songs.length > 0 && (
-              <button 
-                onClick={() => setIsEditingMode(true)}
-                className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-black/40 hover:text-black hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-1.5"
-              >
-                <CheckSquare size={14} /> Selecionar
-              </button>
+              <div className="flex items-center gap-2">
+                <SyncStatus isRefreshing={loading} />
+                
+                <button 
+                  onClick={() => setIsEditingMode(true)}
+                  className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-black/40 hover:text-black hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-1.5"
+                >
+                  <CheckSquare size={14} /> Selecionar
+                </button>
+              </div>
             )}
           </div>
 
