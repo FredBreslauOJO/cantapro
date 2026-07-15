@@ -462,9 +462,9 @@ export default function PlaySong() {
             <div className="mb-10">
               <p className="text-xs font-bold uppercase tracking-widest text-white/50 mb-4 flex items-center gap-2"><Type size={16}/> Tamanho da Letra</p>
               <div className="flex items-center gap-3 bg-black/30 p-2 rounded-2xl">
-                <button onClick={() => changeFontSize(-4)} className="w-14 h-14 bg-neutral-800 rounded-xl font-black text-2xl active:scale-95">-</button>
+                <button onClick={() => changeFontSize(-1)} className="w-14 h-14 bg-neutral-800 rounded-xl font-black text-2xl active:scale-95">-</button>
                 <div className="flex-1 text-center font-black text-2xl">{fontSize}px</div>
-                <button onClick={() => changeFontSize(4)} className="w-14 h-14 bg-neutral-800 rounded-xl font-black text-2xl active:scale-95">+</button>
+                <button onClick={() => changeFontSize(1)} className="w-14 h-14 bg-neutral-800 rounded-xl font-black text-2xl active:scale-95">+</button>
               </div>
             </div>
 
