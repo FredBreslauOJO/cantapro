@@ -355,7 +355,7 @@ export default function PlaySong() {
 
   const changeFontSize = (delta) => {
     setFontSize(prev => {
-      const newSize = Math.max(16, Math.min(100, prev + delta));
+      const newSize = Math.max(9, Math.min(100, prev + delta));
       localStorage.setItem('cantapro_fontSize', newSize);
       return newSize;
     });
