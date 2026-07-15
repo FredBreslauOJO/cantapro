@@ -8,16 +8,38 @@ export const AuthProvider = ({ children }) => {
   const [profile, setProfile] = useState(null);
   const [subscription, setSubscription] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // O NOVO MONITOR DE REDE GLOBAL
+  const [isOnline, setIsOnline] = useState(
+    navigator.onLine && sessionStorage.getItem('canta_force_offline') !== 'true'
+  );
 
   useEffect(() => {
-    // Busca a sessão atual
+    // Monitora quedas reais de internet ou a nossa "trava" manual
+    const handleConnectionChange = () => {
+      const forceOffline = sessionStorage.getItem('canta_force_offline') === 'true';
+      setIsOnline(navigator.onLine && !forceOffline);
+    };
+
+    window.addEventListener('online', handleConnectionChange);
+    window.addEventListener('offline', handleConnectionChange);
+    
+    // Dispara a primeira checagem
+    handleConnectionChange();
+
+    return () => {
+      window.removeEventListener('online', handleConnectionChange);
+      window.removeEventListener('offline', handleConnectionChange);
+    };
+  }, []);
+
+  useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (session?.user) fetchUserData(session.user.id);
       else setLoading(false);
     });
 
-    // Escuta mudanças (login/logout)
     const { data: { subscription: authListener } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         setUser(session?.user ?? null);
@@ -35,23 +57,25 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const fetchUserData = async (userId) => {
-    // 1. CARREGAMENTO OFFLINE INSTANTÂNEO E BLINDADO
     const cachedProfile = localStorage.getItem(`canta_profile_${userId}`);
     const cachedSub = localStorage.getItem(`canta_sub_${userId}`);
 
     if (cachedProfile) setProfile(JSON.parse(cachedProfile));
     if (cachedSub) setSubscription(JSON.parse(cachedSub));
 
-    // A MÁGICA ESTÁ AQUI: Se já temos algo na memória física, libera a tela IMEDIATAMENTE!
     if (cachedProfile || cachedSub) {
       setLoading(false); 
     } else {
-      // Só tranca a tela se for a primeira vez na vida que o cara abre o app
       setLoading(true);
     }
 
+    // Se estiver offline ou no modo forçado, ignora o Supabase e fica com o cache
+    if (!navigator.onLine || sessionStorage.getItem('canta_force_offline') === 'true') {
+      setLoading(false);
+      return;
+    }
+
     try {
-      // 2. ATUALIZA DA NUVEM SE TIVER CONEXÃO (Roda de forma invisível)
       const { data: prof, error: profError } = await supabase.from('profiles').select('*').eq('id', userId).single();
       if (prof && !profError) {
         setProfile(prof);
@@ -63,13 +87,11 @@ export const AuthProvider = ({ children }) => {
         setSubscription(sub);
         localStorage.setItem(`canta_sub_${userId}`, JSON.stringify(sub));
       } else if (!sub && !cachedSub) {
-        // Só define como FREE se realmente não tiver assinatura na nuvem E não tiver no cache físico
         setSubscription({ plan_type: 'free' });
       }
     } catch (error) {
       console.warn("Modo Offline ativado na Autenticação.", error);
     } finally {
-      // Garante que a tela sempre seja destrancada no final, mesmo se der erro e não tiver cache
       setLoading(false);
     }
   };
@@ -84,8 +106,9 @@ export const AuthProvider = ({ children }) => {
       profile, 
       subscription, 
       isAuthenticated: !!user,
-      plan: subscription?.plan_type || 'free', // Atalho fácil para usarmos nas telas
-      isLoadingAuth: loading, 
+      plan: subscription?.plan_type || 'free',
+      isLoadingAuth: loading,
+      isOnline, // <-- DISPONIBILIZAMOS ISSO PARA O APP INTEIRO
       logout 
     }}>
       {children}

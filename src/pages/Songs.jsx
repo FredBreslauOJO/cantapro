@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Pencil, Search, ArrowLeft, Globe, CheckSquare, Square, Trash2, X, AlertTriangle, Loader2 } from "lucide-react";
+import { Plus, Pencil, Search, ArrowLeft, Globe, CheckSquare, Square, Trash2, AlertTriangle, Loader2 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/AuthContext";
 import PaywallModal from "../components/PaywallModal";
@@ -16,14 +16,13 @@ export default function Songs() {
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   const [showOnlineSearch, setShowOnlineSearch] = useState(false);
   
-  // ESTADOS PARA O MODO DE EDIÇÃO EM LOTE
   const [isEditingMode, setIsEditingMode] = useState(false);
   const [selectedSongs, setSelectedSongs] = useState([]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const navigate = useNavigate();
-  const { user, plan } = useAuth();
+  const { user, plan, isOnline } = useAuth(); // EXTRAÍMOS isOnline AQUI
 
   useEffect(() => {
     if (user) {
@@ -41,6 +40,11 @@ export default function Songs() {
       setLoading(false); 
     } else if (songs.length === 0) {
       setLoading(true);
+    }
+
+    if (!navigator.onLine || sessionStorage.getItem('canta_force_offline') === 'true') {
+      setLoading(false);
+      return; 
     }
 
     try {
@@ -62,6 +66,7 @@ export default function Songs() {
   };
 
   const handleCreateNew = () => {
+    if (!isOnline) return;
     if (plan === 'free' && songs.length >= 10) {
       setIsPaywallOpen(true);
       return;
@@ -91,7 +96,6 @@ export default function Songs() {
     }
   };
 
-  // FUNÇÕES DE SELEÇÃO E EXCLUSÃO MÚLTIPLA
   const toggleSongSelection = (songId) => {
     setSelectedSongs(prev => 
       prev.includes(songId) ? prev.filter(id => id !== songId) : [...prev, songId]
@@ -100,9 +104,9 @@ export default function Songs() {
 
   const toggleSelectAll = () => {
     if (selectedSongs.length === filtered.length) {
-      setSelectedSongs([]); // Desmarca tudo se já estava tudo marcado
+      setSelectedSongs([]);
     } else {
-      setSelectedSongs(filtered.map(s => s.id)); // Marca tudo que está visível na tela
+      setSelectedSongs(filtered.map(s => s.id));
     }
   };
 
@@ -112,11 +116,10 @@ export default function Songs() {
   };
 
   const executeBulkDelete = async () => {
-    if (selectedSongs.length === 0) return;
+    if (selectedSongs.length === 0 || !isOnline) return;
     setIsDeleting(true);
 
     try {
-      // O Supabase possui a função .in() que permite deletar vários IDs de uma vez!
       const { error } = await supabase
         .from('songs')
         .delete()
@@ -124,7 +127,6 @@ export default function Songs() {
 
       if (error) throw error;
 
-      // Limpa as seleções e atualiza a lista
       setShowDeleteModal(false);
       cancelEditMode();
       loadSongs();
@@ -156,7 +158,6 @@ export default function Songs() {
   return (
     <div className="py-6 max-w-2xl mx-auto px-4 font-sans select-none text-black relative min-h-screen">
       
-      {/* CABEÇALHO DINÂMICO */}
       <div className="mb-4">
         <div className="flex items-center justify-between mb-4">
           <button 
@@ -179,7 +180,13 @@ export default function Songs() {
             {!showOnlineSearch && !isEditingMode && (
               <button
                 onClick={() => setShowOnlineSearch(true)}
-                className="px-4 h-12 bg-black text-white border-2 border-black font-black text-[10px] sm:text-xs uppercase tracking-wider rounded-xl flex items-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,0.3)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all hover:bg-gray-800"
+                disabled={!isOnline}
+                className={`px-4 h-12 font-black text-[10px] sm:text-xs uppercase tracking-wider rounded-xl flex items-center gap-2 transition-all
+                  ${!isOnline 
+                    ? "bg-gray-200 text-gray-400 cursor-not-allowed border-2 border-transparent" 
+                    : "bg-black text-white border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,0.3)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none hover:bg-gray-800"
+                  }
+                `}
               >
                 <Globe size={16} /> Buscar Web
               </button>
@@ -202,7 +209,10 @@ export default function Songs() {
             ) : (
               <button 
                 onClick={handleCreateNew} 
-                className="w-12 h-12 bg-black rounded-full flex items-center justify-center text-white hover:opacity-80 transition-opacity active:scale-95 shadow-[2px_2px_0px_0px_rgba(0,0,0,0.3)]"
+                disabled={!isOnline}
+                className={`w-12 h-12 rounded-full flex items-center justify-center transition-opacity active:scale-95 shadow-[2px_2px_0px_0px_rgba(0,0,0,0.3)]
+                  ${!isOnline ? "bg-gray-300 text-gray-500 opacity-50 cursor-not-allowed" : "bg-black text-white hover:opacity-80"}
+                `}
               >
                 <Plus size={18} className="pointer-events-none" />
               </button>
@@ -260,14 +270,16 @@ export default function Songs() {
               </button>
             </div>
             
-            {/* O NOVO BOTÃO DE SELECIONAR + INDICADOR OFFLINE */}
             {!isEditingMode && songs.length > 0 && (
               <div className="flex items-center gap-2">
                 <SyncStatus isRefreshing={loading} />
                 
                 <button 
                   onClick={() => setIsEditingMode(true)}
-                  className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-black/40 hover:text-black hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-1.5"
+                  disabled={!isOnline}
+                  className={`px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors flex items-center gap-1.5
+                    ${!isOnline ? "text-gray-300 cursor-not-allowed" : "text-black/40 hover:text-black hover:bg-gray-100"}
+                  `}
                 >
                   <CheckSquare size={14} /> Selecionar
                 </button>
@@ -280,7 +292,13 @@ export default function Songs() {
           ) : filtered.length === 0 ? (
             <div className="text-center py-16">
               <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-4">Nenhuma música encontrada.</p>
-              <button onClick={handleCreateNew} className="px-6 py-4 bg-black text-white text-xs font-black uppercase tracking-widest rounded-xl hover:opacity-80 transition-opacity active:scale-95">
+              <button 
+                onClick={handleCreateNew} 
+                disabled={!isOnline}
+                className={`px-6 py-4 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-opacity active:scale-95
+                  ${!isOnline ? "bg-gray-400 cursor-not-allowed" : "bg-black hover:opacity-80"}
+                `}
+              >
                 Adicionar primeira música
               </button>
             </div>
@@ -307,7 +325,6 @@ export default function Songs() {
                               }
                             `}
                           >
-                            {/* Checkbox Visual no Modo Edição */}
                             {isEditingMode && (
                               <div className="mr-3 flex-shrink-0 text-black">
                                 {isSelected ? <CheckSquare size={20} className="text-yellow-600" /> : <Square size={20} className="text-gray-300" />}
@@ -323,9 +340,8 @@ export default function Songs() {
                               </p>
                             </div>
 
-                            {/* Ícone de Lápis Padrão */}
                             {!isEditingMode && (
-                              <Pencil size={12} className="text-black/30 group-hover:text-white/60 transition-colors flex-shrink-0 ml-3" />
+                              <Pencil size={12} className={`transition-colors flex-shrink-0 ml-3 ${!isOnline ? "text-transparent" : "text-black/30 group-hover:text-white/60"}`} />
                             )}
                           </button>
                         );
@@ -338,7 +354,6 @@ export default function Songs() {
         </>
       )}
 
-      {/* BARRA FLUTUANTE DE AÇÃO (Aparece apenas quando há músicas selecionadas) */}
       {isEditingMode && selectedSongs.length > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-black border-2 border-black p-2 rounded-2xl flex items-center shadow-[4px_4px_0px_0px_rgba(250,204,21,1)] z-40 w-[90%] max-w-sm animate-fadeIn">
           <div className="px-4 py-2 flex-1 text-white text-xs font-black uppercase tracking-widest text-center">
@@ -353,7 +368,6 @@ export default function Songs() {
         </div>
       )}
 
-      {/* MODAL DE ALERTA DE EXCLUSÃO CRÍTICA */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 animate-fadeIn" onClick={() => !isDeleting && setShowDeleteModal(false)}>
           <div className="bg-white w-full max-w-md rounded-3xl overflow-hidden border-4 border-black shadow-[8px_8px_0px_0px_rgba(220,38,38,1)]" onClick={e => e.stopPropagation()}>

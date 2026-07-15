@@ -4,15 +4,16 @@ import { ArrowLeft, Pencil, Download, Trash2, Check, Clock } from "lucide-react"
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/AuthContext";
 import PaywallModal from "../components/PaywallModal";
-import LoadingScreen from "../components/LoadingScreen"; // <-- SEGUNDO ESCUDO COMPLETO
+import LoadingScreen from "../components/LoadingScreen";
 
 export default function SongEdit() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, plan } = useAuth();
+  const { user, plan, isOnline } = useAuth(); // EXTRAÍMOS isOnline AQUI
   const isNew = id === "new";
   
-  const [editing, setEditing] = useState(isNew);
+  // Se estiver offline, força 'editing' para false pra não quebrar nada
+  const [editing, setEditing] = useState(isNew && isOnline);
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
@@ -36,7 +37,6 @@ export default function SongEdit() {
   }, [id, user]);
 
   const loadSong = async () => {
-    // 1. TENTA PUXAR A LETRA SALVA FISICAMENTE NO COMPONENTE
     const cached = localStorage.getItem(`canta_song_single_${id}`);
     if (cached) {
       try {
@@ -47,7 +47,7 @@ export default function SongEdit() {
         setDurationMin(String(Math.floor(totalSec / 60)));
         setDurationSec(String(totalSec % 60));
         setLyrics(parsed.lyrics_text || "");
-        setLoading(false); // Libera o teleprompter na hora!
+        setLoading(false); 
       } catch (e) {
         console.error(e);
       }
@@ -55,8 +55,12 @@ export default function SongEdit() {
       setLoading(true);
     }
 
+    if (!navigator.onLine || sessionStorage.getItem('canta_force_offline') === 'true') {
+      setLoading(false);
+      return; 
+    }
+
     try {
-      // 2. BUSCA DO SERVIDOR SE ESTIVER ONLINE
       const { data, error } = await supabase.from('songs').select('*').eq('id', id).single();
       if (data && !error) {
         setTitle(data.title || "");
@@ -66,7 +70,6 @@ export default function SongEdit() {
         setDurationSec(String(totalSec % 60));
         setLyrics(data.lyrics_text || "");
         
-        // 3. CACHEIA ESSA LETRA INDIVIDUALMENTE
         localStorage.setItem(`canta_song_single_${id}`, JSON.stringify(data));
       }
     } catch (err) {
@@ -77,6 +80,7 @@ export default function SongEdit() {
   };
 
   const handleSave = async () => {
+    if (!isOnline) return;
     setSaving(true);
     const totalSec = (parseInt(durationMin) || 0) * 60 + (parseInt(durationSec) || 0);
     const songData = { 
@@ -93,7 +97,6 @@ export default function SongEdit() {
         navigate("/songs");
       } else {
         await supabase.from('songs').update(songData).eq('id', id);
-        // Atualiza a memória física local imediatamente ao salvar
         localStorage.setItem(`canta_song_single_${id}`, JSON.stringify({ ...songData, id }));
         setEditing(false);
       }
@@ -105,6 +108,7 @@ export default function SongEdit() {
   };
 
   const handleDelete = async () => {
+    if (!isOnline) return;
     if (!window.confirm("Remover esta música?")) return;
     try {
       await supabase.from('songs').delete().eq('id', id);
@@ -126,6 +130,7 @@ export default function SongEdit() {
   };
 
   const goToTimecode = () => {
+    if (!isOnline) return;
     if (plan !== 'pro') {
       setIsPaywallOpen(true);
       return;
@@ -153,21 +158,32 @@ export default function SongEdit() {
         <div className="flex items-center gap-3">
           {!isNew && (
             <>
+              {/* Desativa o Lápis se estiver offline */}
               <button 
                 onClick={editing ? handleSave : () => setEditing(true)} 
-                disabled={saving || (editing && !title)}
-                className="w-11 h-11 flex items-center justify-center bg-gray-100 rounded-xl transition-all active:scale-95 disabled:opacity-50 border border-black/10 shadow-sm"
+                disabled={saving || (editing && !title) || !isOnline}
+                className={`w-11 h-11 flex items-center justify-center rounded-xl transition-all active:scale-95 border border-black/10 shadow-sm
+                  ${!isOnline ? "bg-gray-200 text-gray-400 cursor-not-allowed" : "bg-gray-100 text-black hover:opacity-80"}
+                `}
+                title={!isOnline ? "Apenas leitura" : "Editar Letra"}
               >
                 {saving ? (
                   <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
                 ) : editing ? (
                   <Check size={20} className="text-green-600 drop-shadow-sm" />
                 ) : (
-                  <Pencil size={20} className="text-black" />
+                  <Pencil size={20} className="pointer-events-none" />
                 )}
               </button>
               
-              <button onClick={goToTimecode} className="w-11 h-11 flex items-center justify-center bg-yellow-100 text-yellow-700 rounded-xl hover:opacity-80 transition-opacity active:scale-95 border border-yellow-200">
+              {/* Desativa Timecode se estiver offline */}
+              <button 
+                onClick={goToTimecode} 
+                disabled={!isOnline}
+                className={`w-11 h-11 flex items-center justify-center rounded-xl transition-opacity active:scale-95 border
+                  ${!isOnline ? "bg-gray-200 border-gray-300 text-gray-400 cursor-not-allowed" : "bg-yellow-100 border-yellow-200 text-yellow-700 hover:opacity-80"}
+                `}
+              >
                 <Clock size={20} className="pointer-events-none" />
               </button>
               
@@ -175,7 +191,14 @@ export default function SongEdit() {
                 <Download size={20} className="pointer-events-none" />
               </button>
               
-              <button onClick={handleDelete} className="w-11 h-11 flex items-center justify-center hover:bg-red-50 text-red-400 rounded-xl transition-opacity active:scale-95">
+              {/* Desativa Exclusão se estiver offline */}
+              <button 
+                onClick={handleDelete} 
+                disabled={!isOnline}
+                className={`w-11 h-11 flex items-center justify-center rounded-xl transition-opacity active:scale-95
+                  ${!isOnline ? "text-gray-300 cursor-not-allowed" : "hover:bg-red-50 text-red-400"}
+                `}
+              >
                 <Trash2 size={20} className="pointer-events-none" />
               </button>
             </>
@@ -243,7 +266,7 @@ export default function SongEdit() {
       {editing && (
         <button
           onClick={handleSave}
-          disabled={saving || !title}
+          disabled={saving || !title || !isOnline}
           className="mt-5 w-full py-4 bg-black text-white text-xs font-black uppercase tracking-widest rounded-2xl hover:opacity-80 transition-opacity disabled:opacity-40 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.3)]"
         >
           {saving ? "Salvando..." : isNew ? "Criar Música" : "Salvar Alterações"}

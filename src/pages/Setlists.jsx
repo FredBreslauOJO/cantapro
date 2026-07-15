@@ -16,7 +16,8 @@ export default function Setlists() {
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   
   const navigate = useNavigate();
-  const { user, plan } = useAuth();
+  // EXTRAÍMOS O isOnline AQUI
+  const { user, plan, isOnline } = useAuth();
 
   useEffect(() => {
     if (user) loadSetlists();
@@ -30,6 +31,7 @@ export default function Setlists() {
   };
 
   const handleCreateNew = async () => {
+    if (!isOnline) return; // Trava extra de segurança
     if ((plan || 'free') === 'free' && setlists.length >= 1) {
       setIsPaywallOpen(true);
       return;
@@ -42,7 +44,6 @@ export default function Setlists() {
   };
 
   const loadSetlists = async () => {
-    // 1. CARREGAMENTO OFFLINE INSTANTÂNEO (Puxa da memória física do aparelho)
     const cachedData = localStorage.getItem('canta_setlists_offline');
     if (cachedData && !globalSetlistsCache) {
       const parsed = JSON.parse(cachedData);
@@ -53,15 +54,13 @@ export default function Setlists() {
       setLoading(true);
     }
 
-    // INTERCEPTAÇÃO: Se estiver offline, aborta a chamada de rede silenciosamente!
-    if (!navigator.onLine) {
+    if (!navigator.onLine || sessionStorage.getItem('canta_force_offline') === 'true') {
       console.log("Aplicativo rodando 100% Offline via Cache.");
       setLoading(false);
       return; 
     }
 
     try {
-      // 2. TENTA ATUALIZAR EM SEGUNDO PLANO (Apenas se tiver internet)
       const { data: memberData } = await supabase.from('setlist_members').select('setlist_id').eq('member_email', user.email);
       const sharedIds = memberData ? memberData.map(m => m.setlist_id) : [];
 
@@ -94,7 +93,6 @@ export default function Setlists() {
 
         globalSetlistsCache = enriched; 
         setSetlists(enriched);
-        // 3. SALVA O CACHE NOVO PARA O PRÓXIMO SHOW
         localStorage.setItem('canta_setlists_offline', JSON.stringify(enriched));
       }
     } catch (err) {
@@ -106,6 +104,7 @@ export default function Setlists() {
 
   const toggleArchive = async (e, id, currentStatus) => {
     e.stopPropagation();
+    if (!isOnline) return; // Não deixa arquivar offline
     const newStatus = !currentStatus;
     setSetlists(prev => prev.map(sl => sl.id === id ? { ...sl, archived: newStatus } : sl));
     await supabase.from('setlists').update({ archived: newStatus }).eq('id', id);
@@ -116,10 +115,18 @@ export default function Setlists() {
   const SetlistCard = ({ sl }) => (
     <div className={`bg-white border-2 border-black rounded-3xl p-4 flex flex-col justify-between min-h-[150px] group relative shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${sl.archived ? 'opacity-60 grayscale' : ''}`}>
       <div className="absolute top-2 right-2 flex items-center z-10">
-        <button onClick={(e) => toggleArchive(e, sl.id, sl.archived)} className="w-12 h-12 flex items-center justify-center text-black/30 hover:text-black active:scale-95">
+        <button 
+          onClick={(e) => toggleArchive(e, sl.id, sl.archived)} 
+          disabled={!isOnline}
+          className={`w-12 h-12 flex items-center justify-center transition-colors active:scale-95 ${!isOnline ? 'text-gray-200 cursor-not-allowed' : 'text-black/30 hover:text-black'}`}
+        >
           {sl.archived ? <ArchiveRestore size={22} className="pointer-events-none" /> : <Archive size={22} className="pointer-events-none" />}
         </button>
-        <button onClick={(e) => { e.stopPropagation(); navigate(`/setlists/${sl.id}/edit`); }} className="w-12 h-12 flex items-center justify-center text-black/30 hover:text-black active:scale-95">
+        <button 
+          onClick={(e) => { e.stopPropagation(); if (isOnline) navigate(`/setlists/${sl.id}/edit`); }} 
+          disabled={!isOnline}
+          className={`w-12 h-12 flex items-center justify-center transition-colors active:scale-95 ${!isOnline ? 'text-gray-200 cursor-not-allowed' : 'text-black/30 hover:text-black'}`}
+        >
           <Settings size={22} className="pointer-events-none" />
         </button>
       </div>
@@ -155,7 +162,17 @@ export default function Setlists() {
           <h1 className="text-2xl font-black tracking-tight uppercase text-foreground">Setlists</h1>
         </div>
         <div className="flex items-center gap-2 mt-1">
-          <button onClick={handleCreateNew} className="w-12 h-12 bg-black rounded-full flex items-center justify-center text-white hover:opacity-80 transition-opacity active:scale-95 shadow-[2px_2px_0px_0px_rgba(0,0,0,0.3)]">
+          <button 
+            onClick={handleCreateNew} 
+            disabled={!isOnline}
+            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,0.3)]
+              ${!isOnline 
+                ? "bg-gray-300 text-gray-500 opacity-50 cursor-not-allowed shadow-none" 
+                : "bg-black text-white hover:opacity-80 active:scale-95"
+              }
+            `}
+            title={!isOnline ? "Apenas visualização no Modo Offline" : "Criar Novo Setlist"}
+          >
             <Plus size={18} className="pointer-events-none" />
           </button>
         </div>
@@ -188,7 +205,7 @@ export default function Setlists() {
         </div>
       )}
 
-      {!loading && <HomeNotices />}
+      {!loading && isOnline && <HomeNotices />}
       <PaywallModal isOpen={isPaywallOpen} onClose={() => setIsPaywallOpen(false)} currentPlan={plan} />
     </div>
   );
