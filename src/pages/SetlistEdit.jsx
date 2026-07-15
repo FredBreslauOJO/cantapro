@@ -209,11 +209,22 @@ export default function SetlistEdit() {
     navigate('/');
   };
 
-  const handleAddSong = async (song) => {
+const handleAddSong = async (song) => {
+    // Evita adicionar a mesma música duas vezes no mesmo repertório
     if (setlistItems.some(item => item.type === 'song' && item.id === song.id)) return;
+    
     setIsRefreshing(true);
-    await supabase.from('setlist_items').insert({ setlist_id: id, item_type: 'song', song_id: song.id, order_index: setlistItems.length });
-    setSearchQuery(""); 
+    await supabase.from('setlist_items').insert({ 
+      setlist_id: id, 
+      item_type: 'song', 
+      song_id: song.id, 
+      order_index: setlistItems.length 
+    });
+    
+    // ATUALIZAÇÃO DE UX: Removemos o setSearchQuery("") daqui.
+    // Assim o dropdown continua aberto e a palavra pesquisada se mantém, 
+    // permitindo adicionar várias músicas do mesmo artista de uma vez!
+    
     await loadSetlistItems();
     setIsRefreshing(false);
   };
