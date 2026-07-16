@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Lock, Mail, Loader2 } from 'lucide-react';
+import { Lock, Mail, Loader2, Music, Chrome } from 'lucide-react';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -37,6 +37,24 @@ export default function Login() {
       console.error(err.message);
       setErrorMessage("E-mail ou senha incorretos.");
       setIsSubmitting(false);
+    }
+  };
+
+  // FUNÇÃO DE LOGIN SOCIAL (GOOGLE E SPOTIFY)
+  const handleOAuthLogin = async (provider) => {
+    try {
+      setErrorMessage('');
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: provider,
+        options: {
+          redirectTo: `${window.location.origin}/`,
+        }
+      });
+
+      if (error) throw error;
+    } catch (err) {
+      console.error(`Erro no login com ${provider}:`, err.message);
+      setErrorMessage(`Não foi possível conectar com o ${provider}.`);
     }
   };
 
@@ -95,7 +113,35 @@ export default function Login() {
           </button>
         </form>
 
-        {/* RODAPÉ ATUALIZADO: LEVA PARA O REGISTRO */}
+        {/* DIVISOR */}
+        <div className="relative my-6">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t-2 border-dashed border-gray-200"></div>
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-3 bg-white text-black/40 font-black uppercase tracking-widest text-[10px]">Ou entre com</span>
+          </div>
+        </div>
+
+        {/* BOTÕES SOCIAIS: GOOGLE E SPOTIFY */}
+        <div className="flex flex-col gap-3">
+          <button
+            onClick={() => handleOAuthLogin('google')}
+            type="button"
+            className="w-full py-3.5 bg-white text-black rounded-xl font-black uppercase tracking-widest text-xs border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center justify-center gap-2"
+          >
+            <Chrome size={16} /> Google
+          </button>
+          
+          <button
+            onClick={() => handleOAuthLogin('spotify')}
+            type="button"
+            className="w-full py-3.5 bg-[#1DB954] text-black rounded-xl font-black uppercase tracking-widest text-xs border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:brightness-105 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center justify-center gap-2"
+          >
+            <Music size={16} /> Spotify
+          </button>
+        </div>
+
         <div className="mt-8 pt-6 border-t-2 border-dashed border-gray-200 text-center">
           <p className="text-[11px] font-black uppercase tracking-widest text-black mb-3">
             Ainda não tem uma conta?
