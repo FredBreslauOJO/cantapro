@@ -108,7 +108,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
             {/* CHAMADA PARA O INSTAGRAM */}
             <div className="mt-8 border-t-2 border-gray-100 pt-6">
               <p className="text-[11px] font-black uppercase tracking-widest text-black/50 mb-3 text-center">
-                Acompanhe as novidades
+                Siga-nos no Instagram para <br>dicas, novidades e promoções!</br>
               </p>
               <a
                 href="https://www.instagram.com/canta.pro.app"
