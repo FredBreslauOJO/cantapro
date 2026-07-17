@@ -130,7 +130,6 @@ export default function Login() {
             type="button"
             className="w-full py-3.5 bg-white text-black rounded-xl font-black uppercase tracking-widest text-xs border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center justify-center gap-2"
           >
-            <Chrome size={16} /> Google
           </button>
           
           <button
