@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, LogOut, RefreshCw, Zap, CreditCard, Check, Loader2, Download, Share, Plus, MoreVertical, MonitorDown } from 'lucide-react';
+// Mantivemos APENAS os ícones básicos garantidos para evitar o Erro 137
+import { X, LogOut, RefreshCw, Zap, CreditCard, Check, Loader2, Download, Plus } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import Logo from './Logo';
@@ -43,7 +44,6 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
     }
   };
 
-  // DETECÇÃO UNIVERSAL DE PLATAFORMA PARA INSTRUÇÕES DE INSTALAÇÃO
   const handleInstallApp = () => {
     const userAgent = navigator.userAgent || navigator.vendor || window.opera;
     if (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) {
@@ -85,7 +85,6 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
             </div>
 
             <div className="space-y-3">
-              {/* BOTÃO DE INSTALAÇÃO PRETO */}
               <button onClick={handleInstallApp} className="w-full py-4 bg-black text-white text-xs font-black uppercase tracking-widest rounded-2xl hover:opacity-80 transition-all flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.3)] active:scale-95 mb-6">
                 <Download size={14} /> Instalar Aplicativo
               </button>
@@ -105,22 +104,21 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
               </button>
             </div>
 
-            {/* CHAMADA PARA O INSTAGRAM */}
+            {/* CHAMADA PARA O INSTAGRAM - Padrão Brutalista Branco */}
             <div className="mt-8 border-t-2 border-gray-100 pt-6">
               <p className="text-[11px] font-black uppercase tracking-widest text-black/50 mb-3 text-center">
-                Siga-nos no Instagram para <br>dicas, novidades e promoções!</br>
+                Acompanhe as novidades
               </p>
               <a
                 href="https://www.instagram.com/canta.pro.app"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full py-3 bg-[#E1306C] text-white rounded-xl font-black uppercase tracking-widest text-xs border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:brightness-110 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center justify-center gap-2"
+                className="w-full py-3 bg-white text-black rounded-xl font-black uppercase tracking-widest text-xs border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center justify-center text-center"
               >
-                @canta.pro.app
+                Siga-nos no Insta
               </a>
             </div>
 
-            {/* LINKS */}
             <div className="mt-8 border-t-2 border-gray-100 pt-6 space-y-4 text-sm font-black tracking-wide text-black/60">
               <button onClick={() => setIsTermsOpen(true)} className="block w-full text-left hover:text-black transition-colors">Termos de Serviço</button>
               <a href="https://www.canta.pro" target="_blank" rel="noopener noreferrer" className="block hover:text-black transition-colors">FAQ</a>
@@ -128,7 +126,6 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
             </div>
           </div>
           
-          {/* RODAPÉ: LOGOFF E ASSINATURA */}
           <div className="pt-4 pb-2 border-t-2 border-gray-100/50 mt-2">
             <button onClick={() => { logout(); onClose(); }} className="w-full py-3 mb-4 text-xs font-bold text-black/40 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all flex items-center justify-center gap-2 uppercase tracking-widest">
               <LogOut size={14} /> Sair da conta
@@ -145,7 +142,6 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
 
       <TermsOfServiceModal isOpen={isTermsOpen} onClose={() => setIsTermsOpen(false)} />
 
-      {/* MODAL DE TUTORIAL DE INSTALAÇÃO UNIVERSAL */}
       {installPlatform && (
         <div className="fixed inset-0 z-[100] bg-black/80 flex flex-col items-center justify-end sm:justify-center p-4 animate-fadeIn" onClick={() => setInstallPlatform(null)}>
           <div className="bg-white w-full max-w-sm rounded-3xl p-8 text-center border-4 border-black shadow-[8px_8px_0px_0px_rgba(255,255,255,1)]" onClick={e => e.stopPropagation()}>
@@ -155,8 +151,8 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
               <>
                 <p className="text-sm font-bold text-black/60 mb-6">Para instalar o CANTA.PRO no seu iPhone/iPad:</p>
                 <div className="space-y-4 text-left font-black uppercase tracking-tight text-xs text-black/80">
-                  <p className="flex items-center gap-3 bg-gray-100 p-4 rounded-xl"><Share size={18} className="text-blue-500 shrink-0"/> 1. Toque no ícone de Compartilhar no Safari.</p>
-                  <p className="flex items-center gap-3 bg-gray-100 p-4 rounded-xl"><Plus size={18} className="text-black shrink-0"/> 2. Escolha "Adicionar à Tela de Início".</p>
+                  <p className="flex items-center gap-3 bg-gray-100 p-4 rounded-xl"><Plus size={18} className="text-blue-500 shrink-0"/> 1. Toque no ícone de Compartilhar no Safari.</p>
+                  <p className="flex items-center gap-3 bg-gray-100 p-4 rounded-xl"><Check size={18} className="text-black shrink-0"/> 2. Escolha "Adicionar à Tela de Início".</p>
                 </div>
               </>
             )}
@@ -165,8 +161,8 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
               <>
                 <p className="text-sm font-bold text-black/60 mb-6">Para instalar o CANTA.PRO no seu Android:</p>
                 <div className="space-y-4 text-left font-black uppercase tracking-tight text-xs text-black/80">
-                  <p className="flex items-center gap-3 bg-gray-100 p-4 rounded-xl"><MoreVertical size={18} className="text-black shrink-0"/> 1. Toque no menu (3 pontinhos) do navegador.</p>
-                  <p className="flex items-center gap-3 bg-gray-100 p-4 rounded-xl"><Download size={18} className="text-black shrink-0"/> 2. Escolha "Adicionar à tela inicial" ou "Instalar".</p>
+                  <p className="flex items-center gap-3 bg-gray-100 p-4 rounded-xl"><Download size={18} className="text-black shrink-0"/> 1. Toque no menu (3 pontinhos) do navegador.</p>
+                  <p className="flex items-center gap-3 bg-gray-100 p-4 rounded-xl"><Check size={18} className="text-black shrink-0"/> 2. Escolha "Adicionar à tela inicial" ou "Instalar".</p>
                 </div>
               </>
             )}
@@ -175,7 +171,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
               <>
                 <p className="text-sm font-bold text-black/60 mb-6">Para instalar o CANTA.PRO no seu Computador:</p>
                 <div className="space-y-4 text-left font-black uppercase tracking-tight text-xs text-black/80">
-                  <p className="flex items-center gap-3 bg-gray-100 p-4 rounded-xl"><MonitorDown size={18} className="text-black shrink-0"/> 1. Procure o ícone de instalação na barra do navegador.</p>
+                  <p className="flex items-center gap-3 bg-gray-100 p-4 rounded-xl"><Download size={18} className="text-black shrink-0"/> 1. Procure o ícone de instalação na barra do navegador.</p>
                   <p className="flex items-center gap-3 bg-gray-100 p-4 rounded-xl"><Check size={18} className="text-black shrink-0"/> 2. Clique em "Instalar".</p>
                 </div>
               </>
