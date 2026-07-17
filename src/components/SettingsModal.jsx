@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, LogOut, RefreshCw, Zap, CreditCard, Check, Loader2, Download, Share, Plus, MoreVertical, MonitorDown, Instagram } from 'lucide-react';
+import { X, LogOut, RefreshCw, Zap, CreditCard, Check, Loader2, Download, Share, Plus, MoreVertical, MonitorDown } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import Logo from './Logo';
@@ -116,7 +116,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
                 rel="noopener noreferrer"
                 className="w-full py-3 bg-[#E1306C] text-white rounded-xl font-black uppercase tracking-widest text-xs border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:brightness-110 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center justify-center gap-2"
               >
-                <Instagram size={16} /> @canta.pro.app
+                @canta.pro.app
               </a>
             </div>
 
