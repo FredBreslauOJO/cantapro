@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, LogOut, RefreshCw, Zap, CreditCard, Check, Loader2, Download, Share, Plus, MoreVertical, MonitorDown } from 'lucide-react';
+import { X, LogOut, RefreshCw, Zap, CreditCard, Check, Loader2, Download, Share, Plus, MoreVertical, MonitorDown, Instagram } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import Logo from './Logo';
@@ -105,7 +105,22 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
               </button>
             </div>
 
-            {/* LINKS (Removido o uppercase geral, mantendo o padrão) */}
+            {/* CHAMADA PARA O INSTAGRAM */}
+            <div className="mt-8 border-t-2 border-gray-100 pt-6">
+              <p className="text-[11px] font-black uppercase tracking-widest text-black/50 mb-3 text-center">
+                Acompanhe as novidades
+              </p>
+              <a
+                href="https://www.instagram.com/canta.pro.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-3 bg-[#E1306C] text-white rounded-xl font-black uppercase tracking-widest text-xs border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:brightness-110 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center justify-center gap-2"
+              >
+                <Instagram size={16} /> @canta.pro.app
+              </a>
+            </div>
+
+            {/* LINKS */}
             <div className="mt-8 border-t-2 border-gray-100 pt-6 space-y-4 text-sm font-black tracking-wide text-black/60">
               <button onClick={() => setIsTermsOpen(true)} className="block w-full text-left hover:text-black transition-colors">Termos de Serviço</button>
               <a href="https://www.canta.pro" target="_blank" rel="noopener noreferrer" className="block hover:text-black transition-colors">FAQ</a>
