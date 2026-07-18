@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import Login from './pages/Login';
-import Register from './pages/Register'; // <--- NOVA PÁGINA AQUI
+import Register from './pages/Register'; 
 import UpdatePassword from './pages/UpdatePassword';
 import Setlists from './pages/Setlists';
 import SetlistEdit from './pages/SetlistEdit';
@@ -24,9 +24,7 @@ const SplashScreen = () => {
   const [showReload, setShowReload] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowReload(true);
-    }, 4000);
+    const timer = setTimeout(() => setShowReload(true), 4000);
     return () => clearTimeout(timer);
   }, []);
 
@@ -34,13 +32,8 @@ const SplashScreen = () => {
     <div className="fixed inset-0 min-h-screen bg-black flex flex-col items-center justify-center z-[100] select-none">
       <style>
         {`
-          @keyframes loadingBar {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(200%); }
-          }
-          .animate-loading-bar {
-            animation: loadingBar 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-          }
+          @keyframes loadingBar { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
+          .animate-loading-bar { animation: loadingBar 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
         `}
       </style>
       <div className="flex flex-col items-center">
@@ -64,10 +57,19 @@ const SplashScreen = () => {
   );
 };
 
+// BLINDAGEM: Impede usuários não logados de ver o app
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, isLoadingAuth } = useAuth();
   if (isLoadingAuth) return <SplashScreen />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return children;
+};
+
+// BLINDAGEM: Impede usuários já logados de ver a tela de Login/Cadastro
+const PublicRoute = ({ children }) => {
+  const { isAuthenticated, isLoadingAuth } = useAuth();
+  if (isLoadingAuth) return <SplashScreen />;
+  if (isAuthenticated) return <Navigate to="/" replace />;
   return children;
 };
 
@@ -142,15 +144,16 @@ const AuthenticatedApp = () => {
     }
   }, [isAuthenticated, profile]);
   
-  // ADICIONAMOS O /register AQUI PARA ESCONDER OS MENUS DELE TAMBÉM
+  // Limpeza robusta do path para evitar bugs de exibição da Navigation
+  const path = location.pathname.toLowerCase().replace(/\/$/, '');
   const hideNavigation = 
-    location.pathname === '/login' ||
-    location.pathname === '/register' ||
-    location.pathname === '/sucesso' ||
-    location.pathname === '/tutorial' || 
-    location.pathname.includes('/play/') || 
-    location.pathname.includes('/timecode') ||
-    location.pathname.includes('/join/');
+    path.startsWith('/login') ||
+    path.startsWith('/register') ||
+    path.startsWith('/sucesso') ||
+    path.startsWith('/tutorial') || 
+    path.includes('/play/') || 
+    path.includes('/timecode') ||
+    path.includes('/join/');
 
   if (!hasAcceptedTerms) {
     return <ForceTerms user={user} onAccepted={() => setHasAcceptedTerms(true)} />;
@@ -166,11 +169,11 @@ const AuthenticatedApp = () => {
         <Routes>
           <Route path="/tutorial" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
           
-          {/* ROTAS PÚBLICAS */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+          {/* ROTAS PÚBLICAS BLINDADAS */}
+          <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+          <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+          <Route path="/update-password" element={<PublicRoute><UpdatePassword /></PublicRoute>} />
           
-          <Route path="/update-password" element={<UpdatePassword />} />
           <Route path="/sucesso" element={<Success />} />
           
           {/* ROTAS PROTEGIDAS */}
