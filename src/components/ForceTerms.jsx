@@ -3,7 +3,9 @@ import { Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import TermsOfServiceModal from './TermsOfServiceModal';
 
-export const CURRENT_TERMS_VERSION = "2026-06-28";
+// ATUALIZAÇÃO DA VERSÃO: 18 de Julho de 2026
+// Isso obriga os usuários a aceitarem os novos termos automaticamente.
+export const CURRENT_TERMS_VERSION = "2026-07-18";
 
 export default function ForceTerms({ user, onAccepted }) {
   const [isTermsOpen, setIsTermsOpen] = useState(false);
@@ -14,7 +16,7 @@ export default function ForceTerms({ user, onAccepted }) {
     setLoading(true);
     setErrorMsg('');
     
-    // ATUALIZAÇÃO: Usando update direto invés de upsert para não barrar no RLS
+    // Atualiza via update direto para evitar bloqueios do banco
     const { error } = await supabase
       .from('profiles')
       .update({ accepted_terms_version: CURRENT_TERMS_VERSION })
@@ -34,8 +36,8 @@ export default function ForceTerms({ user, onAccepted }) {
       <div className="fixed inset-0 z-[500] bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 animate-fadeIn select-none">
         <div className="bg-white p-8 rounded-3xl max-w-sm w-full border-4 border-black shadow-[8px_8px_0px_0px_rgba(255,255,255,1)] text-center">
           <h2 className="text-3xl font-black uppercase tracking-tighter mb-4 text-black leading-none">Termos Atualizados</h2>
-          <p className="text-sm font-bold text-black/60 mb-6">
-            Nossos termos de serviço e privacidade mudaram. Para continuar sendo a estrela do palco com o CANTA.PRO, confirme sua leitura.
+          <p className="text-sm font-bold text-black/60 mb-6 leading-relaxed">
+            Nossos termos de serviço e condições de uso mudaram. Para continuar sendo a estrela do palco com o CANTA.PRO, confirme sua leitura.
           </p>
           
           {errorMsg && (
