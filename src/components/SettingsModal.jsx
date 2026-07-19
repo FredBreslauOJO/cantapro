@@ -10,7 +10,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
   const navigate = useNavigate();
   const [render, setRender] = useState(isOpen);
   const [animate, setAnimate] = useState(false);
-  const [view, setView] = useState('main'); // 'main' ou 'account'
+  const [view, setView] = useState('main'); 
   const [isTermsOpen, setIsTermsOpen] = useState(false);
   const [installPlatform, setInstallPlatform] = useState(null);
 
@@ -18,14 +18,12 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
   const [name, setName] = useState(profile?.full_name || "");
   const [savingStatus, setSavingStatus] = useState('idle'); 
 
-  // Estados para Gerenciamento de Conta
   const [newEmail, setNewEmail] = useState('');
   const [isUpdatingEmail, setIsUpdatingEmail] = useState(false);
   const [emailMessage, setEmailMessage] = useState('');
   const [isResettingPwd, setIsResettingPwd] = useState(false);
   const [pwdMessage, setPwdMessage] = useState('');
 
-  // ATUALIZAÇÃO DE UX: Removemos o 'profile' das dependências para não quebrar a animação!
   useEffect(() => {
     if (isOpen) {
       setRender(true);
@@ -139,10 +137,6 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
                 </div>
 
                 <div className="space-y-3">
-                  <button onClick={() => setView('account')} className="w-full py-4 bg-gray-100 text-black text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-gray-200 transition-all flex items-center justify-center gap-2 active:scale-95 mb-6">
-                    <Settings size={14} /> Gerenciar Conta
-                  </button>
-
                   <button onClick={handleInstallApp} className="w-full py-4 bg-black text-white text-xs font-black uppercase tracking-widest rounded-2xl hover:opacity-80 transition-all flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.3)] active:scale-95 mb-6">
                     <Download size={14} /> Instalar Aplicativo
                   </button>
@@ -256,9 +250,16 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
           
           <div className="pt-4 pb-2 border-t-2 border-gray-100/50 mt-2 shrink-0">
             {view === 'main' && (
-              <button onClick={() => { logout(); onClose(); }} className="w-full py-3 mb-4 text-xs font-bold text-black/40 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all flex items-center justify-center gap-2 uppercase tracking-widest">
-                <LogOut size={14} /> Sair da conta
-              </button>
+              <>
+                {/* BOTÃO GERENCIAR CONTA MOVIDO PARA O RODAPÉ */}
+                <button onClick={() => setView('account')} className="w-full py-3 mb-2 text-xs font-bold text-black/60 hover:text-black hover:bg-gray-100 rounded-xl transition-all flex items-center justify-center gap-2 uppercase tracking-widest">
+                  <Settings size={14} /> Gerenciar Conta
+                </button>
+                
+                <button onClick={() => { logout(); onClose(); }} className="w-full py-3 mb-4 text-xs font-bold text-black/40 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all flex items-center justify-center gap-2 uppercase tracking-widest">
+                  <LogOut size={14} /> Sair da conta
+                </button>
+              </>
             )}
             
             <div className="text-center text-[10px] font-bold text-black/30 space-y-1.5 leading-relaxed">

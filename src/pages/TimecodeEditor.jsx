@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, Play, Square } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Play, Square, MessageSquareText } from "lucide-react";
 import { supabase } from "../lib/supabase";
 
 export default function TimecodeEditor() {
@@ -44,6 +44,7 @@ export default function TimecodeEditor() {
     setBlocks(prev => [...prev, {
       block_id: `block_${Date.now()}`,
       text_content: selectedText,
+      comment: "",
       start_time: 0,
       end_time: 0,
       order_index: prev.length,
@@ -56,13 +57,14 @@ export default function TimecodeEditor() {
     setBlocks(prev => [...prev, {
       block_id: `block_${Date.now()}`,
       text_content: "",
+      comment: "",
       start_time: 0,
       end_time: 0,
       order_index: prev.length,
     }]);
   };
 
-  const checkOverlap = (updatedBlocks, changedBlockId) => {
+  const checkOverlap = (updatedBlocks) => {
     const sorted = [...updatedBlocks].sort((a, b) => a.start_time - b.start_time);
     for (let i = 0; i < sorted.length - 1; i++) {
       const a = sorted[i];
@@ -82,7 +84,7 @@ export default function TimecodeEditor() {
   const updateBlock = (blockId, field, value) => {
     setBlocks(prev => {
       const updated = prev.map(b => b.block_id === blockId ? { ...b, [field]: value } : b);
-      const err = checkOverlap(updated, blockId);
+      const err = checkOverlap(updated);
       setOverlapError(err);
       if (field === "start_time" || field === "end_time") {
         return [...updated].sort((a, b) => a.start_time - b.start_time).map((b, i) => ({ ...b, order_index: i }));
@@ -98,9 +100,11 @@ export default function TimecodeEditor() {
   const handleSave = async () => {
     if (overlapError) return;
     setSaving(true);
+    // GARANTIA: Mapeia o comentário para salvar no Supabase
     const cleanBlocks = blocks.map((b, i) => ({
       block_id: b.block_id,
       text_content: b.text_content,
+      comment: b.comment || null,
       start_time: b.start_time,
       end_time: b.end_time,
       order_index: i,
@@ -118,36 +122,29 @@ export default function TimecodeEditor() {
       cancelAnimationFrame(previewTimer.current);
       previewTimer.current = null;
     }
-    if (previewRef.current) previewRef.current.scrollTop = 0;
   };
 
   const startPreview = () => {
-    if (!previewRef.current || blocks.length === 0) return;
+    if (!previewRef.current || !song) return;
     const container = previewRef.current;
     container.scrollTop = 0;
-    const sortedBlocks = [...blocks].sort((a, b) => a.start_time - b.start_time);
-    const fullText = song?.lyrics_text || "";
+    
+    // Rolagem linear baseada na duração da música
+    const durationMs = (song.duration_seconds || 180) * 1000;
     const startWallTime = performance.now();
+    const scrollDistance = container.scrollHeight - container.clientHeight;
+
+    if (scrollDistance <= 0) return;
 
     const animate = (now) => {
-      const elapsedSec = (now - startWallTime) / 1000;
-      const lastEnd = sortedBlocks[sortedBlocks.length - 1]?.end_time || 0;
-      if (elapsedSec > lastEnd + 1) {
+      const elapsed = now - startWallTime;
+      if (elapsed > durationMs) {
         setIsPreviewPlaying(false);
         return;
       }
-      const scrollHeight = container.scrollHeight - container.clientHeight;
-      const active = sortedBlocks.find(b => elapsedSec >= b.start_time && elapsedSec <= b.end_time);
-      if (active && scrollHeight > 0 && fullText) {
-        const charStart = fullText.indexOf(active.text_content);
-        const charEnd = charStart + active.text_content.length;
-        if (charStart >= 0) {
-          const s = (charStart / fullText.length) * scrollHeight;
-          const e = (charEnd / fullText.length) * scrollHeight;
-          const progress = Math.min((elapsedSec - active.start_time) / Math.max(active.end_time - active.start_time, 0.01), 1);
-          container.scrollTop = s + (e - s) * progress;
-        }
-      }
+      
+      const progress = elapsed / durationMs;
+      container.scrollTop = scrollDistance * progress;
       previewTimer.current = requestAnimationFrame(animate);
     };
     previewTimer.current = requestAnimationFrame(animate);
@@ -193,22 +190,11 @@ export default function TimecodeEditor() {
 
       <div className="flex flex-1 min-h-0">
         <div className="flex-1 overflow-y-auto p-4 lg:p-6">
-          {selectedText && (
-            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-3">
-              <p className="text-sm font-bold text-amber-800 truncate flex-1">"{selectedText.slice(0, 80)}{selectedText.length > 80 ? "..." : ""}"</p>
-              <button
-                onClick={createBlockFromSelection}
-                className="px-3 py-1.5 bg-black text-white text-xs font-black uppercase tracking-widest rounded-lg hover:opacity-80 transition-opacity flex-shrink-0"
-              >
-                Criar Bloco
-              </button>
-            </div>
-          )}
-
-          {blocks.length === 0 && (
+          
+          {blocks.length === 0 && !selectedText && (
             <div className="text-center py-12 text-gray-400 font-bold">
               <p className="text-sm mb-1 uppercase tracking-widest">Nenhum bloco ainda.</p>
-              <p className="text-xs">Selecione o texto da letra na barra lateral ou clique em "+" para criar.</p>
+              <p className="text-xs">Selecione o texto da letra na barra lateral para criar.</p>
             </div>
           )}
 
@@ -223,12 +209,25 @@ export default function TimecodeEditor() {
                 formatTime={formatTime}
               />
             ))}
+            
+            {/* BOTÃO "NOVO BLOCO" INTELIGENTE */}
             <button
-              onClick={addEmptyBlock}
-              className="min-h-[180px] border-4 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-300 hover:border-black hover:text-black transition-colors gap-2"
+              onClick={selectedText ? createBlockFromSelection : addEmptyBlock}
+              className={`min-h-[180px] border-4 border-dashed rounded-2xl flex flex-col items-center justify-center transition-colors gap-2 p-4 text-center ${
+                selectedText 
+                  ? "border-amber-400 bg-amber-50 text-amber-900 hover:border-amber-500" 
+                  : "border-gray-200 text-gray-300 hover:border-black hover:text-black"
+              }`}
             >
               <Plus size={28} />
-              <span className="text-xs font-black uppercase tracking-widest">Novo Bloco</span>
+              <span className="text-xs font-black uppercase tracking-widest">
+                {selectedText ? "Criar Bloco da Seleção" : "Novo Bloco Vazio"}
+              </span>
+              {selectedText && (
+                <span className="text-[10px] font-bold opacity-60 line-clamp-3 w-full px-2 italic">
+                  "{selectedText}"
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -243,7 +242,7 @@ export default function TimecodeEditor() {
               onClick={isPreviewPlaying ? stopPreview : startPreview}
               className="w-9 h-9 bg-black rounded-full flex items-center justify-center text-white hover:opacity-80 transition-opacity"
             >
-              {isPreviewPlaying ? <Square size={13} fill="white" /> : <Play size={13} fill="white" />}
+              {isPreviewPlaying ? <Square size={13} fill="white" /> : <Play size={13} fill="white" className="ml-0.5" />}
             </button>
           </div>
           <div
@@ -316,13 +315,24 @@ function BlockCard({ block, index, onUpdate, onDelete, formatTime }) {
           </button>
         </div>
       </div>
+      
       <textarea
         value={block.text_content}
         onChange={e => onUpdate(block.block_id, "text_content", e.target.value)}
-        placeholder="Texto deste bloco..."
-        rows={5}
+        placeholder="Letra da música..."
+        rows={4}
         className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl p-3 text-sm font-bold leading-6 resize-none outline-none focus:border-black placeholder-gray-400 font-sans"
       />
+
+      <div className="relative">
+        <MessageSquareText size={14} className="absolute left-3 top-3 text-yellow-600/50" />
+        <input
+          value={block.comment || ""}
+          onChange={e => onUpdate(block.block_id, "comment", e.target.value)}
+          placeholder="Nota de palco (Ex: LIGAR DRIVE)"
+          className="w-full pl-9 pr-3 py-2.5 bg-yellow-50 border-2 border-yellow-300 rounded-lg text-xs font-mono font-bold text-yellow-800 placeholder-yellow-600/50 outline-none focus:border-yellow-500 uppercase tracking-widest"
+        />
+      </div>
     </div>
   );
 }
