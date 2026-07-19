@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Play, Pause, ChevronLeft, ChevronRight, X, Settings, ListMusic, Type, Timer, FastForward } from 'lucide-react';
+import { Play, Pause, ChevronLeft, ChevronRight, X, Settings, ListMusic, Type, Timer, FastForward, MessageSquareText } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export default function PlaySong() {
@@ -15,8 +15,6 @@ export default function PlaySong() {
   const [isSetlistOpen, setIsSetlistOpen] = useState(false);
   
   const [activeBlockIndex, setActiveIndex] = useState(-1);
-  
-  // NOVOS ESTADOS: UX DO PALCO
   const [countdown, setCountdown] = useState(null);
   
   const [fontSize, setFontSize] = useState(() => {
@@ -25,7 +23,12 @@ export default function PlaySong() {
   });
 
   const [autoSkip, setAutoSkip] = useState(() => {
-    return localStorage.getItem('cantapro_autoSkip') !== 'false'; // Padrão: Ligado
+    return localStorage.getItem('cantapro_autoSkip') !== 'false'; 
+  });
+
+  // ESTADO DOS COMENTÁRIOS DE PALCO
+  const [showComments, setShowComments] = useState(() => {
+    return localStorage.getItem('cantapro_showComments') !== 'false'; // Padrão: Ligado
   });
 
   const [playbackSpeed, setPlaybackSpeed] = useState(() => {
@@ -33,7 +36,6 @@ export default function PlaySong() {
     return saved ? parseFloat(saved) : 1.0;
   });
   
-  // Refs de controle para o loop de animação
   const speedRef = useRef(playbackSpeed);
   useEffect(() => { speedRef.current = playbackSpeed; }, [playbackSpeed]);
 
@@ -41,10 +43,8 @@ export default function PlaySong() {
   const contentRef = useRef(null);
   const wakeLockRef = useRef(null);
 
-  // O motor de tempo refatorado (usa lastFrameTime em vez de startTime)
   const playbackRef = useRef({ playing: false, lastFrameTime: 0, elapsed: 0, animationId: null });
 
-  // Refs de estado para eventos de teclado (Bluetooth)
   const isPlayingRef = useRef(isPlaying);
   useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
 
@@ -54,7 +54,6 @@ export default function PlaySong() {
   const songsLengthRef = useRef(songs.length);
   useEffect(() => { songsLengthRef.current = songs.length; }, [songs.length]);
 
-  // CONTADOR REGRESSIVO (Estilo Netflix)
   useEffect(() => {
     if (countdown === null) return;
     if (countdown === 0) {
@@ -68,7 +67,6 @@ export default function PlaySong() {
     return () => clearTimeout(timer);
   }, [countdown, id, navigate]);
 
-  // CONTROLE DE PEDAL BLUETOOTH
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -117,7 +115,6 @@ export default function PlaySong() {
     };
   }, []);
 
-  // RESET AO MUDAR DE MÚSICA
   useEffect(() => {
     stopAutoScroll();
     playbackRef.current = { playing: false, lastFrameTime: 0, elapsed: 0, animationId: null };
@@ -125,7 +122,7 @@ export default function PlaySong() {
     setIsPlaying(false);
     setIsMenuOpen(false);
     setIsSetlistOpen(false);
-    setCountdown(null); // Cancela contador se o usuário pular a música manualmente
+    setCountdown(null); 
     window.scrollTo(0, 0);
   }, [currentIndex]);
 
@@ -215,7 +212,8 @@ export default function PlaySong() {
       if (!obj) return;
       Object.entries(obj).forEach(([k, v]) => {
         if (typeof v === 'string') {
-          if (v.trim() !== '' && !v.toUpperCase().startsWith('BLOCK_') && !k.toLowerCase().includes('id') && k !== 'type') {
+          // Ignoramos a chave 'comment' aqui para que ela não seja lida como letra principal
+          if (v.trim() !== '' && !v.toUpperCase().startsWith('BLOCK_') && !k.toLowerCase().includes('id') && k !== 'type' && k !== 'comment') {
             if (v.length > bestString.length) bestString = v;
           }
         } else if (typeof v === 'object') searchDeep(v);
@@ -234,7 +232,7 @@ export default function PlaySong() {
     const startMs = (tc.start_time ?? tc.startTime ?? tc.start ?? tc.time ?? tc.timecode ?? 0) * 1000;
 
     playbackRef.current.elapsed = startMs;
-    playbackRef.current.lastFrameTime = Date.now(); // Reseta o timer de delta
+    playbackRef.current.lastFrameTime = Date.now(); 
     setActiveIndex(idx);
 
     const blockElement = document.getElementById(`block-${idx}`);
@@ -251,7 +249,7 @@ export default function PlaySong() {
     setIsPlaying(false);
     
     if (autoSkip && currentIndexRef.current + 1 < songsLengthRef.current) {
-      setCountdown(5); // Inicia o overlay da Netflix
+      setCountdown(5); 
     }
   };
 
@@ -272,7 +270,6 @@ export default function PlaySong() {
       const delta = now - playbackRef.current.lastFrameTime;
       playbackRef.current.lastFrameTime = now;
       
-      // O Segredo: O delta de tempo é multiplicado pela velocidade escolhida!
       playbackRef.current.elapsed += (delta * speedRef.current);
       const elapsed = playbackRef.current.elapsed;
 
@@ -458,7 +455,6 @@ export default function PlaySong() {
               <button onClick={() => setIsMenuOpen(false)} className="text-white/50 hover:text-white p-2 bg-white/5 rounded-full"><X size={20}/></button>
             </div>
             
-            {/* TAMANHO DA LETRA */}
             <div className="mb-10">
               <p className="text-xs font-bold uppercase tracking-widest text-white/50 mb-4 flex items-center gap-2"><Type size={16}/> Tamanho da Letra</p>
               <div className="flex items-center gap-3 bg-black/30 p-2 rounded-2xl">
@@ -468,7 +464,6 @@ export default function PlaySong() {
               </div>
             </div>
 
-            {/* AUTO SKIP (TOGGLE) */}
             <div className="mb-10">
               <p className="text-xs font-bold uppercase tracking-widest text-white/50 mb-4 flex items-center gap-2">Pular Automático</p>
               <div className="flex bg-black/30 rounded-2xl p-2">
@@ -487,7 +482,6 @@ export default function PlaySong() {
               </div>
             </div>
 
-            {/* VELOCIDADE DE REPRODUÇÃO (SLIDER) */}
             <div className="mb-10">
               <p className="text-xs font-bold uppercase tracking-widest text-white/50 mb-4 flex items-center gap-2"><FastForward size={16}/> Velocidade de Rolagem</p>
               <div className="bg-black/30 p-6 rounded-2xl">
@@ -513,6 +507,25 @@ export default function PlaySong() {
               </div>
             </div>
 
+            {/* BOTÃO COMENTÁRIOS DE PALCO */}
+            <div className="mb-10">
+              <p className="text-xs font-bold uppercase tracking-widest text-white/50 mb-4 flex items-center gap-2"><MessageSquareText size={16}/> Comentários de Palco</p>
+              <div className="flex bg-black/30 rounded-2xl p-2">
+                <button 
+                  onClick={() => { setShowComments(false); localStorage.setItem('cantapro_showComments', 'false'); }}
+                  className={`flex-1 py-4 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${!showComments ? 'bg-white text-black shadow-lg' : 'text-white/40 hover:bg-white/5'}`}
+                >
+                  Ocultos
+                </button>
+                <button 
+                  onClick={() => { setShowComments(true); localStorage.setItem('cantapro_showComments', 'true'); }}
+                  className={`flex-1 py-4 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${showComments ? 'bg-white text-black shadow-lg' : 'text-white/40 hover:bg-white/5'}`}
+                >
+                  Visíveis
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
       )}
@@ -524,6 +537,8 @@ export default function PlaySong() {
             {timecodes.map((tc, idx) => {
               const isActive = activeBlockIndex === idx;
               const textContent = extractBlockText(tc);
+              // Puxa o comentário salvo do banco
+              const commentContent = tc.comment || tc.stage_note || tc.note || null;
               
               let blockStyle = 'text-white opacity-100 scale-100'; 
               if (isStarted) {
@@ -547,6 +562,16 @@ export default function PlaySong() {
                   >
                     {textContent}
                   </pre>
+                  
+                  {/* RENDERIZA O COMENTÁRIO (AMARELO MONOESPAÇADO) */}
+                  {showComments && commentContent && (
+                    <pre 
+                      className={`mt-2 sm:mt-3 font-mono font-bold tracking-widest whitespace-pre-wrap break-words uppercase transition-colors duration-300 pointer-events-none border-l-4 border-yellow-400 pl-3 ${isActive ? 'text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.4)]' : 'text-yellow-400/40 border-yellow-400/40'}`}
+                      style={{ fontSize: `${Math.max(12, fontSize * 0.55)}px`, wordBreak: 'break-word', overflowWrap: 'anywhere' }}
+                    >
+                      {commentContent}
+                    </pre>
+                  )}
                 </div>
               );
             })}
