@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Loader2, CloudOff } from 'lucide-react';
+import { Loader2, CloudOff, RefreshCw } from 'lucide-react';
 
 export default function LoadingScreen({ message = "Carregando..." }) {
   const [showEmergency, setShowEmergency] = useState(false);
@@ -21,32 +21,45 @@ export default function LoadingScreen({ message = "Carregando..." }) {
     window.location.reload();
   };
 
+  const handleReload = () => {
+    window.location.reload();
+  };
+
   return (
-    <div className="min-h-[80vh] flex flex-col items-center justify-center p-4 font-sans text-black select-none">
-      <div className="flex flex-col items-center">
+    <div className="fixed inset-0 z-[999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn select-none">
+      <div className="bg-neutral-900 border-2 border-white/10 p-8 rounded-[2rem] w-[90%] max-w-sm flex flex-col items-center justify-center shadow-[0_10px_40px_rgba(0,0,0,0.8)] transition-all">
         
-        <Loader2 size={40} className="animate-spin text-black mb-6" strokeWidth={1.5} />
+        <Loader2 size={40} className="animate-spin text-white mb-4" strokeWidth={1.5} />
         
-        <h2 className="text-xs font-black uppercase tracking-widest text-black/50 text-center">
+        <h2 className="text-xs font-black uppercase tracking-widest text-white/50 text-center">
           {message}
         </h2>
 
-        {/* ÁREA DE EMERGÊNCIA */}
+        {/* ÁREA DE EMERGÊNCIA (Revelada após 4s) */}
         <div
-          className={`transition-all duration-700 ease-out flex flex-col items-center mt-12 overflow-hidden ${
-            showEmergency ? 'opacity-100 translate-y-0 h-auto' : 'opacity-0 translate-y-4 h-0 pointer-events-none'
+          className={`w-full transition-all duration-700 ease-out flex flex-col items-center overflow-hidden ${
+            showEmergency ? 'opacity-100 mt-8 h-auto' : 'opacity-0 h-0 pointer-events-none'
           }`}
         >
-          <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest text-center mb-4 border border-amber-200 bg-amber-50 px-3 py-1.5 rounded-lg">
-            Demorando muito?
+          <div className="flex flex-col gap-3 w-full">
+            <button
+              onClick={handleReload}
+              className="w-full py-4 bg-white text-black rounded-xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2"
+            >
+              <RefreshCw size={16} /> Recarregar
+            </button>
+
+            <button
+              onClick={handleEmergencyClick}
+              className="w-full py-4 bg-neutral-800 text-white rounded-xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2"
+            >
+              <CloudOff size={16} /> Forçar Modo Offline
+            </button>
+          </div>
+
+          <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest text-center mt-5">
+            Demorando muito para carregar?
           </p>
-          
-          <button
-            onClick={handleEmergencyClick}
-            className="px-6 py-4 bg-black text-white rounded-xl font-black uppercase tracking-widest text-xs flex items-center gap-2 active:scale-95 transition-all shadow-[4px_4px_0px_0px_rgba(250,204,21,1)] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px]"
-          >
-            <CloudOff size={16} /> Forçar Modo Offline
-          </button>
         </div>
 
       </div>
