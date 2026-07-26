@@ -22,7 +22,7 @@ export default function Songs() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const navigate = useNavigate();
-  const { user, plan, isOnline } = useAuth(); // EXTRAÍMOS isOnline AQUI
+  const { user, plan, isOnline } = useAuth(); 
 
   useEffect(() => {
     if (user) {
@@ -253,20 +253,20 @@ export default function Songs() {
           </div>
 
           <div className="flex items-center justify-between mb-4">
-            <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-full max-w-[240px]">
+            <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-full max-w-[200px] sm:max-w-[240px]">
               <button
                 onClick={() => setSortBy("title")}
                 disabled={isEditingMode}
                 className={`flex-1 min-h-[44px] rounded-lg text-[10px] font-bold tracking-wide transition-all uppercase ${sortBy === "title" ? "bg-white shadow-sm text-foreground" : "text-gray-400"} disabled:opacity-50`}
               >
-                Por Título
+                Título
               </button>
               <button
                 onClick={() => setSortBy("artist")}
                 disabled={isEditingMode}
                 className={`flex-1 min-h-[44px] rounded-lg text-[10px] font-bold tracking-wide transition-all uppercase ${sortBy === "artist" ? "bg-white shadow-sm text-foreground" : "text-gray-400"} disabled:opacity-50`}
               >
-                Por Artista
+                Artista
               </button>
             </div>
             
@@ -277,11 +277,13 @@ export default function Songs() {
                 <button 
                   onClick={() => setIsEditingMode(true)}
                   disabled={!isOnline}
-                  className={`px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors flex items-center gap-1.5
+                  className={`p-2 sm:px-3 sm:py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors flex items-center justify-center gap-1.5
                     ${!isOnline ? "text-gray-300 cursor-not-allowed" : "text-black/40 hover:text-black hover:bg-gray-100"}
                   `}
+                  title="Selecionar Músicas"
                 >
-                  <CheckSquare size={14} /> Selecionar
+                  <CheckSquare size={20} className="sm:w-4 sm:h-4" /> 
+                  <span className="hidden sm:inline">Selecionar</span>
                 </button>
               </div>
             )}

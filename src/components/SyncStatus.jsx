@@ -23,7 +23,6 @@ export default function SyncStatus({ isRefreshing }) {
     };
   }, []);
 
-  // FUNÇÃO MÁGICA: Baixa todas as músicas do usuário para o cache de uma vez
   const handlePreShowSync = async (e) => {
     e.stopPropagation();
     if (!isOnline || !user) return;
@@ -32,14 +31,12 @@ export default function SyncStatus({ isRefreshing }) {
     setShowStatusText(true);
 
     try {
-      // Busca todas as músicas do usuário na nuvem
       const { data: allSongs, error } = await supabase
         .from('songs')
         .select('*')
         .eq('created_by', user.email);
 
       if (!error && allSongs) {
-        // Salva tudo no disco físico do celular de uma tacada só
         localStorage.setItem('canta_songs_offline', JSON.stringify(allSongs));
         
         setDownloadSuccess(true);
@@ -65,28 +62,28 @@ export default function SyncStatus({ isRefreshing }) {
       <button 
         onClick={isOnline ? handlePreShowSync : triggerStatusText}
         disabled={isDownloading}
-        className={`px-3 py-2 rounded-xl border-2 border-black flex items-center justify-center gap-2 transition-all active:scale-95 bg-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] disabled:opacity-80`}
+        className={`p-2.5 sm:px-3 sm:py-2 rounded-xl border-2 border-black flex items-center justify-center gap-2 transition-all active:scale-95 bg-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] disabled:opacity-80`}
         title="Sincronizar para o Show"
       >
         {isDownloading ? (
           <>
-            <RefreshCw size={14} className="animate-spin text-black" />
-            <span className="text-[10px] font-black uppercase tracking-widest">Baixando...</span>
+            <RefreshCw size={18} className="animate-spin text-black sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline text-[10px] font-black uppercase tracking-widest">Baixando...</span>
           </>
         ) : downloadSuccess ? (
           <>
-            <CheckCircle2 size={14} className="text-emerald-600" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Pronto!</span>
+            <CheckCircle2 size={18} className="text-emerald-600 sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline text-[10px] font-black uppercase tracking-widest text-emerald-700">Pronto!</span>
           </>
         ) : !isOnline ? (
           <>
-            <CloudOff size={14} className="text-amber-500" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-amber-700">Modo Offline</span>
+            <CloudOff size={18} className="text-amber-500 sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline text-[10px] font-black uppercase tracking-widest text-amber-700">Modo Offline</span>
           </>
         ) : (
           <>
-            <DownloadCloud size={14} className="text-blue-600" />
-            <span className="text-[10px] font-black uppercase tracking-widest">Pré-Show</span>
+            <DownloadCloud size={18} className="text-blue-600 sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline text-[10px] font-black uppercase tracking-widest">Pré-Show</span>
           </>
         )}
       </button>
