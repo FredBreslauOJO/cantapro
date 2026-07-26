@@ -9,10 +9,21 @@ import LoadingScreen from "../components/LoadingScreen";
 export default function SongEdit() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, plan, isOnline } = useAuth(); // EXTRAÍMOS isOnline AQUI
+  const { user, plan, isOnline } = useAuth();
   const isNew = id === "new";
-  
-  // Se estiver offline, força 'editing' para false pra não quebrar nada
+
+  // CARREGAMENTO DO RASCUNHO (Síncrono para garantir que os dados apareçam na hora)
+  const getInitialDraft = () => {
+    if (isNew) {
+      const draft = localStorage.getItem('canta_song_draft');
+      if (draft) {
+        try { return JSON.parse(draft); } catch(e){}
+      }
+    }
+    return null;
+  };
+  const draft = getInitialDraft();
+
   const [editing, setEditing] = useState(isNew && isOnline);
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
@@ -24,11 +35,20 @@ export default function SongEdit() {
     setTimeout(() => setToast({ show: false, message: "" }), 3000);
   };
 
-  const [title, setTitle] = useState("");
-  const [artist, setArtist] = useState("");
-  const [durationMin, setDurationMin] = useState("0");
-  const [durationSec, setDurationSec] = useState("0");
-  const [lyrics, setLyrics] = useState("");
+  // ESTADOS INICIAIS (Puxam o rascunho se for uma música nova)
+  const [title, setTitle] = useState(draft?.title || "");
+  const [artist, setArtist] = useState(draft?.artist || "");
+  const [durationMin, setDurationMin] = useState(draft?.durationMin || "0");
+  const [durationSec, setDurationSec] = useState(draft?.durationSec || "0");
+  const [lyrics, setLyrics] = useState(draft?.lyrics || "");
+
+  // SALVAMENTO AUTOMÁTICO DO RASCUNHO
+  useEffect(() => {
+    if (isNew) {
+      const currentDraft = { title, artist, durationMin, durationSec, lyrics };
+      localStorage.setItem('canta_song_draft', JSON.stringify(currentDraft));
+    }
+  }, [title, artist, durationMin, durationSec, lyrics, isNew]);
 
   useEffect(() => {
     if (!isNew && user) {
@@ -94,6 +114,7 @@ export default function SongEdit() {
     try {
       if (isNew) {
         await supabase.from('songs').insert([songData]);
+        localStorage.removeItem('canta_song_draft'); // Limpa rascunho com sucesso
         navigate("/songs");
       } else {
         await supabase.from('songs').update(songData).eq('id', id);
@@ -138,6 +159,14 @@ export default function SongEdit() {
     navigate(`/songs/${id}/timecode`);
   };
 
+  // DESCARTAR RASCUNHO SE O USUÁRIO DESISTIR E CLICAR EM VOLTAR
+  const handleBack = () => {
+    if (isNew) {
+      localStorage.removeItem('canta_song_draft');
+    }
+    navigate("/songs");
+  };
+
   if (loading) {
     return <LoadingScreen message="Abrindo letra da música..." />;
   }
@@ -152,13 +181,12 @@ export default function SongEdit() {
       )}
 
       <div className="flex items-center justify-between mb-4">
-        <button onClick={() => navigate("/songs")} className="w-12 h-12 flex items-center justify-center -ml-3 text-foreground hover:opacity-60 active:opacity-40 transition-opacity">
+        <button onClick={handleBack} className="w-12 h-12 flex items-center justify-center -ml-3 text-foreground hover:opacity-60 active:opacity-40 transition-opacity">
           <ArrowLeft size={22} className="pointer-events-none" />
         </button>
         <div className="flex items-center gap-3">
           {!isNew && (
             <>
-              {/* Desativa o Lápis se estiver offline */}
               <button 
                 onClick={editing ? handleSave : () => setEditing(true)} 
                 disabled={saving || (editing && !title) || !isOnline}
@@ -176,7 +204,6 @@ export default function SongEdit() {
                 )}
               </button>
               
-              {/* Desativa Timecode se estiver offline */}
               <button 
                 onClick={goToTimecode} 
                 disabled={!isOnline}
@@ -191,7 +218,6 @@ export default function SongEdit() {
                 <Download size={20} className="pointer-events-none" />
               </button>
               
-              {/* Desativa Exclusão se estiver offline */}
               <button 
                 onClick={handleDelete} 
                 disabled={!isOnline}
