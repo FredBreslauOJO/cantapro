@@ -107,137 +107,137 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
   return (
     <>
       <div className={`fixed inset-0 z-[90] flex justify-end transition-colors duration-300 ${animate ? 'bg-black/70 backdrop-blur-xs' : 'bg-black/0'}`} onClick={onClose}>
-        <div className={`w-full max-w-md bg-white border-l-4 border-black h-full flex flex-col justify-between p-6 select-none transition-transform duration-300 transform ${animate ? 'translate-x-0' : 'translate-x-full'}`} onClick={e => e.stopPropagation()}>
+        <div className={`w-full max-w-md bg-white border-l-4 border-black h-full flex flex-col justify-between p-4 sm:p-6 select-none transition-transform duration-300 transform ${animate ? 'translate-x-0' : 'translate-x-full'}`} onClick={e => e.stopPropagation()}>
           
-          <div className="flex-1 overflow-y-auto no-scrollbar pb-6">
+          <div className="flex-1 overflow-y-auto no-scrollbar pb-2">
             
             {view === 'main' ? (
-              <div className="animate-fadeIn">
-                <div className="flex items-center justify-between mb-8">
+              <div className="animate-fadeIn flex flex-col h-full">
+                <div className="flex items-center justify-between mb-5 mt-2">
                   <Logo className="h-5 text-black" />
                   <button onClick={onClose} className="p-1 text-black/40 hover:text-black transition-colors active:scale-95"><X size={20} /></button>
                 </div>
 
-                <div className="flex items-center gap-4 mb-8">
-                  <div className="w-14 h-14 bg-black border-2 border-black text-white font-black text-xl rounded-2xl flex items-center justify-center shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] uppercase">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="w-12 h-12 bg-black border-2 border-black text-white font-black text-xl rounded-xl flex items-center justify-center shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] uppercase shrink-0">
                     {name ? name.charAt(0) : user?.email?.charAt(0)}
                   </div>
                   <div className="min-w-0 flex-1 relative">
                     <input 
                       type="text" value={name} onChange={e => setName(e.target.value)} onBlur={handleSaveName}
-                      placeholder="SEU NOME / BANDA" className="font-black text-base uppercase bg-transparent outline-none border-b-2 border-transparent focus:border-black w-full placeholder-black/20 pr-6"
+                      placeholder="SEU NOME / BANDA" className="font-black text-sm sm:text-base uppercase bg-transparent outline-none border-b-2 border-transparent focus:border-black w-full placeholder-black/20 pr-6"
                     />
                     <div className="absolute right-0 top-1/2 -translate-y-1/2">
                       {savingStatus === 'saving' && <Loader2 size={14} className="animate-spin text-black/20" />}
                       {savingStatus === 'saved' && <Check size={14} className="text-green-500" />}
                     </div>
-                    <p className="text-xs font-bold text-black/40 truncate mt-0.5">{user?.email}</p>
+                    <p className="text-[10px] sm:text-xs font-bold text-black/40 truncate mt-0.5">{user?.email}</p>
                   </div>
-                  <span className="px-2 py-1 bg-black/5 border border-black/10 text-[9px] font-black uppercase tracking-widest rounded-md text-black/60">{plan}</span>
+                  <span className="px-2 py-1 bg-black/5 border border-black/10 text-[9px] font-black uppercase tracking-widest rounded-md text-black/60 shrink-0">{plan}</span>
                 </div>
 
-                <div className="space-y-3">
-                  <button onClick={handleInstallApp} className="w-full py-4 bg-black text-white text-xs font-black uppercase tracking-widest rounded-2xl hover:opacity-80 transition-all flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.3)] active:scale-95 mb-6">
+                <div className="space-y-2.5">
+                  <button onClick={handleInstallApp} className="w-full py-3 bg-black text-white text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-xl hover:opacity-80 transition-all flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,0.3)] active:scale-95">
                     <Download size={14} /> Instalar Aplicativo
                   </button>
 
                   {plan === 'free' && (
-                    <button onClick={() => { onClose(); onOpenPaywall(); }} className="w-full py-4 bg-black text-white text-xs font-black uppercase tracking-widest rounded-2xl hover:opacity-80 transition-all flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] active:scale-95">
+                    <button onClick={() => { onClose(); onOpenPaywall(); }} className="w-full py-3 bg-black text-white text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-xl hover:opacity-80 transition-all flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,0.2)] active:scale-95">
                       <Zap size={14} fill="white" /> Fazer Upgrade
                     </button>
                   )}
                   {plan !== 'free' && (
-                    <a href="https://billing.stripe.com/p/login/bJe28r4VTboafjVeP567S00?locale=pt-BR" target="_blank" rel="noopener noreferrer" className="w-full py-4 bg-yellow-400 border-2 border-black text-black text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-yellow-300 transition-all flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:scale-95">
+                    <a href="https://billing.stripe.com/p/login/bJe28r4VTboafjVeP567S00?locale=pt-BR" target="_blank" rel="noopener noreferrer" className="w-full py-3 bg-yellow-400 border-2 border-black text-black text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-xl hover:bg-yellow-300 transition-all flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:scale-95">
                       <CreditCard size={14} /> Gerenciar Assinatura
                     </a>
                   )}
-                  <button onClick={() => { onClose(); navigate('/tutorial'); }} className="w-full py-4 border-2 border-black text-black text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-gray-50 transition-all flex items-center justify-center gap-2 active:scale-95">
+                  <button onClick={() => { onClose(); navigate('/tutorial'); }} className="w-full py-3 border-2 border-black text-black text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-xl hover:bg-gray-50 transition-all flex items-center justify-center gap-2 active:scale-95">
                     <RefreshCw size={14} /> Refazer Tutorial
                   </button>
                 </div>
 
-                <div className="mt-8 border-t-2 border-gray-100 pt-6">
-                  <p className="text-[11px] font-black uppercase tracking-widest text-black/50 mb-3 text-center">
+                <div className="mt-5 border-t-2 border-gray-100 pt-4">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-black/50 mb-2 text-center">
                     Acompanhe as novidades
                   </p>
                   <a
                     href="https://www.instagram.com/canta.pro.app"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-full py-3 bg-white text-black rounded-xl font-black uppercase tracking-widest text-xs border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center justify-center text-center"
+                    className="w-full py-2.5 bg-white text-black rounded-xl font-black uppercase tracking-widest text-[10px] sm:text-xs border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center justify-center text-center"
                   >
                     Siga-nos no Insta
                   </a>
                 </div>
 
-                <div className="mt-8 border-t-2 border-gray-100 pt-6 space-y-4 text-sm font-black tracking-wide text-black/60">
-                  <button onClick={() => setIsTermsOpen(true)} className="block w-full text-left hover:text-black transition-colors">Termos de Serviço</button>
-                  <a href="https://www.canta.pro" target="_blank" rel="noopener noreferrer" className="block hover:text-black transition-colors">FAQ</a>
-                  <a href="https://www.canta.pro" target="_blank" rel="noopener noreferrer" className="block hover:text-black transition-colors">Atendimento</a>
+                {/* LINKS HORIZONTAIS */}
+                <div className="mt-5 border-t-2 border-gray-100 pt-4 flex items-center justify-between px-2 text-[10px] sm:text-xs font-black tracking-wide text-black/60">
+                  <button onClick={() => setIsTermsOpen(true)} className="hover:text-black transition-colors">Termos de Serviço</button>
+                  <a href="https://www.canta.pro" target="_blank" rel="noopener noreferrer" className="hover:text-black transition-colors">FAQ</a>
+                  <a href="https://www.canta.pro" target="_blank" rel="noopener noreferrer" className="hover:text-black transition-colors">Atendimento</a>
                 </div>
               </div>
             ) : (
               <div className="animate-fadeIn">
-                <div className="flex items-center mb-8">
+                <div className="flex items-center mb-6 mt-2">
                   <button onClick={() => setView('main')} className="p-1.5 -ml-1.5 hover:bg-gray-100 rounded-full transition-colors active:scale-95">
                     <ArrowLeft size={20} strokeWidth={2.5} />
                   </button>
                   <div className="flex-1 text-center pr-6">
-                    <h2 className="text-lg font-black uppercase tracking-tight">Sua Conta</h2>
+                    <h2 className="text-base sm:text-lg font-black uppercase tracking-tight">Sua Conta</h2>
                   </div>
                 </div>
 
-                <div className="space-y-8">
-                  
-                  <div className="bg-gray-50 border-2 border-black rounded-2xl p-5">
-                    <div className="flex items-center gap-2 mb-4">
+                <div className="space-y-5">
+                  <div className="bg-gray-50 border-2 border-black rounded-2xl p-4">
+                    <div className="flex items-center gap-2 mb-3">
                       <Mail size={16} className="text-black" />
-                      <h3 className="text-xs font-black uppercase tracking-widest">Alterar E-mail</h3>
+                      <h3 className="text-[10px] sm:text-xs font-black uppercase tracking-widest">Alterar E-mail</h3>
                     </div>
-                    <form onSubmit={handleChangeEmail} className="space-y-3">
+                    <form onSubmit={handleChangeEmail} className="space-y-2.5">
                       <input
                         type="email" required placeholder="Novo e-mail"
                         value={newEmail} onChange={(e) => setNewEmail(e.target.value)}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-xs font-bold outline-none focus:border-black transition-colors"
+                        className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl text-xs font-bold outline-none focus:border-black transition-colors"
                       />
                       <button
                         type="submit" disabled={isUpdatingEmail || !newEmail}
-                        className="w-full py-3 bg-black text-white rounded-xl font-black uppercase tracking-widest text-[10px] active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 transition-transform"
+                        className="w-full py-2.5 bg-black text-white rounded-xl font-black uppercase tracking-widest text-[10px] active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 transition-transform"
                       >
                         {isUpdatingEmail ? <Loader2 size={14} className="animate-spin" /> : "Atualizar E-mail"}
                       </button>
                     </form>
-                    {emailMessage && <p className="mt-3 text-[10px] font-bold text-black/60 leading-tight">{emailMessage}</p>}
+                    {emailMessage && <p className="mt-2 text-[10px] font-bold text-black/60 leading-tight">{emailMessage}</p>}
                   </div>
 
-                  <div className="bg-gray-50 border-2 border-black rounded-2xl p-5">
-                    <div className="flex items-center gap-2 mb-4">
+                  <div className="bg-gray-50 border-2 border-black rounded-2xl p-4">
+                    <div className="flex items-center gap-2 mb-3">
                       <Lock size={16} className="text-black" />
-                      <h3 className="text-xs font-black uppercase tracking-widest">Segurança</h3>
+                      <h3 className="text-[10px] sm:text-xs font-black uppercase tracking-widest">Segurança</h3>
                     </div>
-                    <p className="text-[11px] font-bold text-gray-500 mb-4 leading-relaxed">
-                      Enviaremos um link seguro para o seu e-mail atual onde você poderá definir uma nova senha.
+                    <p className="text-[10px] sm:text-[11px] font-bold text-gray-500 mb-3 leading-relaxed">
+                      Enviaremos um link para o seu e-mail atual onde você poderá definir uma nova senha.
                     </p>
                     <button
                       onClick={handleResetPassword} disabled={isResettingPwd}
-                      className="w-full py-3 bg-white text-black border-2 border-black rounded-xl font-black uppercase tracking-widest text-[10px] active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-transform"
+                      className="w-full py-2.5 bg-white text-black border-2 border-black rounded-xl font-black uppercase tracking-widest text-[10px] active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-transform"
                     >
                       {isResettingPwd ? <Loader2 size={14} className="animate-spin" /> : "Solicitar Nova Senha"}
                     </button>
-                    {pwdMessage && <p className="mt-3 text-[10px] font-bold text-black/60 leading-tight">{pwdMessage}</p>}
+                    {pwdMessage && <p className="mt-2 text-[10px] font-bold text-black/60 leading-tight">{pwdMessage}</p>}
                   </div>
 
-                  <div className="border-t-2 border-red-100 pt-6 mt-6">
+                  <div className="border-t-2 border-red-100 pt-4 mt-4">
                     <div className="flex items-center gap-2 mb-2">
                       <AlertTriangle size={16} className="text-red-500" />
-                      <h3 className="text-xs font-black uppercase tracking-widest text-red-500">Zona de Perigo</h3>
+                      <h3 className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-red-500">Zona de Perigo</h3>
                     </div>
-                    <p className="text-[10px] font-bold text-gray-500 mb-4 leading-relaxed">
+                    <p className="text-[10px] font-bold text-gray-500 mb-3 leading-relaxed">
                       A exclusão da conta é irreversível e apagará todos os seus repertórios.
                     </p>
                     <a
                       href={`mailto:app@canta.pro?subject=Solicitação de Exclusão de Conta&body=Olá. Por favor, solicito a exclusão permanente da minha conta associada ao e-mail: ${user?.email}`}
-                      className="w-full py-3 bg-red-50 text-red-600 border-2 border-red-200 hover:border-red-500 rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center transition-colors"
+                      className="w-full py-2.5 bg-red-50 text-red-600 border-2 border-red-200 hover:border-red-500 rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center transition-colors"
                     >
                       Solicitar Exclusão
                     </a>
@@ -248,23 +248,22 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
             )}
           </div>
           
-          <div className="pt-4 pb-2 border-t-2 border-gray-100/50 mt-2 shrink-0">
+          <div className="pt-3 pb-1 border-t-2 border-gray-100/50 mt-2 shrink-0">
             {view === 'main' && (
-              <>
-                {/* BOTÃO GERENCIAR CONTA MOVIDO PARA O RODAPÉ */}
-                <button onClick={() => setView('account')} className="w-full py-3 mb-2 text-xs font-bold text-black/60 hover:text-black hover:bg-gray-100 rounded-xl transition-all flex items-center justify-center gap-2 uppercase tracking-widest">
-                  <Settings size={14} /> Gerenciar Conta
+              <div className="flex gap-2 mb-3">
+                <button onClick={() => setView('account')} className="flex-1 py-2 text-[10px] font-bold text-black/60 hover:text-black hover:bg-gray-100 rounded-lg transition-all flex items-center justify-center gap-1.5 uppercase tracking-widest">
+                  <Settings size={14} /> Gerenciar
                 </button>
                 
-                <button onClick={() => { logout(); onClose(); }} className="w-full py-3 mb-4 text-xs font-bold text-black/40 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all flex items-center justify-center gap-2 uppercase tracking-widest">
-                  <LogOut size={14} /> Sair da conta
+                <button onClick={() => { logout(); onClose(); }} className="flex-1 py-2 text-[10px] font-bold text-red-500/70 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all flex items-center justify-center gap-1.5 uppercase tracking-widest">
+                  <LogOut size={14} /> Sair
                 </button>
-              </>
+              </div>
             )}
             
-            <div className="text-center text-[10px] font-bold text-black/30 space-y-1.5 leading-relaxed">
+            <div className="text-center text-[9px] font-bold text-black/30 space-y-1.5 leading-relaxed">
               <p>Feito por <a href="https://www.ojo-studio.com" target="_blank" rel="noopener noreferrer" className="hover:text-black transition-colors underline decoration-black/20 underline-offset-2">OJO STUDIO</a></p>
-              <p>Todos os direitos reservados.<br/>CANTA.PRO é uma marca registrada.</p>
+              <p>Todos os direitos reservados. CANTA.PRO é marca registrada.</p>
             </div>
           </div>
 
