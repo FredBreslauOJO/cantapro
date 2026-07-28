@@ -33,10 +33,9 @@ export default function PaywallModal({ isOpen, onClose, currentPlan }) {
             </div>
 
             <ul className="space-y-4 mb-8">
-              <li className="flex items-start gap-3 text-sm font-bold text-black/80"><Check size={18} className="text-black shrink-0 mt-0.5" /> Músicas e Repertórios Ilimitados</li>
-              <li className="flex items-start gap-3 text-sm font-bold text-black/80"><Check size={18} className="text-black shrink-0 mt-0.5" /> Colaboração e Edição na Banda (Link)</li>
-              <li className="flex items-start gap-3 text-sm font-bold text-black/80"><Check size={18} className="text-black shrink-0 mt-0.5" /> Modo Performance (Teleprompter)</li>
-              <li className="flex items-start gap-3 text-sm font-bold text-black/80"><Check size={18} className="text-black shrink-0 mt-0.5" /> Acesso Offline App (PWA)</li>
+              <li className="flex items-start gap-3 text-sm font-bold text-black/80"><Check size={18} className="text-black shrink-0 mt-0.5" /> Músicas e Letras Ilimitadas</li>
+              <li className="flex items-start gap-3 text-sm font-bold text-black/80"><Check size={18} className="text-black shrink-0 mt-0.5" /> Repertórios Ilimitados</li>
+              <li className="flex items-start gap-3 text-sm font-bold text-black/80"><Check size={18} className="text-black shrink-0 mt-0.5" /> Compartilhamento e Edição Colab na Banda</li>
             </ul>
           </div>
 
@@ -63,11 +62,11 @@ export default function PaywallModal({ isOpen, onClose, currentPlan }) {
             <p className="text-xs font-black uppercase tracking-widest text-black/60 mb-4">Tudo do Base, MAIS:</p>
 
             <ul className="space-y-4 mb-8">
-              <li className="flex items-start gap-3 text-sm font-bold text-black"><Check size={18} className="text-black shrink-0 mt-0.5" /> Busca de Letras na Web com Sincronia</li>
+              <li className="flex items-start gap-3 text-sm font-bold text-black"><Check size={18} className="text-black shrink-0 mt-0.5" /> Busca de Letras na Web (Importação)</li>
+              <li className="flex items-start gap-3 text-sm font-bold text-black"><Check size={18} className="text-black shrink-0 mt-0.5" /> Sincronização Pré-Show (100% Offline)</li>
               <li className="flex items-start gap-3 text-sm font-bold text-black"><Check size={18} className="text-black shrink-0 mt-0.5" /> Separadores e Notas de Palco</li>
-              <li className="flex items-start gap-3 text-sm font-bold text-black"><Check size={18} className="text-black shrink-0 mt-0.5" /> Geração de Repertório em PDF</li>
-              <li className="flex items-start gap-3 text-sm font-bold text-black"><Check size={18} className="text-black shrink-0 mt-0.5" /> Editor de Timecode (Blocos Inteligentes)</li>
-              <li className="flex items-start gap-3 text-sm font-bold text-black"><Check size={18} className="text-black shrink-0 mt-0.5" /> Sincronização Pré-Show (Cache Offline)</li>
+              <li className="flex items-start gap-3 text-sm font-bold text-black"><Check size={18} className="text-black shrink-0 mt-0.5" /> Editor de Timecode (Sincronia Automática)</li>
+              <li className="flex items-start gap-3 text-sm font-bold text-black"><Check size={18} className="text-black shrink-0 mt-0.5" /> Geração de Repertório em PDF (Impressão)</li>
             </ul>
           </div>
 
