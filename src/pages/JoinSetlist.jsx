@@ -7,9 +7,11 @@ import LoadingScreen from '../components/LoadingScreen';
 
 export default function JoinSetlist() {
   const { id } = useParams();
-  const [searchParams] = useSearchParams(); // LÊ OS DADOS DA URL
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  
+  // Pegamos o PLANO do usuário para aplicar a trava
+  const { user, plan } = useAuth();
   
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
@@ -38,8 +40,45 @@ export default function JoinSetlist() {
 
   const handleAcceptInvite = async () => {
     setJoining(true);
+    setError('');
+
     try {
-      // Tenta inserir o usuário como membro da playlist
+      // 1. APLICAÇÃO DO LIMITE DO PLANO FREE
+      const currentPlan = plan || 'free';
+      
+      if (currentPlan === 'free') {
+        const { count: ownedCount } = await supabase
+          .from('setlists')
+          .select('*', { count: 'exact', head: true })
+          .eq('created_by', user.email);
+
+        const { count: collabCount } = await supabase
+          .from('setlist_members')
+          .select('*', { count: 'exact', head: true })
+          .eq('member_email', user.email);
+
+        // Verifica se o usuário já não é o dono ou já é membro DESTE setlist específico
+        // (Para não bloquear injustamente caso ele clique no link de novo sem querer)
+        const { count: isAlreadyMember } = await supabase
+          .from('setlist_members')
+          .select('*', { count: 'exact', head: true })
+          .match({ setlist_id: id, member_email: user.email });
+          
+        const { count: isOwner } = await supabase
+          .from('setlists')
+          .select('*', { count: 'exact', head: true })
+          .match({ id: id, created_by: user.email });
+
+        const totalSetlists = (ownedCount || 0) + (collabCount || 0);
+
+        if (!isAlreadyMember && !isOwner && totalSetlists >= 1) {
+          setError("Limite Atingido! Usuários no plano FREE podem participar de apenas 1 repertório. Exclua ou saia do seu repertório atual, ou faça upgrade para aceitar este convite.");
+          setJoining(false);
+          return;
+        }
+      }
+
+      // 2. INSERE O USUÁRIO NA COLABORAÇÃO
       const { error: insertError } = await supabase
         .from('setlist_members')
         .insert({ setlist_id: id, member_email: user.email });
@@ -52,6 +91,7 @@ export default function JoinSetlist() {
       // Limpa a memória e manda pra Home!
       localStorage.removeItem('canta_invite_redirect');
       navigate('/');
+      
     } catch (err) {
       setError("Não foi possível entrar nesta playlist. O link pode ser muito antigo.");
       setJoining(false);
@@ -61,16 +101,21 @@ export default function JoinSetlist() {
   if (!user) return null; 
   if (loading) return <LoadingScreen message="Preparando convite..." />;
 
-  // TELA DE ERRO SE ALGO DER MUITO ERRADO NO INSERT
+  // TELA DE ERRO SE ALGO DER MUITO ERRADO NO INSERT OU BATER NO LIMITE DO FREE
   if (error) {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-center font-sans">
         <div className="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mb-4">
           <X size={32} />
         </div>
-        <h2 className="text-xl font-black uppercase tracking-tight mb-2">Ops!</h2>
-        <p className="text-sm font-bold text-gray-500">{error}</p>
-        <button onClick={() => navigate('/')} className="mt-8 px-6 py-3 bg-black text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:scale-95 transition-all">Ir para Home</button>
+        <h2 className="text-xl font-black uppercase tracking-tight mb-2">Atenção</h2>
+        <p className="text-sm font-bold text-gray-500 max-w-sm">{error}</p>
+        <button 
+          onClick={() => navigate('/')} 
+          className="mt-8 px-6 py-4 bg-black text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:scale-95 transition-all"
+        >
+          Voltar para Home
+        </button>
       </div>
     );
   }
