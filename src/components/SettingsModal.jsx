@@ -151,9 +151,11 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
                       <CreditCard size={14} /> Gerenciar Assinatura
                     </a>
                   )}
-                  <button onClick={() => { onClose(); navigate('/tutorial'); }} className="w-full py-3 border-2 border-black text-black text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-xl hover:bg-gray-50 transition-all flex items-center justify-center gap-2 active:scale-95">
-                    <RefreshCw size={14} /> Refazer Tutorial
-                  </button>
+                  
+                  {/* 👇 MUDANÇA: Link para o site do Tutorial */}
+                  <a href="https://www.canta.pro/tutorial" target="_blank" rel="noopener noreferrer" onClick={onClose} className="w-full py-3 border-2 border-black text-black text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-xl hover:bg-gray-50 transition-all flex items-center justify-center gap-2 active:scale-95">
+                    <RefreshCw size={14} /> Aprenda Como Usar
+                  </a>
                 </div>
 
                 <div className="mt-5 border-t-2 border-gray-100 pt-4">
@@ -170,11 +172,10 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
                   </a>
                 </div>
 
-                {/* LINKS HORIZONTAIS */}
-                <div className="mt-5 border-t-2 border-gray-100 pt-4 flex items-center justify-between px-2 text-[10px] sm:text-xs font-black tracking-wide text-black/60">
+                {/* 👇 MUDANÇA: Remoção do FAQ e novo link de Atendimento */}
+                <div className="mt-5 border-t-2 border-gray-100 pt-4 flex items-center justify-center gap-8 px-2 text-[10px] sm:text-xs font-black tracking-wide text-black/60">
                   <button onClick={() => setIsTermsOpen(true)} className="hover:text-black transition-colors">Termos de Serviço</button>
-                  <a href="https://www.canta.pro" target="_blank" rel="noopener noreferrer" className="hover:text-black transition-colors">FAQ</a>
-                  <a href="https://www.canta.pro" target="_blank" rel="noopener noreferrer" className="hover:text-black transition-colors">Atendimento</a>
+                  <a href="https://www.canta.pro/contato" target="_blank" rel="noopener noreferrer" className="hover:text-black transition-colors">Atendimento</a>
                 </div>
               </div>
             ) : (
