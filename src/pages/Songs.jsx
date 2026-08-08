@@ -6,7 +6,6 @@ import { useAuth } from "../lib/AuthContext";
 import PaywallModal from "../components/PaywallModal";
 import OnlineLyricsSearch from "../components/OnlineLyricsSearch";
 import LoadingScreen from "../components/LoadingScreen"; 
-import SyncStatus from "../components/SyncStatus";
 
 export default function Songs() {
   const [songs, setSongs] = useState([]);
@@ -272,8 +271,6 @@ export default function Songs() {
             
             {!isEditingMode && songs.length > 0 && (
               <div className="flex items-center gap-2">
-                <SyncStatus isRefreshing={loading} />
-                
                 <button 
                   onClick={() => setIsEditingMode(true)}
                   disabled={!isOnline}
