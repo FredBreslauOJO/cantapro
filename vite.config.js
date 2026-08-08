@@ -34,12 +34,12 @@ export default defineConfig({
         ]
       },
       workbox: {
-        // Agora ele salva TUDO (inclusive os vídeos de background se houver)
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,webm,jpg,jpeg,gif}'],
         cleanupOutdatedCaches: true,
-        // A REGRA DE OURO DO OFFLINE PARA REACT:
         navigateFallback: '/index.html',
         navigateFallbackAllowlist: [/^(?!\/__).*/],
+        // 👇 AQUI ESTÁ A MÁGICA QUE LIBERA O VÍDEO 👇
+        maximumFileSizeToCacheInBytes: 10000000 // Aumenta o limite para 10 MB
       }
     })
   ],
