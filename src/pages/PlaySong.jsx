@@ -26,9 +26,8 @@ export default function PlaySong() {
     return localStorage.getItem('cantapro_autoSkip') !== 'false'; 
   });
 
-  // ESTADO DOS COMENTÁRIOS DE PALCO
   const [showComments, setShowComments] = useState(() => {
-    return localStorage.getItem('cantapro_showComments') !== 'false'; // Padrão: Ligado
+    return localStorage.getItem('cantapro_showComments') !== 'false'; 
   });
 
   const [playbackSpeed, setPlaybackSpeed] = useState(() => {
@@ -126,27 +125,41 @@ export default function PlaySong() {
     window.scrollTo(0, 0);
   }, [currentIndex]);
 
+  // 🔥 A GRANDE CORREÇÃO: LÓGICA DE CARREGAMENTO OFFLINE 🔥
   useEffect(() => {
     const loadSetlistAndSongs = async () => {
       if (!id) return;
       
+      const isOnline = navigator.onLine && sessionStorage.getItem('canta_force_offline') !== 'true';
+
+      // 1. TENTA LER O CACHE PRIMEIRO
       const cachedData = localStorage.getItem(`canta_play_offline_${id}`);
+      let hasLoadedFromCache = false;
+
       if (cachedData) {
         try {
           const parsed = JSON.parse(cachedData);
           setSetlistName(parsed.setlistName);
           setSongs(parsed.songs);
-          setLoading(false); 
+          hasLoadedFromCache = true;
+          setLoading(false); // Já libera a tela na hora!
         } catch(e) {
           console.error("Erro ao ler cache offline");
         }
+      } else if (!isOnline) {
+         setLoading(false);
+         return; // Se não tem cache e tá offline, desiste
       } else {
-        setLoading(true);
+         setLoading(true); // Só bloqueia a tela se não tiver cache E tiver online
       }
 
+      // 2. SE ESTIVER OFFLINE, NÃO FAZ REQUISIÇÃO (Evita o erro de rede)
+      if (!isOnline) return;
+
       try {
+        // 3. SE ESTIVER ONLINE, BUSCA DADOS NOVOS E ATUALIZA O CACHE
         const { data: setlistData } = await supabase.from('setlists').select('event_name').eq('id', id).maybeSingle();
-        const currentName = setlistData ? setlistData.event_name : "";
+        const currentName = setlistData ? setlistData.event_name : (setlistName || "");
         if (setlistData) setSetlistName(currentName);
 
         const { data: pivotData } = await supabase
@@ -168,19 +181,22 @@ export default function PlaySong() {
           
           setSongs(formattedItems);
           
+          // Salva o roteiro do show inteiro no cache do celular!
           localStorage.setItem(`canta_play_offline_${id}`, JSON.stringify({
             setlistName: currentName,
             songs: formattedItems
           }));
         }
       } catch (error) { 
-        console.error("Modo offline ativado no Teleprompter.", error); 
+        console.error("Falha ao atualizar dados online no Teleprompter.", error); 
       } finally { 
         setLoading(false); 
       }
     };
+
     loadSetlistAndSongs();
   }, [id]);
+  // 🔥 FIM DA CORREÇÃO OFFLINE 🔥
 
   const togglePlay = () => {
     if (isPlaying) { stopAutoScroll(); setIsPlaying(false); } 
@@ -212,7 +228,6 @@ export default function PlaySong() {
       if (!obj) return;
       Object.entries(obj).forEach(([k, v]) => {
         if (typeof v === 'string') {
-          // Ignoramos a chave 'comment' aqui para que ela não seja lida como letra principal
           if (v.trim() !== '' && !v.toUpperCase().startsWith('BLOCK_') && !k.toLowerCase().includes('id') && k !== 'type' && k !== 'comment') {
             if (v.length > bestString.length) bestString = v;
           }
