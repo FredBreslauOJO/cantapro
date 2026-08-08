@@ -19,6 +19,7 @@ import SettingsModal from './components/SettingsModal';
 import Logo from './components/Logo';
 import Success from './pages/Success';
 import ForceTerms, { CURRENT_TERMS_VERSION } from './components/ForceTerms';
+import SyncStatus from './components/SyncStatus'; // <-- Importação do Sincronizador Automático
 
 const SplashScreen = () => {
   const [showReload, setShowReload] = useState(false);
@@ -101,7 +102,10 @@ const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
              <Logo className="h-5 text-black" />
           </Link>
         </div>
-        <div className="flex items-center justify-end">
+        
+        {/* Sincronizador Automático e Botão de Menu */}
+        <div className="flex items-center justify-end gap-3">
+          <SyncStatus />
           <button onClick={onOpenSettings} className="w-9 h-9 border-2 border-black rounded-lg flex items-center justify-center text-black hover:bg-gray-50 active:scale-95 transition-transform">
             <Menu size={16} />
           </button>
