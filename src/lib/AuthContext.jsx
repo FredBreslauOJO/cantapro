@@ -9,13 +9,11 @@ export const AuthProvider = ({ children }) => {
   const [subscription, setSubscription] = useState(null);
   const [loading, setLoading] = useState(true);
   
-  // O NOVO MONITOR DE REDE GLOBAL
   const [isOnline, setIsOnline] = useState(
     navigator.onLine && sessionStorage.getItem('canta_force_offline') !== 'true'
   );
 
   useEffect(() => {
-    // Monitora quedas reais de internet ou a nossa "trava" manual
     const handleConnectionChange = () => {
       const forceOffline = sessionStorage.getItem('canta_force_offline') === 'true';
       setIsOnline(navigator.onLine && !forceOffline);
@@ -24,7 +22,6 @@ export const AuthProvider = ({ children }) => {
     window.addEventListener('online', handleConnectionChange);
     window.addEventListener('offline', handleConnectionChange);
     
-    // Dispara a primeira checagem
     handleConnectionChange();
 
     return () => {
@@ -34,26 +31,51 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) fetchUserData(session.user.id);
-      else setLoading(false);
-    });
+    let mounted = true;
+
+    const initAuth = async () => {
+      try {
+        // Lê a sessão do armazenamento local do celular primeiro
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (mounted) {
+          setUser(session?.user ?? null);
+          if (session?.user) {
+            await fetchUserData(session.user.id);
+          } else {
+            setLoading(false);
+          }
+        }
+      } catch (error) {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    initAuth();
 
     const { data: { subscription: authListener } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          await fetchUserData(session.user.id);
-        } else {
-          setProfile(null);
-          setSubscription(null);
-          setLoading(false);
+        // BLINDAGEM: Se a internet cair, o Supabase tenta atualizar o token, falha e dispara "SIGNED_OUT".
+        // Aqui nós ignoramos esse deslogamento se o celular estiver offline.
+        if (!navigator.onLine && event === 'SIGNED_OUT') return;
+
+        if (mounted) {
+          setUser(session?.user ?? null);
+          if (session?.user) {
+            await fetchUserData(session.user.id);
+          } else {
+            setProfile(null);
+            setSubscription(null);
+            setLoading(false);
+          }
         }
       }
     );
 
-    return () => authListener.unsubscribe();
+    return () => {
+      mounted = false;
+      authListener.unsubscribe();
+    };
   }, []);
 
   const fetchUserData = async (userId) => {
@@ -63,18 +85,18 @@ export const AuthProvider = ({ children }) => {
     if (cachedProfile) setProfile(JSON.parse(cachedProfile));
     if (cachedSub) setSubscription(JSON.parse(cachedSub));
 
+    // Se temos dados cacheados, liberamos o Loading imediatamente (sem tela de carregamento infinita)
     if (cachedProfile || cachedSub) {
       setLoading(false); 
-    } else {
-      setLoading(true);
     }
 
-    // Se estiver offline ou no modo forçado, ignora o Supabase e fica com o cache
+    // Se estivermos offline, matamos o processo de rede aqui.
     if (!navigator.onLine || sessionStorage.getItem('canta_force_offline') === 'true') {
       setLoading(false);
       return;
     }
 
+    // Atualização de dados em background (Online)
     try {
       const { data: prof, error: profError } = await supabase.from('profiles').select('*').eq('id', userId).single();
       if (prof && !profError) {
@@ -108,7 +130,7 @@ export const AuthProvider = ({ children }) => {
       isAuthenticated: !!user,
       plan: subscription?.plan_type || 'free',
       isLoadingAuth: loading,
-      isOnline, // <-- DISPONIBILIZAMOS ISSO PARA O APP INTEIRO
+      isOnline,
       logout 
     }}>
       {children}
