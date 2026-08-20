@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { 
   ArrowLeft, Printer, Share2, Trash2, Search, 
-  Music, Plus, Minus, Calendar, GripVertical, AlignLeft, RefreshCw, LogOut 
+  Music, Plus, Minus, Calendar, GripVertical, AlignLeft, RefreshCw, LogOut, X 
 } from 'lucide-react';
 import { PDFDownloadLink } from '@react-pdf/renderer';
 import { SetlistPdfDocument } from '../components/SetlistPdfDocument';
@@ -102,7 +102,7 @@ export default function SetlistEdit() {
   const [eventName, setEventName] = useState("");
   const [bandName, setBandName] = useState("");
   const [date, setDate] = useState(""); 
-  const [isGuest, setIsGuest] = useState(false); // Sabe se é dono ou convidado
+  const [isGuest, setIsGuest] = useState(false); 
   
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -112,7 +112,6 @@ export default function SetlistEdit() {
   const [librarySongs, setLibrarySongs] = useState([]); 
   const [setlistItems, setSetlistItems] = useState([]);
 
-  // Modo leitura: Se for plano FREE e for apenas CONVIDADO (não é dono).
   const isReadOnly = isGuest && (plan || 'free') === 'free';
 
   const sensors = useSensors(
@@ -283,7 +282,6 @@ export default function SetlistEdit() {
               <RefreshCw size={18} strokeWidth={2.5} className={isRefreshing ? "animate-spin" : ""} />
             </button>
 
-            {/* FAKE BUTTON PARA ABRIR PAYWALL NO PDF PARA FREE/BASE */}
             {plan === 'pro' ? (
               <PDFDownloadLink
                 document={<SetlistPdfDocument eventName={eventName} bandName={bandName} date={date} orderedItems={setlistItems.map(item => item.type === 'divider' ? { id: item.itemId, item_type: 'divider', content: item.content } : { id: item.itemId, item_type: 'song', songs: { title: item.title || "Música sem título" } })} />}
@@ -302,7 +300,6 @@ export default function SetlistEdit() {
               <Share2 size={18} strokeWidth={2.5} />
             </button>
             
-            {/* LOGICA DE EXCLUIR (DONO) vs SAIR (CONVIDADO) */}
             {isGuest ? (
                <button onClick={handleLeaveSetlist} className="p-2.5 bg-white border-2 border-orange-500 text-orange-500 rounded-xl shadow-[3px_3px_0px_0px_rgba(249,115,22,1)] hover:bg-orange-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all" title="Sair do Repertório">
                  <LogOut size={18} strokeWidth={2.5} />
@@ -331,14 +328,29 @@ export default function SetlistEdit() {
 
         <div className="border-b-4 border-black mb-6" />
 
-        {/* ESCONDE A BUSCA SE FOR CONVIDADO FREE */}
         {!isReadOnly && (
           <div className="mb-6 relative">
             <div className="flex gap-2 mb-2">
+              {/* CAIXA DE BUSCA COM O BOTÃO X */}
               <div className="relative flex-1">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40" />
-                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Buscar música..." className="w-full pl-9 pr-4 py-3 border-2 border-black rounded-xl text-sm font-bold bg-gray-50 focus:bg-white outline-none transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]" />
+                <input 
+                  type="text" 
+                  value={searchQuery} 
+                  onChange={(e) => setSearchQuery(e.target.value)} 
+                  placeholder="Buscar música..." 
+                  className="w-full pl-9 pr-10 py-3 border-2 border-black rounded-xl text-sm font-bold bg-gray-50 focus:bg-white outline-none transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]" 
+                />
+                {searchQuery && (
+                  <button 
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 bg-black/10 hover:bg-black/20 rounded-full text-black/60 transition-colors"
+                  >
+                    <X size={14} strokeWidth={3} />
+                  </button>
+                )}
               </div>
+              
               <button onClick={handleAddDivider} className="px-3 sm:px-4 bg-black text-white border-2 border-black rounded-xl text-[10px] font-black uppercase tracking-widest shadow-[3px_3px_0px_0px_rgba(0,0,0,0.2)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center gap-1.5">
                 <AlignLeft size={14} /> <span className="hidden sm:inline">Divisor</span>
               </button>
