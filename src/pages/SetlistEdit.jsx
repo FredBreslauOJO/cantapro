@@ -11,7 +11,6 @@ import { useAuth } from '../lib/AuthContext';
 import LoadingScreen from '../components/LoadingScreen';
 import PaywallModal from '../components/PaywallModal';
 
-// IMPORTAÇÕES DO DND-KIT
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -284,7 +283,18 @@ export default function SetlistEdit() {
 
             {plan === 'pro' ? (
               <PDFDownloadLink
-                document={<SetlistPdfDocument eventName={eventName} bandName={bandName} date={date} orderedItems={setlistItems.map(item => item.type === 'divider' ? { id: item.itemId, item_type: 'divider', content: item.content } : { id: item.itemId, item_type: 'song', songs: { title: item.title || "Música sem título" } })} />}
+                document={
+                  <SetlistPdfDocument 
+                    eventName={eventName} 
+                    bandName={bandName} 
+                    date={date} 
+                    orderedItems={setlistItems.map(item => 
+                      item.type === 'divider' 
+                        ? { id: item.itemId, item_type: 'divider', content: item.content } 
+                        : { id: item.itemId, item_type: 'song', songs: { title: item.title || "Música sem título", artist: item.artist || "" } }
+                    )} 
+                  />
+                }
                 fileName={`${eventName || 'setlist'}.pdf`}
                 className="p-2.5 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center justify-center text-black"
               >
@@ -331,7 +341,6 @@ export default function SetlistEdit() {
         {!isReadOnly && (
           <div className="mb-6 relative">
             <div className="flex gap-2 mb-2">
-              {/* CAIXA DE BUSCA COM O BOTÃO X */}
               <div className="relative flex-1">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40" />
                 <input 

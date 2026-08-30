@@ -5,7 +5,7 @@ const styles = StyleSheet.create({
   page: {
     paddingTop: 30,
     paddingHorizontal: 30,
-    paddingBottom: 60, // Folga um pouco maior para o novo rodapé completo
+    paddingBottom: 60,
     fontFamily: 'Helvetica',
     backgroundColor: '#ffffff',
     position: 'relative'
@@ -44,7 +44,7 @@ const styles = StyleSheet.create({
     width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 14,
+    marginBottom: 10, // Margem reduzida para caber perfeitamente na página
     paddingBottom: 4,
     borderBottomWidth: 1,
     borderBottomColor: '#eeeeee',
@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
   },
   dividerItem: {
     width: '100%',
-    marginBottom: 14,
+    marginBottom: 10, // Margem reduzida 
     paddingBottom: 4,
     justifyContent: 'center',
   },
@@ -88,7 +88,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     fontFamily: 'Helvetica-Bold',
   },
-  // --- NOVO RODAPÉ ---
   footerContainer: {
     position: 'absolute',
     bottom: 20,
@@ -157,9 +156,9 @@ export const SetlistPdfDocument = ({ eventName, bandName, date, orderedItems }) 
     }
   });
 
-  // AUMENTADO O LIMITE PARA PREENCHER MELHOR A PÁGINA
-  const LIMIT_PAGE_1 = 18; 
-  const LIMIT_PAGE_2 = 22; 
+  // Limites otimizados para encaixar perfeitamente sem gerar páginas extras
+  const LIMIT_PAGE_1 = 16; 
+  const LIMIT_PAGE_2 = 20; 
 
   const chunksPages = [];
   let index = 0;
@@ -227,7 +226,8 @@ export const SetlistPdfDocument = ({ eventName, bandName, date, orderedItems }) 
             </View>
           )}
 
-          <View style={styles.grid}>
+          {/* O wrap={false} impede terminantemente que o react-pdf crie páginas extras automáticas */}
+          <View style={styles.grid} wrap={false}>
             <View style={styles.column}>
               {renderColumn(pageData.left)}
             </View>
@@ -236,8 +236,7 @@ export const SetlistPdfDocument = ({ eventName, bandName, date, orderedItems }) 
             </View>
           </View>
 
-          {/* NOVO RODAPÉ COM TEXTO PROMOCIONAL */}
-          <View style={styles.footerContainer}>
+          <View style={styles.footerContainer} fixed>
             <View style={styles.footerLeft}>
               <Text style={styles.pageNumber}>{pageIdx + 1} / {chunksPages.length}</Text>
               <Text style={styles.footerPromoText}>
