@@ -5,7 +5,7 @@ const styles = StyleSheet.create({
   page: {
     paddingTop: 30,
     paddingHorizontal: 30,
-    paddingBottom: 50, // Garante folga para o rodapé assinado
+    paddingBottom: 60, // Folga um pouco maior para o novo rodapé completo
     fontFamily: 'Helvetica',
     backgroundColor: '#ffffff',
     position: 'relative'
@@ -55,12 +55,23 @@ const styles = StyleSheet.create({
     width: 28,
     fontFamily: 'Helvetica-Bold',
   },
+  songTextContainer: {
+    flex: 1,
+    flexDirection: 'column',
+    justifyContent: 'center',
+  },
   songTitle: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#000000',
     textTransform: 'uppercase',
     fontFamily: 'Helvetica-Bold',
-    flex: 1,
+  },
+  songArtist: {
+    fontSize: 6, 
+    color: '#888888',
+    textTransform: 'uppercase',
+    fontFamily: 'Helvetica-Bold',
+    marginTop: 1.5,
   },
   dividerItem: {
     width: '100%',
@@ -77,11 +88,42 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     fontFamily: 'Helvetica-Bold',
   },
-  // 👑 LOGO CANTA.PRO PURA NO RODAPÉ DIREITO
-  footerLogoContainer: {
+  // --- NOVO RODAPÉ ---
+  footerContainer: {
     position: 'absolute',
     bottom: 20,
+    left: 30,
     right: 30,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#eeeeee',
+    paddingTop: 10,
+  },
+  footerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  pageNumber: {
+    fontSize: 9,
+    color: '#999999',
+    fontFamily: 'Helvetica-Bold',
+    marginRight: 10,
+    paddingRight: 10,
+    borderRightWidth: 1,
+    borderRightColor: '#dddddd',
+  },
+  footerPromoText: {
+    fontSize: 8,
+    color: '#888888',
+    fontFamily: 'Helvetica',
+  },
+  footerPromoTextBold: {
+    fontFamily: 'Helvetica-Bold',
+    color: '#333333',
+  },
+  logoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -94,15 +136,7 @@ const styles = StyleSheet.create({
   logoAccentText: {
     fontSize: 11,
     fontFamily: 'Helvetica-Bold',
-    color: '#777777', // Cinza do logo
-  },
-  pageNumber: {
-    position: 'absolute',
-    bottom: 20,
-    left: 30,
-    fontSize: 9,
-    color: '#999999',
-    fontFamily: 'Helvetica-Bold',
+    color: '#777777', 
   }
 });
 
@@ -114,7 +148,6 @@ const truncate = (str, max) => {
 export const SetlistPdfDocument = ({ eventName, bandName, date, orderedItems }) => {
   let songCounter = 1;
 
-  // Passo 1: Insere o número de faixa sequencial antes de fatiar nas páginas
   const itemsWithNumbers = orderedItems.map((item) => {
     if (item.item_type === 'divider') {
       return { ...item, isDivider: true };
@@ -124,11 +157,9 @@ export const SetlistPdfDocument = ({ eventName, bandName, date, orderedItems }) 
     }
   });
 
-  // =========================================================================
-  // ALGORITMO DE TRANSBORDO VERTICAL (PAGINAÇÃO COMPLETA)
-  // =========================================================================
-  const LIMIT_PAGE_1 = 14; // Limite menor na folha 1 devido ao cabeçalho do show
-  const LIMIT_PAGE_2 = 18; // Limite maior nas folhas seguintes
+  // AUMENTADO O LIMITE PARA PREENCHER MELHOR A PÁGINA
+  const LIMIT_PAGE_1 = 18; 
+  const LIMIT_PAGE_2 = 22; 
 
   const chunksPages = [];
   let index = 0;
@@ -137,11 +168,9 @@ export const SetlistPdfDocument = ({ eventName, bandName, date, orderedItems }) 
   while (index < itemsWithNumbers.length) {
     const limit = isFirstPage ? LIMIT_PAGE_1 : LIMIT_PAGE_2;
     
-    // Preenche a coluna da esquerda inteira de cima para baixo
     const leftCol = itemsWithNumbers.slice(index, index + limit);
     index += leftCol.length;
     
-    // Preenche a coluna da direita com o transbordo subsequente
     const rightCol = itemsWithNumbers.slice(index, index + limit);
     index += rightCol.length;
     
@@ -161,11 +190,15 @@ export const SetlistPdfDocument = ({ eventName, bandName, date, orderedItems }) 
 
       const song = item.songs;
       const title = song ? song.title : "Música Deletada";
+      const artist = song ? song.artist : "";
 
       return (
         <View key={item.id || idx} style={styles.songItem}>
           <Text style={styles.songIndex}>{item.songNumber.toString().padStart(2, '0')}</Text>
-          <Text style={styles.songTitle}>{truncate(title, 22)}</Text>
+          <View style={styles.songTextContainer}>
+            <Text style={styles.songTitle}>{truncate(title, 22)}</Text>
+            {artist ? <Text style={styles.songArtist}>{truncate(artist, 35)}</Text> : null}
+          </View>
         </View>
       );
     });
@@ -189,12 +222,11 @@ export const SetlistPdfDocument = ({ eventName, bandName, date, orderedItems }) 
           ) : (
             <View style={[styles.header, { marginBottom: 15, paddingBottom: 4, borderBottomWidth: 2 }]}>
               <Text style={[styles.subtitle, { fontSize: 10, color: '#999999' }]}>
-                {eventName || "REPERTÓRIO"} · PAGINA {pageIdx + 1}
+                {eventName || "REPERTÓRIO"} · PÁGINA {pageIdx + 1}
               </Text>
             </View>
           )}
 
-          {/* Renderização em Duas Colunas Verticais Purass */}
           <View style={styles.grid}>
             <View style={styles.column}>
               {renderColumn(pageData.left)}
@@ -204,13 +236,19 @@ export const SetlistPdfDocument = ({ eventName, bandName, date, orderedItems }) 
             </View>
           </View>
 
-          {/* Numeração de Páginas */}
-          <Text style={styles.pageNumber}>{pageIdx + 1} / {chunksPages.length}</Text>
-
-          {/* Assinatura com a Logo Limpa */}
-          <View style={styles.footerLogoContainer}>
-            <Text style={styles.logoMainText}>CANTA</Text>
-            <Text style={styles.logoAccentText}>.PRO</Text>
+          {/* NOVO RODAPÉ COM TEXTO PROMOCIONAL */}
+          <View style={styles.footerContainer}>
+            <View style={styles.footerLeft}>
+              <Text style={styles.pageNumber}>{pageIdx + 1} / {chunksPages.length}</Text>
+              <Text style={styles.footerPromoText}>
+                Criado com <Text style={styles.footerPromoTextBold}>CANTA.PRO</Text> — Organize repertórios em um só lugar. Acesse <Text style={styles.footerPromoTextBold}>www.canta.pro</Text>
+              </Text>
+            </View>
+            
+            <View style={styles.logoContainer}>
+              <Text style={styles.logoMainText}>CANTA</Text>
+              <Text style={styles.logoAccentText}>.PRO</Text>
+            </View>
           </View>
 
         </Page>
