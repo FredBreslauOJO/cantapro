@@ -18,8 +18,8 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onUpgradeCl
     try {
       const res = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(query)}`);
       
+      // AUDITORIA FIX: Tratamento elegante do Erro 503 (Servidor LRCLIB caiu)
       if (!res.ok) {
-        // AUDITORIA FIX: Tratamento elegante do Erro 503 (Servidor fora do ar)
         if (res.status >= 500) {
           throw new Error("O servidor mundial de letras está temporariamente fora do ar. Por favor, tente novamente em alguns minutos.");
         }
@@ -44,8 +44,7 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onUpgradeCl
     let blocks = null;
     let rawText = track.syncedLyrics || track.plainLyrics || "";
 
-    // AUDITORIA FIX: Só extrai timecodes se eles de fato existirem na string, 
-    // prevenindo o bug de letras simples ganharem timecodes zerados (0:00).
+    // AUDITORIA FIX: Previne bug do bloco zerado que travava o Teleprompter
     if (isSynced && track.syncedLyrics) {
       blocks = [];
       const lines = track.syncedLyrics.split('\n');
@@ -74,8 +73,7 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onUpgradeCl
         }
       });
       
-      // Limpeza de segurança final
-      blocks = blocks.filter(b => b.endTime > b.time && b.time >= 0);
+      blocks = blocks.filter(b => b.endTime > b.time && b.time > 0);
       if (blocks.length === 0) blocks = null; 
     }
 
@@ -99,12 +97,14 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onUpgradeCl
             onChange={e => setQuery(e.target.value)}
             placeholder="Nome da música e artista..."
             className="w-full pl-10 pr-4 py-3 bg-gray-50 border-2 border-black rounded-xl font-bold outline-none focus:bg-white transition-all"
+            aria-label="Campo de busca de letras"
           />
         </div>
         <button 
           type="submit" 
           disabled={loading || !query.trim()}
           className="px-6 bg-black text-white font-black uppercase text-xs rounded-xl disabled:opacity-50 active:scale-95 transition-all"
+          aria-label="Buscar Letras na Internet"
         >
           {loading ? <Loader2 size={18} className="animate-spin mx-auto" /> : "Buscar"}
         </button>
@@ -139,7 +139,7 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onUpgradeCl
               </div>
               <button
                 onClick={() => handleImport(track)}
-                aria-label="Importar Letra"
+                aria-label="Importar Letra para Biblioteca"
                 className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-black group-hover:bg-yellow-400 group-hover:border-2 group-hover:border-black transition-all active:scale-95 flex-shrink-0"
               >
                 <Download size={18} strokeWidth={2.5} />
