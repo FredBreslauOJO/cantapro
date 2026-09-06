@@ -45,7 +45,6 @@ export default function PlaySong() {
   const wakeLockRef = useRef(null);
   const isDraggingRef = useRef(false);
 
-  // AUDITORIA FIX: Índice seguro
   const safeSongIndex = Math.max(0, parseInt(songIndex) || 0);
 
   useEffect(() => {
@@ -72,8 +71,6 @@ export default function PlaySong() {
   const loadSetlistAndPreferences = async () => {
     try {
       if (!navigator.onLine || sessionStorage.getItem('canta_force_offline') === 'true') {
-        // Usa o cache seguro por usuário se disponível. Como não temos o ID do user aqui diretamente sem o context,
-        // o ideal seria puxar do context, mas vamos varrer as chaves locais disponíveis
         const cachedKeys = Object.keys(localStorage).filter(k => k.startsWith('canta_setlists_offline_'));
         let found = null;
         for (let key of cachedKeys) {
@@ -86,7 +83,7 @@ export default function PlaySong() {
         }
         if (found) {
            setSetlist(found);
-           setSongs([]); // Simulação offline para lista de itens estruturados. 
+           setSongs([]); 
         }
       } else {
         const { data: slData } = await supabase.from('setlists').select('*').eq('id', id).single();
@@ -157,7 +154,6 @@ export default function PlaySong() {
         const now = performance.now();
         const elapsedSeconds = (now - startTimeRef.current) / 1000;
         
-        // AUDITORIA FIX: Proteção contra loop infinito ou avanço prematuro se duration = 0
         const duration = currentSong.duration || 0;
         
         if (duration > 0 && elapsedSeconds >= duration) {
@@ -249,7 +245,6 @@ export default function PlaySong() {
 
   if (loading) return <LoadingScreen message="Preparando o palco..." />;
 
-  // Se estiver vazio ou erro de índice
   if (!songs || songs.length === 0) {
     return (
       <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center">
@@ -266,47 +261,74 @@ export default function PlaySong() {
   }
 
   return (
-    <div className={`min-h-screen flex flex-col transition-colors duration-500 ${highContrast ? 'bg-black text-white' : 'bg-[#f4f4f0] text-black'}`}>
+    <div className={`flex flex-col h-screen overflow-hidden transition-colors duration-500 ${highContrast ? 'bg-black text-white' : 'bg-[#f4f4f0] text-black'}`}>
       
-      <div className={`h-16 px-4 flex items-center justify-between z-40 border-b-2 ${highContrast ? 'bg-black/90 border-white/10' : 'bg-[#f4f4f0]/90 border-black/10'} backdrop-blur-md sticky top-0`}>
+      {/* Top Header */}
+      <div className={`h-16 px-4 flex items-center justify-between z-40 border-b-2 flex-shrink-0 ${highContrast ? 'bg-black/90 border-white/10' : 'bg-[#f4f4f0]/90 border-black/10'} backdrop-blur-md`}>
         <div className="flex items-center gap-3">
-          <button aria-label="Sair do Modo Palco" onClick={() => navigate(`/setlists/${id}/edit`)} className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors active:scale-95 ${highContrast ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}>
+          <button 
+            aria-label="Sair do Modo Palco" 
+            onClick={() => navigate(`/setlists/${id}/edit`)} 
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors active:scale-95 ${highContrast ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}
+          >
             <ArrowLeft size={24} />
           </button>
           <div className="hidden sm:block">
-             <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${highContrast ? 'bg-white/10 text-white/50' : 'bg-black/5 text-black/50'}`}>Faixa {safeSongIndex + 1} de {songs.length}</span>
+             <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${highContrast ? 'bg-white/10 text-white/50' : 'bg-black/5 text-black/50'}`}>
+               FAIXA {safeSongIndex + 1} DE {songs.length}
+             </span>
           </div>
         </div>
 
         <div className="flex-1 text-center px-4 truncate">
           <h1 className="font-black uppercase tracking-tight text-lg truncate">{currentSong.title}</h1>
-          {currentSong.artist && <p className={`text-[10px] font-bold uppercase tracking-widest truncate ${highContrast ? 'text-white/40' : 'text-black/40'}`}>{currentSong.artist}</p>}
+          {currentSong.artist && <p className={`text-[10px] font-bold uppercase tracking-widest truncate mt-0.5 ${highContrast ? 'text-white/40' : 'text-black/40'}`}>{currentSong.artist}</p>}
         </div>
 
         <div className="flex items-center gap-2">
-          <button aria-label="Preferências Visuais" onClick={() => setShowSettings(!showSettings)} className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors active:scale-95 ${showSettings ? (highContrast ? 'bg-yellow-400 text-black' : 'bg-black text-white') : (highContrast ? 'hover:bg-white/10' : 'hover:bg-black/5')}`}>
+          <button 
+            aria-label="Preferências Visuais" 
+            onClick={() => setShowSettings(!showSettings)} 
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors active:scale-95 ${showSettings ? (highContrast ? 'bg-yellow-400 text-black' : 'bg-black text-white') : (highContrast ? 'hover:bg-white/10' : 'hover:bg-black/5')}`}
+          >
             <Monitor size={20} />
           </button>
         </div>
       </div>
 
-      <div className={`h-1.5 w-full relative ${highContrast ? 'bg-white/10' : 'bg-black/5'}`}>
+      {/* Progress Bar */}
+      <div className={`h-1.5 w-full relative flex-shrink-0 ${highContrast ? 'bg-white/10' : 'bg-black/5'}`}>
          <div className={`absolute top-0 left-0 h-full transition-all duration-100 ${highContrast ? 'bg-yellow-400' : 'bg-black'}`} style={{ width: `${progressPercent}%` }} />
       </div>
 
+      {/* Settings Modal (Overlay) */}
       {showSettings && (
         <div className={`absolute top-20 right-4 w-72 rounded-3xl p-5 z-50 shadow-2xl border-4 ${highContrast ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-black'} animate-fadeIn`}>
           <div className="space-y-6">
             
+            {/* Font Size */}
             <div>
               <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${highContrast ? 'text-white/40' : 'text-black/40'}`}>Tamanho</p>
               <div className={`flex items-center justify-between p-1 rounded-xl ${highContrast ? 'bg-black' : 'bg-gray-100'}`}>
-                <button aria-label="Diminuir Fonte" onClick={() => { setFontSizeIndex(Math.max(0, fontSizeIndex - 1)); savePreferences({fontSizeIndex: Math.max(0, fontSizeIndex - 1)}); }} className={`w-10 h-10 flex items-center justify-center rounded-lg active:scale-95 ${highContrast ? 'hover:bg-white/10 text-white' : 'hover:bg-white text-black'}`}><ZoomOut size={18} /></button>
+                <button 
+                  aria-label="Diminuir Fonte" 
+                  onClick={() => { setFontSizeIndex(Math.max(0, fontSizeIndex - 1)); savePreferences({fontSizeIndex: Math.max(0, fontSizeIndex - 1)}); }} 
+                  className={`w-10 h-10 flex items-center justify-center rounded-lg active:scale-95 ${highContrast ? 'hover:bg-white/10 text-white' : 'hover:bg-white text-black'}`}
+                >
+                  <ZoomOut size={18} />
+                </button>
                 <span className={`font-black text-xs ${highContrast ? 'text-white' : 'text-black'}`}>{fontSizeIndex + 1}</span>
-                <button aria-label="Aumentar Fonte" onClick={() => { setFontSizeIndex(Math.min(FONT_SIZES.length - 1, fontSizeIndex + 1)); savePreferences({fontSizeIndex: Math.min(FONT_SIZES.length - 1, fontSizeIndex + 1)}); }} className={`w-10 h-10 flex items-center justify-center rounded-lg active:scale-95 ${highContrast ? 'hover:bg-white/10 text-white' : 'hover:bg-white text-black'}`}><ZoomIn size={18} /></button>
+                <button 
+                  aria-label="Aumentar Fonte" 
+                  onClick={() => { setFontSizeIndex(Math.min(FONT_SIZES.length - 1, fontSizeIndex + 1)); savePreferences({fontSizeIndex: Math.min(FONT_SIZES.length - 1, fontSizeIndex + 1)}); }} 
+                  className={`w-10 h-10 flex items-center justify-center rounded-lg active:scale-95 ${highContrast ? 'hover:bg-white/10 text-white' : 'hover:bg-white text-black'}`}
+                >
+                  <ZoomIn size={18} />
+                </button>
               </div>
             </div>
 
+            {/* Font Family */}
             <div>
               <p className={`text-[10px] font-black uppercase tracking-widest mb-3 ${highContrast ? 'text-white/40' : 'text-black/40'}`}>Fonte</p>
               <div className="flex gap-2">
@@ -323,6 +345,7 @@ export default function PlaySong() {
               </div>
             </div>
 
+            {/* Contrast Toggle */}
             <div className="space-y-2">
               <button 
                 onClick={() => { setHighContrast(!highContrast); savePreferences({highContrast: !highContrast}); }}
@@ -343,43 +366,72 @@ export default function PlaySong() {
         </div>
       )}
 
-      <div 
-        ref={containerRef}
-        className="flex-1 overflow-y-auto px-6 py-12 custom-scrollbar"
-        onTouchStart={() => { isDraggingRef.current = true; setIsPlaying(false); }}
-        onTouchEnd={() => { isDraggingRef.current = false; }}
-        onMouseDown={() => { isDraggingRef.current = true; setIsPlaying(false); }}
-        onMouseUp={() => { isDraggingRef.current = false; }}
-      >
-        <div className={`max-w-4xl mx-auto pb-[60vh] ${FONT_FAMILIES[fontFamily]}`}>
-          {currentSong.blocks && currentSong.blocks.length > 0 ? (
-            <div id="lyrics-container" className="space-y-4 sm:space-y-6">
-              {currentSong.blocks.map((block, idx) => {
-                const isActive = idx === activeBlockIndex;
-                const isPast = idx < activeBlockIndex;
-                return (
-                  <p 
-                    key={idx} 
-                    className={`transition-all duration-300 font-bold leading-tight ${FONT_SIZES[fontSizeIndex]} 
-                      ${isActive ? (highContrast ? 'text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]' : 'text-black') : 
-                        isPast ? (highContrast ? 'text-white/20' : 'text-black/20') : 
-                        (highContrast ? 'text-white/60' : 'text-black/60')}
-                    `}
-                  >
-                    {block.text}
-                  </p>
-                );
-              })}
-            </div>
-          ) : (
-            <pre className={`whitespace-pre-wrap font-bold leading-relaxed ${FONT_SIZES[fontSizeIndex]} ${highContrast ? 'text-white/80' : 'text-black/80'}`}>
-              {currentSong.text || "Letra não encontrada."}
-            </pre>
-          )}
+      {/* Main Content Area */}
+      <div className="flex-1 flex overflow-hidden relative">
+        
+        {/* Left Side: Lyrics */}
+        <div 
+          ref={containerRef}
+          className="flex-1 overflow-y-auto px-6 lg:px-20 py-12 custom-scrollbar scroll-smooth"
+          onTouchStart={() => { isDraggingRef.current = true; setIsPlaying(false); }}
+          onTouchEnd={() => { isDraggingRef.current = false; }}
+          onMouseDown={() => { isDraggingRef.current = true; setIsPlaying(false); }}
+          onMouseUp={() => { isDraggingRef.current = false; }}
+        >
+          <div className={`max-w-4xl mx-auto pb-[60vh] ${FONT_FAMILIES[fontFamily]}`}>
+            {currentSong.blocks && currentSong.blocks.length > 0 ? (
+              <div id="lyrics-container" className="space-y-4 sm:space-y-6">
+                {currentSong.blocks.map((block, idx) => {
+                  const isActive = idx === activeBlockIndex;
+                  const isPast = idx < activeBlockIndex;
+                  return (
+                    <p 
+                      key={idx} 
+                      className={`transition-all duration-300 font-bold leading-tight ${FONT_SIZES[fontSizeIndex]} 
+                        ${isActive ? (highContrast ? 'text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]' : 'text-black') : 
+                          isPast ? (highContrast ? 'text-white/20' : 'text-black/20') : 
+                          (highContrast ? 'text-white/60' : 'text-black/60')}
+                      `}
+                    >
+                      {block.text}
+                    </p>
+                  );
+                })}
+              </div>
+            ) : (
+              <pre className={`whitespace-pre-wrap font-bold leading-relaxed ${FONT_SIZES[fontSizeIndex]} ${highContrast ? 'text-white/80' : 'text-black/80'}`}>
+                {currentSong.text || "Letra não encontrada."}
+              </pre>
+            )}
+          </div>
         </div>
+
+        {/* Right Side: Setlist List (Desktop only) */}
+        <div className={`hidden lg:flex w-80 flex-col border-l-2 flex-shrink-0 ${highContrast ? 'border-white/10 bg-black' : 'border-black/10 bg-[#f4f4f0]'}`}>
+          <div className={`p-4 border-b-2 font-black uppercase tracking-widest text-xs ${highContrast ? 'border-white/10 text-white/50' : 'border-black/10 text-black/50'}`}>
+            Repertório
+          </div>
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
+            {songs.map((song, idx) => {
+              const isCurrent = idx === safeSongIndex;
+              return (
+                <button
+                  key={song.id}
+                  onClick={() => navigate(`/setlists/${id}/play/${idx}`)}
+                  className={`w-full text-left p-3 rounded-xl transition-all ${isCurrent ? (highContrast ? 'bg-yellow-400 text-black' : 'bg-black text-white') : (highContrast ? 'hover:bg-white/10 text-white/70' : 'hover:bg-black/5 text-black/70')}`}
+                >
+                  <p className="font-black text-sm uppercase tracking-tight truncate">{song.title}</p>
+                  {song.artist && <p className={`text-[10px] font-bold uppercase tracking-widest truncate mt-0.5 ${isCurrent ? (highContrast ? 'text-black/60' : 'text-white/60') : (highContrast ? 'text-white/40' : 'text-black/40')}`}>{song.artist}</p>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
       </div>
 
-      <div className={`h-24 px-6 flex items-center justify-between z-40 border-t-2 ${highContrast ? 'bg-black/90 border-white/10' : 'bg-white/90 border-black/10'} backdrop-blur-md`}>
+      {/* Bottom Controls */}
+      <div className={`h-24 px-6 flex items-center justify-between z-40 border-t-2 flex-shrink-0 ${highContrast ? 'bg-black/90 border-white/10' : 'bg-white/90 border-black/10'} backdrop-blur-md`}>
         
         <div className="flex-1 flex justify-start">
           <button aria-label="Música Anterior" onClick={handlePrev} disabled={safeSongIndex === 0} className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all active:scale-95 ${safeSongIndex === 0 ? 'opacity-20 cursor-not-allowed' : (highContrast ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-black/5 hover:bg-black/10 text-black')}`}>
