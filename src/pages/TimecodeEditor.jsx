@@ -1,338 +1,286 @@
-import React, { useState, useEffect, useRef } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, Play, Square, MessageSquareText } from "lucide-react";
-import { supabase } from "../lib/supabase";
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Play, Pause, Save, RotateCcw, Plus, Trash2 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import LoadingScreen from '../components/LoadingScreen';
+import { useAuth } from '../lib/AuthContext';
 
 export default function TimecodeEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { isOnline } = useAuth();
+  
   const [song, setSong] = useState(null);
   const [blocks, setBlocks] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [selectedText, setSelectedText] = useState("");
-  const [overlapError, setOverlapError] = useState(null);
-  const previewRef = useRef(null);
-  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
-  const previewTimer = useRef(null);
+  
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [activeBlockIndex, setActiveBlockIndex] = useState(-1);
+  const [newBlockText, setNewBlockText] = useState("");
+
+  const containerRef = useRef(null);
+  const playIntervalRef = useRef(null);
+  const startTimeRef = useRef(0);
+  const lastUpdateRef = useRef(0);
 
   useEffect(() => {
     loadSong();
   }, [id]);
 
+  useEffect(() => {
+    if (isPlaying) {
+      startTimeRef.current = performance.now() - (currentTime * 1000);
+      lastUpdateRef.current = performance.now();
+      
+      playIntervalRef.current = setInterval(() => {
+        const now = performance.now();
+        const elapsedSeconds = (now - startTimeRef.current) / 1000;
+        setCurrentTime(elapsedSeconds);
+      }, 50);
+    } else {
+      clearInterval(playIntervalRef.current);
+    }
+    return () => clearInterval(playIntervalRef.current);
+  }, [isPlaying, currentTime]);
+
+  useEffect(() => {
+    let currentIdx = -1;
+    for (let i = 0; i < blocks.length; i++) {
+      if (currentTime >= blocks[i].time) {
+        currentIdx = i;
+      } else {
+        break;
+      }
+    }
+    
+    if (currentIdx !== activeBlockIndex) {
+      setActiveBlockIndex(currentIdx);
+      if (currentIdx >= 0 && containerRef.current) {
+        const activeElement = containerRef.current.children[currentIdx];
+        if (activeElement) {
+          activeElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+    }
+  }, [currentTime, blocks, activeBlockIndex]);
+
   const loadSong = async () => {
-    const { data, error } = await supabase.from('songs').select('*').eq('id', id).single();
-    if (data && !error) {
-      setSong(data);
-      setBlocks(data.timecode_blocks || []);
-    }
-  };
-
-  const formatTime = (secs) => {
-    const m = Math.floor((secs || 0) / 60);
-    const s = Math.floor((secs || 0) % 60);
-    return `${m}:${String(s).padStart(2, "0")}`;
-  };
-
-  const handleTextSelect = () => {
-    const sel = window.getSelection();
-    const text = sel?.toString().trim();
-    if (text) setSelectedText(text);
-  };
-
-  const createBlockFromSelection = () => {
-    if (!selectedText) return;
-    setBlocks(prev => [...prev, {
-      block_id: `block_${Date.now()}`,
-      text_content: selectedText,
-      comment: "",
-      start_time: 0,
-      end_time: 0,
-      order_index: prev.length,
-    }]);
-    setSelectedText("");
-    window.getSelection()?.removeAllRanges();
-  };
-
-  const addEmptyBlock = () => {
-    setBlocks(prev => [...prev, {
-      block_id: `block_${Date.now()}`,
-      text_content: "",
-      comment: "",
-      start_time: 0,
-      end_time: 0,
-      order_index: prev.length,
-    }]);
-  };
-
-  const checkOverlap = (updatedBlocks) => {
-    const sorted = [...updatedBlocks].sort((a, b) => a.start_time - b.start_time);
-    for (let i = 0; i < sorted.length - 1; i++) {
-      const a = sorted[i];
-      const b = sorted[i + 1];
-      if (a.end_time > b.start_time) {
-        return `Bloco conflita com outro bloco (${formatTime(b.start_time)} – ${formatTime(a.end_time)}).`;
+    try {
+      const { data, error } = await supabase.from('songs').select('*').eq('id', id).single();
+      if (data && !error) {
+        setSong(data);
+        if (data.timecode_blocks && Array.isArray(data.timecode_blocks)) {
+          setBlocks(data.timecode_blocks);
+        } else {
+          // Fallback se não existir
+          const lines = (data.lyrics_text || "").split('\n').filter(l => l.trim() !== "");
+          const initialBlocks = lines.map((text, idx) => ({
+            time: idx * 5, 
+            endTime: (idx * 5) + 4,
+            text: text.trim()
+          }));
+          setBlocks(initialBlocks);
+        }
       }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
-    for (const b of updatedBlocks) {
-      if (b.start_time >= b.end_time && b.end_time > 0) {
-        return `START deve ser menor que END no mesmo bloco.`;
-      }
-    }
-    return null;
   };
 
-  const updateBlock = (blockId, field, value) => {
+  const togglePlay = () => setIsPlaying(!isPlaying);
+
+  const markTime = () => {
+    if (!newBlockText.trim()) return;
+    
+    const newBlock = {
+      time: parseFloat(currentTime.toFixed(2)),
+      endTime: parseFloat((currentTime + 5).toFixed(2)),
+      text: newBlockText.trim()
+    };
+
     setBlocks(prev => {
-      const updated = prev.map(b => b.block_id === blockId ? { ...b, [field]: value } : b);
-      const err = checkOverlap(updated);
-      setOverlapError(err);
-      if (field === "start_time" || field === "end_time") {
-        return [...updated].sort((a, b) => a.start_time - b.start_time).map((b, i) => ({ ...b, order_index: i }));
-      }
+      const updated = [...prev, newBlock].sort((a, b) => a.time - b.time);
+      updated.forEach((b, idx) => {
+        if (idx < updated.length - 1) b.endTime = updated[idx + 1].time;
+      });
+      return updated;
+    });
+    
+    setNewBlockText("");
+  };
+
+  const removeBlock = (indexToRemove) => {
+    setBlocks(prev => {
+      const updated = prev.filter((_, idx) => idx !== indexToRemove);
+      updated.forEach((b, idx) => {
+        if (idx < updated.length - 1) b.endTime = updated[idx + 1].time;
+        else b.endTime = b.time + 10;
+      });
       return updated;
     });
   };
 
-  const deleteBlock = (blockId) => {
-    setBlocks(prev => prev.filter(b => b.block_id !== blockId).map((b, i) => ({ ...b, order_index: i })));
+  const updateBlockTime = (index, newTimeStr) => {
+    const newTime = parseFloat(newTimeStr);
+    if (isNaN(newTime)) return;
+    
+    setBlocks(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], time: newTime };
+      updated.sort((a, b) => a.time - b.time);
+      updated.forEach((b, idx) => {
+        if (idx < updated.length - 1) b.endTime = updated[idx + 1].time;
+        else b.endTime = b.time + 10;
+      });
+      return updated;
+    });
   };
 
   const handleSave = async () => {
-    if (overlapError) return;
+    if (!isOnline) {
+      alert("Você precisa estar conectado à internet para salvar os timecodes.");
+      return;
+    }
+    
     setSaving(true);
-    // GARANTIA: Mapeia o comentário para salvar no Supabase
-    const cleanBlocks = blocks.map((b, i) => ({
-      block_id: b.block_id,
-      text_content: b.text_content,
-      comment: b.comment || null,
-      start_time: b.start_time,
-      end_time: b.end_time,
-      order_index: i,
-    }));
-    
-    await supabase.from('songs').update({ timecode_blocks: cleanBlocks }).eq('id', id);
-    
-    setSaving(false);
-    navigate(`/songs/${id}`);
-  };
-
-  const stopPreview = () => {
-    setIsPreviewPlaying(false);
-    if (previewTimer.current) {
-      cancelAnimationFrame(previewTimer.current);
-      previewTimer.current = null;
+    try {
+      const { error } = await supabase.from('songs').update({ timecode_blocks: blocks }).eq('id', song.id);
+      
+      // Auditoria: O Throw garante que se a rede cair ou o servidor rejeitar, 
+      // o catch vai interceptar e não deixará o usuário voltar para a tela inicial perdendo o trabalho.
+      if (error) throw error; 
+      
+      navigate('/songs');
+    } catch (err) {
+      alert("Erro ao salvar sincronização: " + err.message + "\n\nSeu progresso foi mantido na tela.");
+      setSaving(false);
     }
   };
 
-  const startPreview = () => {
-    if (!previewRef.current || !song) return;
-    const container = previewRef.current;
-    container.scrollTop = 0;
-    
-    // Rolagem linear baseada na duração da música
-    const durationMs = (song.duration_seconds || 180) * 1000;
-    const startWallTime = performance.now();
-    const scrollDistance = container.scrollHeight - container.clientHeight;
+  const formatTime = (seconds) => {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    const ms = Math.floor((seconds % 1) * 100);
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+  };
 
-    if (scrollDistance <= 0) return;
+  if (loading) return <LoadingScreen message="Carregando sincronizador..." />;
 
-    const animate = (now) => {
-      const elapsed = now - startWallTime;
-      if (elapsed > durationMs) {
-        setIsPreviewPlaying(false);
-        return;
-      }
+  return (
+    <div className="flex flex-col h-screen bg-black text-white font-sans overflow-hidden">
       
-      const progress = elapsed / durationMs;
-      container.scrollTop = scrollDistance * progress;
-      previewTimer.current = requestAnimationFrame(animate);
-    };
-    previewTimer.current = requestAnimationFrame(animate);
-    setIsPreviewPlaying(true);
-  };
-
-  if (!song) return (
-    <div className="flex justify-center py-20">
-      <div className="w-6 h-6 border-2 border-gray-200 border-t-black rounded-full animate-spin" />
-    </div>
-  );
-
-  return (
-    <div className="min-h-screen bg-white flex flex-col">
-      <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 lg:px-6 py-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button onClick={() => navigate(-1)} className="w-12 h-12 flex items-center justify-center -ml-2 hover:opacity-60 active:opacity-40 transition-opacity">
-              <ArrowLeft size={20} className="pointer-events-none" />
-            </button>
-            <div>
-              <p className="text-[10px] text-gray-400 uppercase tracking-widest leading-none mb-0.5">Editor de Timecode</p>
-              <h1 className="font-black text-base uppercase tracking-wide leading-none">{song.title}</h1>
-              <p className="text-xs text-gray-400 mt-0.5">{song.artist} · ref: {formatTime(song.duration_seconds || 0)}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-gray-400">{blocks.length} bloco{blocks.length !== 1 ? "s" : ""}</span>
-            {overlapError && (
-              <span className="text-xs text-red-500 max-w-[200px] text-right font-bold">⚠ {overlapError}</span>
-            )}
-            <button
-              onClick={handleSave}
-              disabled={saving || !!overlapError}
-              title={overlapError || ""}
-              className="px-4 py-2 bg-black text-white text-sm font-bold uppercase tracking-widest rounded-xl hover:opacity-80 transition-opacity disabled:opacity-40"
-            >
-              {saving ? "Salvando..." : "Salvar"}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex flex-1 min-h-0">
-        <div className="flex-1 overflow-y-auto p-4 lg:p-6">
-          
-          {blocks.length === 0 && !selectedText && (
-            <div className="text-center py-12 text-gray-400 font-bold">
-              <p className="text-sm mb-1 uppercase tracking-widest">Nenhum bloco ainda.</p>
-              <p className="text-xs">Selecione o texto da letra na barra lateral para criar.</p>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {blocks.map((block, idx) => (
-              <BlockCard
-                key={block.block_id}
-                block={block}
-                index={idx}
-                onUpdate={updateBlock}
-                onDelete={deleteBlock}
-                formatTime={formatTime}
-              />
-            ))}
-            
-            {/* BOTÃO "NOVO BLOCO" INTELIGENTE */}
-            <button
-              onClick={selectedText ? createBlockFromSelection : addEmptyBlock}
-              className={`min-h-[180px] border-4 border-dashed rounded-2xl flex flex-col items-center justify-center transition-colors gap-2 p-4 text-center ${
-                selectedText 
-                  ? "border-amber-400 bg-amber-50 text-amber-900 hover:border-amber-500" 
-                  : "border-gray-200 text-gray-300 hover:border-black hover:text-black"
-              }`}
-            >
-              <Plus size={28} />
-              <span className="text-xs font-black uppercase tracking-widest">
-                {selectedText ? "Criar Bloco da Seleção" : "Novo Bloco Vazio"}
-              </span>
-              {selectedText && (
-                <span className="text-[10px] font-bold opacity-60 line-clamp-3 w-full px-2 italic">
-                  "{selectedText}"
-                </span>
-              )}
-            </button>
+      <div className="bg-zinc-900 border-b-2 border-zinc-800 p-4 flex items-center justify-between z-20">
+        <div className="flex items-center gap-3">
+          <button aria-label="Voltar sem salvar" onClick={() => navigate(-1)} className="w-10 h-10 rounded-full hover:bg-zinc-800 flex items-center justify-center transition-colors">
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <h1 className="font-black uppercase tracking-tight text-lg leading-tight">{song?.title}</h1>
+            <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">{song?.artist}</p>
           </div>
         </div>
 
-        <div className="hidden lg:flex w-72 xl:w-80 border-l-4 border-black flex-col flex-shrink-0">
-          <div className="flex items-center justify-between px-4 py-3 border-b-4 border-black bg-white">
-            <div>
-              <p className="text-xs font-black uppercase tracking-widest text-black">Preview Visual</p>
-              <p className="text-[10px] font-bold text-gray-500 mt-0.5">Selecione texto para criar bloco</p>
-            </div>
-            <button
-              onClick={isPreviewPlaying ? stopPreview : startPreview}
-              className="w-9 h-9 bg-black rounded-full flex items-center justify-center text-white hover:opacity-80 transition-opacity"
-            >
-              {isPreviewPlaying ? <Square size={13} fill="white" /> : <Play size={13} fill="white" className="ml-0.5" />}
-            </button>
-          </div>
-          <div
-            ref={previewRef}
-            onMouseUp={handleTextSelect}
-            className="flex-1 overflow-y-auto p-4 bg-gray-50 select-text cursor-text"
-            style={{ scrollbarWidth: "thin" }}
-          >
-            <p className="text-[10px] tracking-[0.2em] uppercase font-black text-black/30 mb-3">Sua Letra</p>
-            <pre className="text-sm whitespace-pre-wrap font-sans font-bold leading-7 text-black">
-              {song.lyrics_text || "Sem letra cadastrada."}
-            </pre>
-            <div className="h-16" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function BlockCard({ block, index, onUpdate, onDelete, formatTime }) {
-  const [startStr, setStartStr] = useState(() => formatTime(block.start_time));
-  const [endStr, setEndStr] = useState(() => formatTime(block.end_time));
-
-  const parseTime = (str) => {
-    const parts = (str || "0:00").split(":");
-    if (parts.length === 2) return (parseInt(parts[0]) || 0) * 60 + (parseFloat(parts[1]) || 0);
-    return parseFloat(str) || 0;
-  };
-
-  const commitStart = () => {
-    const val = parseTime(startStr);
-    setStartStr(formatTime(val));
-    onUpdate(block.block_id, "start_time", val);
-  };
-
-  const commitEnd = () => {
-    const val = parseTime(endStr);
-    setEndStr(formatTime(val));
-    onUpdate(block.block_id, "end_time", val);
-  };
-
-  return (
-    <div className="bg-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] rounded-2xl p-4 flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-black tracking-widest text-black uppercase">
-          Bloco {String(index + 1).padStart(2, "0")}
-        </span>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 text-xs">
-            <span className="text-black/50 font-bold text-[10px] uppercase">Start</span>
-            <input
-              value={startStr}
-              onChange={e => setStartStr(e.target.value)}
-              onBlur={commitStart}
-              className="w-12 font-black text-center bg-gray-100 border border-gray-300 rounded-md py-0.5 text-xs outline-none focus:border-black"
-              placeholder="0:00"
-            />
-            <span className="text-black/50 font-bold text-[10px] uppercase ml-1">End</span>
-            <input
-              value={endStr}
-              onChange={e => setEndStr(e.target.value)}
-              onBlur={commitEnd}
-              className="w-12 font-black text-center bg-gray-100 border border-gray-300 rounded-md py-0.5 text-xs outline-none focus:border-black"
-              placeholder="0:00"
-            />
-          </div>
-          <button onClick={() => onDelete(block.block_id)} className="text-gray-400 hover:text-red-500 transition-colors p-0.5 ml-1">
-            <Trash2 size={14} />
+          <button 
+            aria-label="Reiniciar o tempo para zero"
+            onClick={() => { setIsPlaying(false); setCurrentTime(0); }} 
+            className="w-10 h-10 rounded-xl hover:bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
+          >
+            <RotateCcw size={18} />
+          </button>
+          
+          <button 
+            aria-label={saving ? "Salvando..." : "Salvar Timecodes"}
+            onClick={handleSave} 
+            disabled={saving || !isOnline}
+            className={`px-4 h-10 rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 transition-colors ${!isOnline ? 'bg-zinc-800 text-zinc-500' : 'bg-yellow-400 text-black hover:bg-yellow-300'}`}
+          >
+            {saving ? <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" /> : <Save size={16} />}
+            <span className="hidden sm:inline">{saving ? "Salvando..." : "Salvar"}</span>
           </button>
         </div>
       </div>
-      
-      <textarea
-        value={block.text_content}
-        onChange={e => onUpdate(block.block_id, "text_content", e.target.value)}
-        placeholder="Letra da música..."
-        rows={4}
-        className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl p-3 text-sm font-bold leading-6 resize-none outline-none focus:border-black placeholder-gray-400 font-sans"
-      />
 
-      <div className="relative">
-        <MessageSquareText size={14} className="absolute left-3 top-3 text-yellow-600/50" />
-        <input
-          value={block.comment || ""}
-          onChange={e => onUpdate(block.block_id, "comment", e.target.value)}
-          placeholder="Nota de palco (Ex: LIGAR DRIVE)"
-          className="w-full pl-9 pr-3 py-2.5 bg-yellow-50 border-2 border-yellow-300 rounded-lg text-xs font-mono font-bold text-yellow-800 placeholder-yellow-600/50 outline-none focus:border-yellow-500 uppercase tracking-widest"
-        />
+      <div className="bg-zinc-950 p-4 border-b border-zinc-900 flex flex-col items-center z-20">
+        <div className="text-4xl font-mono font-black tracking-tight text-yellow-400 mb-4 drop-shadow-[0_0_10px_rgba(250,204,21,0.3)]">
+          {formatTime(currentTime)}
+        </div>
+        
+        <div className="flex w-full max-w-2xl gap-2">
+          <button 
+            aria-label={isPlaying ? "Pausar" : "Tocar"}
+            onClick={togglePlay} 
+            className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-colors flex-shrink-0 ${isPlaying ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-white hover:bg-gray-200 text-black'}`}
+          >
+            {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
+          </button>
+
+          <input 
+            type="text" 
+            aria-label="Digitar nova linha de letra"
+            value={newBlockText} 
+            onChange={e => setNewBlockText(e.target.value)}
+            onKeyDown={e => { if(e.key === 'Enter') markTime(); }}
+            placeholder="Digite o próximo verso e aperte Enter..."
+            className="flex-1 bg-zinc-900 border-2 border-zinc-800 rounded-2xl px-4 font-bold outline-none focus:border-yellow-400 focus:bg-zinc-800 transition-colors"
+          />
+
+          <button 
+            aria-label="Registrar linha no tempo atual"
+            onClick={markTime}
+            disabled={!newBlockText.trim()}
+            className="w-14 h-14 bg-zinc-800 text-white rounded-2xl flex items-center justify-center hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+          >
+            <Plus size={24} />
+          </button>
+        </div>
+        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-3">Dica: Use a tecla Enter para registrar o tempo rapidamente.</p>
       </div>
+
+      <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-black" ref={containerRef}>
+        <div className="max-w-2xl mx-auto space-y-2 pb-[50vh]">
+          {blocks.length === 0 ? (
+            <div className="text-center py-20 text-zinc-600">
+              <p className="font-black uppercase tracking-widest text-sm">Nenhum Timecode</p>
+              <p className="text-xs font-bold mt-2">Dê o play e adicione as frases no ritmo da música.</p>
+            </div>
+          ) : (
+            blocks.map((block, index) => {
+              const isActive = index === activeBlockIndex;
+              return (
+                <div 
+                  key={index} 
+                  className={`p-3 rounded-xl flex items-center gap-3 transition-all duration-300 ${isActive ? 'bg-yellow-400 text-black scale-[1.02] shadow-[0_0_20px_rgba(250,204,21,0.2)]' : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800'}`}
+                >
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    value={block.time} 
+                    onChange={e => updateBlockTime(index, e.target.value)}
+                    aria-label={`Editar tempo da linha ${index + 1}`}
+                    className={`w-20 font-mono font-black text-xs p-1 rounded outline-none text-center bg-transparent ${isActive ? 'text-black border-black/20 focus:border-black/50' : 'text-zinc-500 border-zinc-700 focus:border-zinc-500 focus:text-white'} border`}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className={`font-bold truncate ${isActive ? 'text-black text-lg' : 'text-white'}`}>{block.text}</p>
+                  </div>
+                  <button 
+                    aria-label={`Excluir linha ${index + 1}`}
+                    onClick={() => removeBlock(index)}
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${isActive ? 'text-black/40 hover:text-black hover:bg-black/10' : 'text-zinc-600 hover:text-red-400 hover:bg-red-400/10'}`}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+      
     </div>
   );
 }

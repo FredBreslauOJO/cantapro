@@ -16,7 +16,6 @@ export default function Setlists() {
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   
   const navigate = useNavigate();
-  // EXTRAÍMOS O isOnline AQUI
   const { user, plan, isOnline } = useAuth();
 
   useEffect(() => {
@@ -31,7 +30,7 @@ export default function Setlists() {
   };
 
   const handleCreateNew = async () => {
-    if (!isOnline) return; // Trava extra de segurança
+    if (!isOnline) return; 
     if ((plan || 'free') === 'free' && setlists.length >= 1) {
       setIsPaywallOpen(true);
       return;
@@ -44,7 +43,10 @@ export default function Setlists() {
   };
 
   const loadSetlists = async () => {
-    const cachedData = localStorage.getItem('canta_setlists_offline');
+    // AUDITORIA FIX: Isolamento de cache de repertórios por usuário
+    const cacheKey = `canta_setlists_offline_${user.id}`;
+    const cachedData = localStorage.getItem(cacheKey);
+    
     if (cachedData && !globalSetlistsCache) {
       const parsed = JSON.parse(cachedData);
       setSetlists(parsed);
@@ -93,7 +95,7 @@ export default function Setlists() {
 
         globalSetlistsCache = enriched; 
         setSetlists(enriched);
-        localStorage.setItem('canta_setlists_offline', JSON.stringify(enriched));
+        localStorage.setItem(cacheKey, JSON.stringify(enriched));
       }
     } catch (err) {
       console.warn("Falha silenciosa de rede evitada.", err);
@@ -104,7 +106,7 @@ export default function Setlists() {
 
   const toggleArchive = async (e, id, currentStatus) => {
     e.stopPropagation();
-    if (!isOnline) return; // Não deixa arquivar offline
+    if (!isOnline) return; 
     const newStatus = !currentStatus;
     setSetlists(prev => prev.map(sl => sl.id === id ? { ...sl, archived: newStatus } : sl));
     await supabase.from('setlists').update({ archived: newStatus }).eq('id', id);
@@ -118,6 +120,7 @@ export default function Setlists() {
         <button 
           onClick={(e) => toggleArchive(e, sl.id, sl.archived)} 
           disabled={!isOnline}
+          aria-label="Arquivar"
           className={`w-12 h-12 flex items-center justify-center transition-colors active:scale-95 ${!isOnline ? 'text-gray-200 cursor-not-allowed' : 'text-black/30 hover:text-black'}`}
         >
           {sl.archived ? <ArchiveRestore size={22} className="pointer-events-none" /> : <Archive size={22} className="pointer-events-none" />}
@@ -125,6 +128,7 @@ export default function Setlists() {
         <button 
           onClick={(e) => { e.stopPropagation(); if (isOnline) navigate(`/setlists/${sl.id}/edit`); }} 
           disabled={!isOnline}
+          aria-label="Editar"
           className={`w-12 h-12 flex items-center justify-center transition-colors active:scale-95 ${!isOnline ? 'text-gray-200 cursor-not-allowed' : 'text-black/30 hover:text-black'}`}
         >
           <Settings size={22} className="pointer-events-none" />
@@ -146,7 +150,7 @@ export default function Setlists() {
             {sl.songCount || 0} Músicas • {formatTotalDuration(sl.totalDurationSeconds)}
             {sl.isShared && <Users size={12} className="text-green-600 ml-1" title="Compartilhado" />}
           </span>
-          <button onClick={(e) => { e.stopPropagation(); navigate(`/setlists/${sl.id}/play/0`); }} className="w-11 h-11 bg-black rounded-full flex items-center justify-center text-white hover:opacity-80 active:scale-95">
+          <button aria-label="Tocar" onClick={(e) => { e.stopPropagation(); navigate(`/setlists/${sl.id}/play/0`); }} className="w-11 h-11 bg-black rounded-full flex items-center justify-center text-white hover:opacity-80 active:scale-95">
             <Play size={13} fill="white" className="pointer-events-none" />
           </button>
         </div>
@@ -165,6 +169,7 @@ export default function Setlists() {
           <button 
             onClick={handleCreateNew} 
             disabled={!isOnline}
+            aria-label="Criar Novo Setlist"
             className={`w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,0.3)]
               ${!isOnline 
                 ? "bg-gray-300 text-gray-500 opacity-50 cursor-not-allowed shadow-none" 

@@ -44,7 +44,7 @@ const styles = StyleSheet.create({
     width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10, // Margem reduzida para caber perfeitamente na página
+    marginBottom: 10, 
     paddingBottom: 4,
     borderBottomWidth: 1,
     borderBottomColor: '#eeeeee',
@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
   },
   dividerItem: {
     width: '100%',
-    marginBottom: 10, // Margem reduzida 
+    marginBottom: 10, 
     paddingBottom: 4,
     justifyContent: 'center',
   },
@@ -156,7 +156,6 @@ export const SetlistPdfDocument = ({ eventName, bandName, date, orderedItems }) 
     }
   });
 
-  // Limites otimizados para encaixar perfeitamente sem gerar páginas extras
   const LIMIT_PAGE_1 = 16; 
   const LIMIT_PAGE_2 = 20; 
 
@@ -226,7 +225,6 @@ export const SetlistPdfDocument = ({ eventName, bandName, date, orderedItems }) 
             </View>
           )}
 
-          {/* O wrap={false} impede terminantemente que o react-pdf crie páginas extras automáticas */}
           <View style={styles.grid} wrap={false}>
             <View style={styles.column}>
               {renderColumn(pageData.left)}

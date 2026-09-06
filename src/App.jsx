@@ -25,7 +25,6 @@ const SplashScreen = () => {
   const [showReload, setShowReload] = useState(false);
 
   useEffect(() => {
-    // Mostra as opções de escape se a rede demorar muito
     const timer = setTimeout(() => setShowReload(true), 4000);
     return () => clearTimeout(timer);
   }, []);
@@ -54,7 +53,7 @@ const SplashScreen = () => {
         <div className={`flex items-center justify-center gap-10 transition-all duration-1000 ease-out transform ${showReload ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
           
           <div className="flex flex-col items-center gap-3">
-            <button onClick={() => window.location.reload()} className="w-12 h-12 text-white/40 hover:text-white bg-white/5 hover:bg-white/10 border border-white/5 rounded-full transition-all duration-300 active:scale-95 flex items-center justify-center" title="Tentar Novamente">
+            <button onClick={() => window.location.reload()} className="w-12 h-12 text-white/40 hover:text-white bg-white/5 hover:bg-white/10 border border-white/5 rounded-full transition-all duration-300 active:scale-95 flex items-center justify-center" aria-label="Tentar Novamente">
               <RefreshCw size={20} strokeWidth={1.5} />
             </button>
             <span className="text-[9px] font-bold tracking-widest text-white/40 uppercase">
@@ -63,7 +62,7 @@ const SplashScreen = () => {
           </div>
 
           <div className="flex flex-col items-center gap-3">
-            <button onClick={handleForceOffline} className="w-12 h-12 text-white/40 hover:text-white bg-white/5 hover:bg-white/10 border border-white/5 rounded-full transition-all duration-300 active:scale-95 flex items-center justify-center" title="Usar sem internet">
+            <button onClick={handleForceOffline} className="w-12 h-12 text-white/40 hover:text-white bg-white/5 hover:bg-white/10 border border-white/5 rounded-full transition-all duration-300 active:scale-95 flex items-center justify-center" aria-label="Usar sem internet">
               <WifiOff size={20} strokeWidth={1.5} />
             </button>
             <span className="text-[9px] font-bold tracking-widest text-white/40 uppercase">
@@ -104,7 +103,6 @@ const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
   const location = useLocation();
   const isActive = (path) => location.pathname === path;
 
-  // Verifica se o usuário forçou o modo offline
   const isForcedOffline = sessionStorage.getItem('canta_force_offline') === 'true';
 
   const handleReconnect = () => {
@@ -116,7 +114,6 @@ const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
     <>
       <div className="bg-white border-b-4 border-black px-4 py-3 flex items-center justify-between sticky top-0 z-50 select-none grid grid-cols-3">
         <div className="flex items-center justify-start">
-          {/* Botão de Reconectar se estiver offline forçado */}
           {isForcedOffline ? (
             <button onClick={handleReconnect} className="bg-red-500 border-2 border-black text-white font-black text-[10px] px-3 py-1.5 rounded-lg uppercase tracking-wider flex items-center gap-1 hover:bg-red-600 transition-colors active:scale-95 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
               <Wifi size={12} strokeWidth={3} /> Reconectar
@@ -135,7 +132,7 @@ const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
         
         <div className="flex items-center justify-end gap-3">
           <SyncStatus />
-          <button onClick={onOpenSettings} className="w-9 h-9 border-2 border-black rounded-lg flex items-center justify-center text-black hover:bg-gray-50 active:scale-95 transition-transform">
+          <button aria-label="Configurações" onClick={onOpenSettings} className="w-9 h-9 border-2 border-black rounded-lg flex items-center justify-center text-black hover:bg-gray-50 active:scale-95 transition-transform">
             <Menu size={16} />
           </button>
         </div>
@@ -163,11 +160,13 @@ const AuthenticatedApp = () => {
   const [hasAcceptedTerms, setHasAcceptedTerms] = useState(true);
   
   useEffect(() => {
-    const hasSeen = localStorage.getItem('hasSeenTutorial');
+    // O onboarding fica atrelado ao email do usuário para não interferir se trocar de conta
+    const hasSeenKey = user ? `hasSeenTutorial_${user.email}` : 'hasSeenTutorial_guest';
+    const hasSeen = localStorage.getItem(hasSeenKey);
     if (isAuthenticated && !hasSeen && location.pathname !== '/tutorial') {
       navigate('/tutorial');
     }
-  }, [isAuthenticated, location.pathname, navigate]);
+  }, [isAuthenticated, location.pathname, navigate, user]);
 
   useEffect(() => {
     if (isAuthenticated && profile && profile.accepted_terms_version !== CURRENT_TERMS_VERSION) {
@@ -181,6 +180,7 @@ const AuthenticatedApp = () => {
   const hideNavigation = 
     path.startsWith('/login') ||
     path.startsWith('/register') ||
+    path.startsWith('/update-password') ||
     path.startsWith('/sucesso') ||
     path.startsWith('/tutorial') || 
     path.includes('/play/') || 
@@ -203,7 +203,10 @@ const AuthenticatedApp = () => {
           
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-          <Route path="/update-password" element={<PublicRoute><UpdatePassword /></PublicRoute>} />
+          
+          {/* AUDITORIA FIX: A rota de update-password NÃO pode ser bloqueada pelo PublicRoute 
+              pois o Supabase gera uma sessão ativa no momento da recuperação da senha. */}
+          <Route path="/update-password" element={<UpdatePassword />} />
           
           <Route path="/sucesso" element={<Success />} />
           

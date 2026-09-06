@@ -12,10 +12,10 @@ export default function SongEdit() {
   const { user, plan, isOnline } = useAuth();
   const isNew = id === "new";
 
-  // CARREGAMENTO DO RASCUNHO (Síncrono para garantir que os dados apareçam na hora)
+  // AUDITORIA FIX: Rascunho atrelado ao ID do usuário para evitar vazamento local
   const getInitialDraft = () => {
-    if (isNew) {
-      const draft = localStorage.getItem('canta_song_draft');
+    if (isNew && user) {
+      const draft = localStorage.getItem(`canta_song_draft_${user.id}`);
       if (draft) {
         try { return JSON.parse(draft); } catch(e){}
       }
@@ -35,20 +35,18 @@ export default function SongEdit() {
     setTimeout(() => setToast({ show: false, message: "" }), 3000);
   };
 
-  // ESTADOS INICIAIS (Puxam o rascunho se for uma música nova)
   const [title, setTitle] = useState(draft?.title || "");
   const [artist, setArtist] = useState(draft?.artist || "");
   const [durationMin, setDurationMin] = useState(draft?.durationMin || "0");
   const [durationSec, setDurationSec] = useState(draft?.durationSec || "0");
   const [lyrics, setLyrics] = useState(draft?.lyrics || "");
 
-  // SALVAMENTO AUTOMÁTICO DO RASCUNHO
   useEffect(() => {
-    if (isNew) {
+    if (isNew && user) {
       const currentDraft = { title, artist, durationMin, durationSec, lyrics };
-      localStorage.setItem('canta_song_draft', JSON.stringify(currentDraft));
+      localStorage.setItem(`canta_song_draft_${user.id}`, JSON.stringify(currentDraft));
     }
-  }, [title, artist, durationMin, durationSec, lyrics, isNew]);
+  }, [title, artist, durationMin, durationSec, lyrics, isNew, user]);
 
   useEffect(() => {
     if (!isNew && user) {
@@ -57,7 +55,8 @@ export default function SongEdit() {
   }, [id, user]);
 
   const loadSong = async () => {
-    const cached = localStorage.getItem(`canta_song_single_${id}`);
+    // AUDITORIA FIX: Leitura do Cache por Usuário
+    const cached = localStorage.getItem(`canta_song_single_${user.id}_${id}`);
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
@@ -90,7 +89,7 @@ export default function SongEdit() {
         setDurationSec(String(totalSec % 60));
         setLyrics(data.lyrics_text || "");
         
-        localStorage.setItem(`canta_song_single_${id}`, JSON.stringify(data));
+        localStorage.setItem(`canta_song_single_${user.id}_${id}`, JSON.stringify(data));
       }
     } catch (err) {
       console.error("Offline: Usando a cópia local desta música.");
@@ -113,16 +112,22 @@ export default function SongEdit() {
 
     try {
       if (isNew) {
-        await supabase.from('songs').insert([songData]);
-        localStorage.removeItem('canta_song_draft'); // Limpa rascunho com sucesso
+        const { error } = await supabase.from('songs').insert([songData]);
+        // AUDITORIA FIX: Impede que o rascunho seja apagado caso o servidor recuse o salvamento (ex: falta de internet oscilante)
+        if (error) throw error; 
+        
+        localStorage.removeItem(`canta_song_draft_${user.id}`); 
         navigate("/songs");
       } else {
-        await supabase.from('songs').update(songData).eq('id', id);
-        localStorage.setItem(`canta_song_single_${id}`, JSON.stringify({ ...songData, id }));
+        const { error } = await supabase.from('songs').update(songData).eq('id', id);
+        if (error) throw error;
+
+        localStorage.setItem(`canta_song_single_${user.id}_${id}`, JSON.stringify({ ...songData, id }));
         setEditing(false);
       }
     } catch (err) {
-      alert("Erro ao salvar letra: " + err.message);
+      // Retém o usuário na tela e mantém o rascunho intacto
+      alert("Erro ao salvar no servidor: " + err.message + "\n\nSeu rascunho foi mantido.");
     } finally {
       setSaving(false);
     }
@@ -132,10 +137,13 @@ export default function SongEdit() {
     if (!isOnline) return;
     if (!window.confirm("Remover esta música?")) return;
     try {
-      await supabase.from('songs').delete().eq('id', id);
-      localStorage.removeItem(`canta_song_single_${id}`);
-    } catch(e){}
-    navigate("/songs");
+      const { error } = await supabase.from('songs').delete().eq('id', id);
+      if (error) throw error;
+      localStorage.removeItem(`canta_song_single_${user.id}_${id}`);
+      navigate("/songs");
+    } catch(e){
+      alert("Erro ao excluir: " + e.message);
+    }
   };
 
   const handleDownload = () => {
@@ -159,10 +167,10 @@ export default function SongEdit() {
     navigate(`/songs/${id}/timecode`);
   };
 
-  // DESCARTAR RASCUNHO SE O USUÁRIO DESISTIR E CLICAR EM VOLTAR
   const handleBack = () => {
     if (isNew) {
-      localStorage.removeItem('canta_song_draft');
+      if (!window.confirm("Descartar este rascunho e voltar?")) return;
+      localStorage.removeItem(`canta_song_draft_${user.id}`);
     }
     navigate("/songs");
   };
@@ -181,7 +189,7 @@ export default function SongEdit() {
       )}
 
       <div className="flex items-center justify-between mb-4">
-        <button onClick={handleBack} className="w-12 h-12 flex items-center justify-center -ml-3 text-foreground hover:opacity-60 active:opacity-40 transition-opacity">
+        <button onClick={handleBack} aria-label="Voltar" className="w-12 h-12 flex items-center justify-center -ml-3 text-foreground hover:opacity-60 active:opacity-40 transition-opacity">
           <ArrowLeft size={22} className="pointer-events-none" />
         </button>
         <div className="flex items-center gap-3">
@@ -190,6 +198,7 @@ export default function SongEdit() {
               <button 
                 onClick={editing ? handleSave : () => setEditing(true)} 
                 disabled={saving || (editing && !title) || !isOnline}
+                aria-label={editing ? "Confirmar Edição" : "Editar Letra"}
                 className={`w-11 h-11 flex items-center justify-center rounded-xl transition-all active:scale-95 border border-black/10 shadow-sm
                   ${!isOnline ? "bg-gray-200 text-gray-400 cursor-not-allowed" : "bg-gray-100 text-black hover:opacity-80"}
                 `}
@@ -207,6 +216,7 @@ export default function SongEdit() {
               <button 
                 onClick={goToTimecode} 
                 disabled={!isOnline}
+                aria-label="Timecodes"
                 className={`w-11 h-11 flex items-center justify-center rounded-xl transition-opacity active:scale-95 border
                   ${!isOnline ? "bg-gray-200 border-gray-300 text-gray-400 cursor-not-allowed" : "bg-yellow-100 border-yellow-200 text-yellow-700 hover:opacity-80"}
                 `}
@@ -214,13 +224,14 @@ export default function SongEdit() {
                 <Clock size={20} className="pointer-events-none" />
               </button>
               
-              <button onClick={handleDownload} className="w-11 h-11 flex items-center justify-center bg-gray-100 text-black rounded-xl hover:opacity-80 transition-opacity active:scale-95 border border-black/10">
+              <button onClick={handleDownload} aria-label="Baixar TXT" className="w-11 h-11 flex items-center justify-center bg-gray-100 text-black rounded-xl hover:opacity-80 transition-opacity active:scale-95 border border-black/10">
                 <Download size={20} className="pointer-events-none" />
               </button>
               
               <button 
                 onClick={handleDelete} 
                 disabled={!isOnline}
+                aria-label="Excluir Música"
                 className={`w-11 h-11 flex items-center justify-center rounded-xl transition-opacity active:scale-95
                   ${!isOnline ? "text-gray-300 cursor-not-allowed" : "hover:bg-red-50 text-red-400"}
                 `}
