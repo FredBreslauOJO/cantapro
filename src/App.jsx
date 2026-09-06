@@ -159,12 +159,18 @@ const AuthenticatedApp = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [hasAcceptedTerms, setHasAcceptedTerms] = useState(true);
   
+  // AUDITORIA FIX: Leitura robusta do tutorial com base no BD e Cache isolado
   useEffect(() => {
-    // O onboarding fica atrelado ao email do usuário para não interferir se trocar de conta
-    const hasSeenKey = user ? `hasSeenTutorial_${user.email}` : 'hasSeenTutorial_guest';
-    const hasSeen = localStorage.getItem(hasSeenKey);
-    if (isAuthenticated && !hasSeen && location.pathname !== '/tutorial') {
-      navigate('/tutorial');
+    if (isAuthenticated && user) {
+      // 1. Checa nos metadados do Supabase
+      const hasSeenDB = user?.user_metadata?.has_seen_tutorial === true;
+      // 2. Checa no Cache Local
+      const cacheKey = `canta_tutorial_${user.id}`;
+      const hasSeenLocal = localStorage.getItem(cacheKey);
+
+      if (!hasSeenDB && !hasSeenLocal && location.pathname !== '/tutorial') {
+        navigate('/tutorial', { replace: true });
+      }
     }
   }, [isAuthenticated, location.pathname, navigate, user]);
 
@@ -204,8 +210,6 @@ const AuthenticatedApp = () => {
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
           
-          {/* AUDITORIA FIX: A rota de update-password NÃO pode ser bloqueada pelo PublicRoute 
-              pois o Supabase gera uma sessão ativa no momento da recuperação da senha. */}
           <Route path="/update-password" element={<UpdatePassword />} />
           
           <Route path="/sucesso" element={<Success />} />

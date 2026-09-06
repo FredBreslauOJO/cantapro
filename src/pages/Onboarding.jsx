@@ -1,141 +1,115 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Music, Globe, Clock, ListMusic, Share2, Zap, ChevronRight, X, Play, CheckCircle2, Sparkles } from 'lucide-react';
-
-const STEPS = [
-  // --- A JORNADA FUNDAMENTAL ---
-  {
-    title: "1. Suas Letras",
-    description: "Tudo começa aqui. Escreva, cole ou importe da internet para a sua Biblioteca Pessoal. Sem letras, não há show.",
-    icon: <Music size={48} />,
-    color: "bg-blue-400"
-  },
-  {
-    title: "2. O Repertório",
-    description: "Com as músicas salvas, monte a ordem do show! Adicione as canções, arraste para ordenar, crie pausas e insira comentários para a banda.",
-    icon: <ListMusic size={48} />,
-    color: "bg-green-400"
-  },
-  {
-    title: "3. O Palco",
-    description: "Aperte o PLAY. A tela fica preta para focar apenas na letra. Controle a rolagem e acesse seu roteiro a qualquer momento no menu superior.",
-    icon: <Play size={48} className="ml-1" />,
-    color: "bg-red-500"
-  },
-  {
-    title: "Tudo Pronto!",
-    description: "Você já sabe o essencial. Pode ir para o app agora ou tirar 1 minuto para conhecer nossas funcionalidades profissionais.",
-    icon: <CheckCircle2 size={48} />,
-    color: "bg-white",
-    isMidpoint: true // Marca onde o tutorial básico termina
-  },
-  // --- RECURSOS AVANÇADOS (Opcionais) ---
-  {
-    title: "Busca Sincronizada",
-    description: "Não perca tempo digitando. Importe letras com os tempos (timecodes) já sincronizados automaticamente direto da web.",
-    icon: <Globe size={48} />,
-    color: "bg-cyan-400"
-  },
-  {
-    title: "Edite o Timecode",
-    description: "Quer controle total? Ajuste o tempo exato de cada frase. O app até destaca as notas de palco em amarelo brilhante pra você.",
-    icon: <Clock size={48} />,
-    color: "bg-purple-400"
-  },
-  {
-    title: "Compartilhe e Imprima",
-    description: "A banda prefere o papel? Sem problema. Mande um link de colaboração no WhatsApp ou gere um PDF do setlist com um clique.",
-    icon: <Share2 size={48} />,
-    color: "bg-pink-400"
-  },
-  {
-    title: "Pedais Bluetooth",
-    description: "Toque com as mãos livres! Use seu pedal via Bluetooth (Setas/Espaço) para avançar as músicas ou pausar a rolagem.",
-    icon: <Zap size={48} />,
-    color: "bg-yellow-400"
-  }
-];
+import { Music, List, Play, ChevronRight, Check } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../lib/AuthContext';
+import Logo from '../components/Logo';
 
 export default function Onboarding() {
-  const [currentStep, setCurrentStep] = useState(0);
   const navigate = useNavigate();
+  const { user, isOnline } = useAuth();
+  const [step, setStep] = useState(0);
+  const [saving, setSaving] = useState(false);
 
-  const handleFinish = () => {
-    localStorage.setItem('hasSeenTutorial', 'true');
-    navigate('/');
+  const slides = [
+    {
+      icon: <Music size={48} className="text-yellow-400" />,
+      title: "Sua Biblioteca",
+      description: "Busque letras diretamente da internet ou adicione suas próprias músicas. Tudo fica salvo na nuvem."
+    },
+    {
+      icon: <List size={48} className="text-yellow-400" />,
+      title: "Crie Repertórios",
+      description: "Organize suas músicas em Setlists. Arraste para reordenar e adicione divisores para pausas e trocas de palco."
+    },
+    {
+      icon: <Play size={48} className="text-yellow-400" />,
+      title: "Teleprompter",
+      description: "Dê o play e a tela rolará automaticamente. Sem distrações. Tudo otimizado para o palco."
+    }
+  ];
+
+  const finishTutorial = async () => {
+    setSaving(true);
+    
+    // 1. Grava no Cache Local para ser instantâneo
+    const cacheKey = user ? `canta_tutorial_${user.id}` : 'canta_tutorial_guest';
+    localStorage.setItem(cacheKey, 'true');
+
+    // 2. Grava DEFINITIVAMENTE no Banco de Dados (Supabase User Metadata)
+    if (user && isOnline) {
+      try {
+        await supabase.auth.updateUser({ 
+          data: { has_seen_tutorial: true } 
+        });
+      } catch (err) {
+        console.error("Modo Offline: Tutorial salvo apenas localmente.");
+      }
+    }
+
+    navigate('/', { replace: true });
   };
 
-  const nextStep = () => {
-    if (currentStep < STEPS.length - 1) {
-      setCurrentStep(currentStep + 1);
+  const handleNext = () => {
+    if (step < slides.length - 1) {
+      setStep(step + 1);
     } else {
-      handleFinish();
+      finishTutorial();
     }
   };
 
-  const currentData = STEPS[currentStep];
-
   return (
-    <div className="fixed inset-0 bg-black z-[200] flex flex-col font-sans text-white select-none">
+    <div className="fixed inset-0 min-h-screen bg-black text-white flex flex-col z-[100] select-none">
       
-      {/* Header - Progresso e Fechar */}
-      <div className="p-6 flex justify-between items-center h-20 shrink-0">
-        <div className="flex gap-1.5">
-          {STEPS.map((_, idx) => (
-            <div 
-              key={idx} 
-              className={`h-1.5 rounded-full transition-all duration-300 ${
-                idx === currentStep ? 'bg-white w-8' : idx < currentStep ? 'bg-white/40 w-3' : 'bg-white/20 w-3'
-              }`}
-            />
-          ))}
-        </div>
-        <button onClick={handleFinish} className="text-[10px] font-black uppercase tracking-widest text-white/50 hover:text-white flex items-center gap-1 active:scale-95 transition-all p-2 -mr-2">
-          Pular <X size={14} />
+      {/* Header */}
+      <div className="flex items-center justify-between p-6">
+        <Logo className="h-6 text-white" />
+        <button 
+          onClick={finishTutorial}
+          disabled={saving}
+          className="text-[10px] font-black uppercase tracking-widest text-white/50 hover:text-white transition-colors active:scale-95"
+          aria-label="Pular Tutorial"
+        >
+          Pular <ChevronRight size={14} className="inline -mt-0.5" />
         </button>
       </div>
 
-      {/* Conteúdo Central */}
-      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center overflow-y-auto">
-        <div className={`w-32 h-32 ${currentData.color} rounded-3xl border-4 border-white flex items-center justify-center text-black mb-10 shadow-[8px_8px_0px_0px_rgba(255,255,255,1)] transition-colors duration-500 animate-bounce`}>
-          {currentData.icon}
+      {/* Content Carousel */}
+      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center animate-fadeIn">
+        <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mb-8 border-2 border-white/10 shadow-[0_0_40px_rgba(250,204,21,0.1)]">
+          {slides[step].icon}
         </div>
         
-        <h1 className="text-3xl sm:text-4xl font-black uppercase tracking-tighter mb-4 leading-none text-white drop-shadow-md">
-          {currentData.title}
-        </h1>
+        <h2 className="text-2xl font-black uppercase tracking-tight mb-4">
+          {slides[step].title}
+        </h2>
         
-        <p className="text-sm sm:text-base font-bold text-white/70 max-w-sm leading-relaxed">
-          {currentData.description}
+        <p className="text-sm font-medium text-white/60 max-w-xs leading-relaxed">
+          {slides[step].description}
         </p>
       </div>
 
-      {/* Footer - Controles e CTAs */}
-      <div className="p-6 sm:p-8 shrink-0 min-h-[140px] flex flex-col justify-end">
-        {currentData.isMidpoint ? (
-          <div className="space-y-4 w-full animate-fadeIn">
-            <button 
-              onClick={handleFinish}
-              className="w-full py-5 bg-yellow-400 text-black border-2 border-transparent rounded-2xl font-black uppercase tracking-[0.15em] text-xs sm:text-sm flex items-center justify-center gap-2 hover:bg-yellow-300 transition-all shadow-[0_6px_0_0_#ca8a04] active:translate-y-1.5 active:shadow-none"
-            >
-              Começar Agora
-            </button>
-            <button 
-              onClick={nextStep}
-              className="w-full py-4 text-white/60 hover:text-white rounded-xl font-black uppercase tracking-widest text-[10px] sm:text-xs flex items-center justify-center gap-2 transition-colors active:scale-95"
-            >
-              <Sparkles size={14} className="text-yellow-400" /> Conhecer Recursos Avançados
-            </button>
-          </div>
-        ) : (
-          <button 
-            onClick={nextStep}
-            className="w-full py-5 bg-white text-black rounded-2xl font-black uppercase tracking-[0.2em] text-xs sm:text-sm flex items-center justify-center gap-2 hover:bg-gray-200 transition-all shadow-[0_6px_0_0_#a3a3a3] active:translate-y-1.5 active:shadow-none"
-          >
-            {currentStep === STEPS.length - 1 ? "Ir para o App" : "Próximo Passo"}
-            {currentStep !== STEPS.length - 1 && <ChevronRight size={18} className="-mr-1" />}
-          </button>
-        )}
+      {/* Footer Controls */}
+      <div className="p-8 pb-12 flex flex-col items-center gap-8">
+        
+        {/* Page Dots */}
+        <div className="flex gap-2">
+          {slides.map((_, idx) => (
+            <div 
+              key={idx} 
+              className={`h-1.5 rounded-full transition-all duration-500 ${step === idx ? 'w-8 bg-yellow-400' : 'w-2 bg-white/20'}`} 
+            />
+          ))}
+        </div>
+
+        {/* Action Button */}
+        <button 
+          onClick={handleNext}
+          disabled={saving}
+          className="w-full max-w-sm py-4 bg-yellow-400 text-black rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-yellow-300 active:scale-95 transition-all shadow-[0_0_20px_rgba(250,204,21,0.3)] disabled:opacity-50"
+        >
+          {saving ? "Entrando..." : step === slides.length - 1 ? <><Check size={18} /> Começar</> : "Próximo"}
+        </button>
       </div>
 
     </div>
