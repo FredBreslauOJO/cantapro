@@ -203,7 +203,7 @@ const AuthenticatedApp = () => {
           
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-          <Route path="/update-password" element={<PublicRoute><UpdatePassword /></PublicRoute>} />
+         <Route path="/update-password" element={<UpdatePassword />} />
           
           <Route path="/sucesso" element={<Success />} />
           

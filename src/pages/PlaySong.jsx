@@ -2,10 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Play, Pause, ChevronLeft, ChevronRight, X, Settings, ListMusic, Type, Timer, FastForward, MessageSquareText } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../lib/AuthContext';
 
 export default function PlaySong() {
   const { id, songIndex } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   
   const [songs, setSongs] = useState([]);
   const [setlistName, setSetlistName] = useState("");
@@ -125,15 +127,13 @@ export default function PlaySong() {
     window.scrollTo(0, 0);
   }, [currentIndex]);
 
-  // 🔥 A GRANDE CORREÇÃO: LÓGICA DE CARREGAMENTO OFFLINE 🔥
   useEffect(() => {
     const loadSetlistAndSongs = async () => {
       if (!id) return;
       
       const isOnline = navigator.onLine && sessionStorage.getItem('canta_force_offline') !== 'true';
 
-      // 1. TENTA LER O CACHE PRIMEIRO
-      const cachedData = localStorage.getItem(`canta_play_offline_${id}`);
+      const cachedData = localStorage.getItem(`canta_play_offline_${user?.id}_${id}`);
       let hasLoadedFromCache = false;
 
       if (cachedData) {
@@ -142,22 +142,20 @@ export default function PlaySong() {
           setSetlistName(parsed.setlistName);
           setSongs(parsed.songs);
           hasLoadedFromCache = true;
-          setLoading(false); // Já libera a tela na hora!
+          setLoading(false); 
         } catch(e) {
           console.error("Erro ao ler cache offline");
         }
       } else if (!isOnline) {
          setLoading(false);
-         return; // Se não tem cache e tá offline, desiste
+         return; 
       } else {
-         setLoading(true); // Só bloqueia a tela se não tiver cache E tiver online
+         setLoading(true); 
       }
 
-      // 2. SE ESTIVER OFFLINE, NÃO FAZ REQUISIÇÃO (Evita o erro de rede)
       if (!isOnline) return;
 
       try {
-        // 3. SE ESTIVER ONLINE, BUSCA DADOS NOVOS E ATUALIZA O CACHE
         const { data: setlistData } = await supabase.from('setlists').select('event_name').eq('id', id).maybeSingle();
         const currentName = setlistData ? setlistData.event_name : (setlistName || "");
         if (setlistData) setSetlistName(currentName);
@@ -181,8 +179,7 @@ export default function PlaySong() {
           
           setSongs(formattedItems);
           
-          // Salva o roteiro do show inteiro no cache do celular!
-          localStorage.setItem(`canta_play_offline_${id}`, JSON.stringify({
+          localStorage.setItem(`canta_play_offline_${user?.id}_${id}`, JSON.stringify({
             setlistName: currentName,
             songs: formattedItems
           }));
@@ -195,8 +192,7 @@ export default function PlaySong() {
     };
 
     loadSetlistAndSongs();
-  }, [id]);
-  // 🔥 FIM DA CORREÇÃO OFFLINE 🔥
+  }, [id, user]);
 
   const togglePlay = () => {
     if (isPlaying) { stopAutoScroll(); setIsPlaying(false); } 
@@ -273,7 +269,11 @@ export default function PlaySong() {
     if (!currentSong) return;
 
     const timecodes = getParsedTimecodes(currentSong);
-    const hasTimecodes = timecodes.length > 0;
+    const hasTimecodes = timecodes.length > 0 && timecodes.some(tc => {
+      const start = tc.start_time ?? tc.startTime ?? tc.start ?? tc.time ?? tc.timecode ?? 0;
+      const end = tc.end_time ?? tc.endTime ?? tc.end ?? 0;
+      return parseFloat(start) > 0 || parseFloat(end) > 0;
+    });
 
     playbackRef.current.playing = true;
     playbackRef.current.lastFrameTime = Date.now();
@@ -381,7 +381,12 @@ export default function PlaySong() {
   const nextSong = songs[currentIndex + 1];
   
   const timecodes = getParsedTimecodes(currentSong);
-  const hasTimecodes = timecodes.length > 0;
+  const hasTimecodes = timecodes.length > 0 && timecodes.some(tc => {
+    const start = tc.start_time ?? tc.startTime ?? tc.start ?? tc.time ?? tc.timecode ?? 0;
+    const end = tc.end_time ?? tc.endTime ?? tc.end ?? 0;
+    return parseFloat(start) > 0 || parseFloat(end) > 0;
+  });
+  
   const songText = currentSong?.lyrics_text || currentSong?.lyrics || currentSong?.content || currentSong?.text || currentSong?.body;
 
   const isStarted = isPlaying || activeBlockIndex !== -1;

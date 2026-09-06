@@ -44,7 +44,7 @@ export default function Setlists() {
   };
 
   const loadSetlists = async () => {
-    const cachedData = localStorage.getItem('canta_setlists_offline');
+    const cachedData = localStorage.getItem(`canta_setlists_offline_${user?.id}`);
     if (cachedData && !globalSetlistsCache) {
       const parsed = JSON.parse(cachedData);
       setSetlists(parsed);
@@ -93,7 +93,7 @@ export default function Setlists() {
 
         globalSetlistsCache = enriched; 
         setSetlists(enriched);
-        localStorage.setItem('canta_setlists_offline', JSON.stringify(enriched));
+        localStorage.setItem(`canta_setlists_offline_${user?.id}`, JSON.stringify(enriched));
       }
     } catch (err) {
       console.warn("Falha silenciosa de rede evitada.", err);

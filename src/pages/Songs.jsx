@@ -32,7 +32,7 @@ export default function Songs() {
   }, [user]);
 
   const loadSongs = async () => {
-    const cached = localStorage.getItem('canta_songs_offline');
+    const cached = localStorage.getItem(`canta_songs_offline_${user?.id}`);
     if (cached && songs.length === 0) {
       const parsed = JSON.parse(cached);
       setSongs(parsed);
@@ -55,7 +55,7 @@ export default function Songs() {
       
       if (!error && data) {
         setSongs(data);
-        localStorage.setItem('canta_songs_offline', JSON.stringify(data));
+        localStorage.setItem(`canta_songs_offline_${user?.id}`, JSON.stringify(data));
       }
     } catch (err) {
       console.error("Modo offline ativado na listagem de letras.", err);
