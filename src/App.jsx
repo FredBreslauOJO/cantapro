@@ -12,7 +12,7 @@ import PlaySong from './pages/PlaySong';
 import TimecodeEditor from './pages/TimecodeEditor';
 import JoinSetlist from './pages/JoinSetlist';
 import Onboarding from './pages/Onboarding'; 
-import { Music, List, Menu, Zap, RefreshCw, WifiOff, Wifi } from 'lucide-react';
+import { Music, List, Menu, Zap, RefreshCw, Plane } from 'lucide-react';
 
 import PaywallModal from './components/PaywallModal';
 import SettingsModal from './components/SettingsModal';
@@ -46,6 +46,7 @@ const SplashScreen = () => {
         <div className="mb-8 opacity-90 animate-pulse">
           <Logo className="h-8 text-white filter invert brightness-0 saturate-100" />
         </div>
+        
         <div className="w-48 h-1 bg-white/10 rounded-full overflow-hidden relative mb-12">
           <div className="absolute top-0 left-0 h-full w-1/2 bg-yellow-400 rounded-full animate-loading-bar shadow-[0_0_10px_rgba(250,204,21,0.5)]" />
         </div>
@@ -53,20 +54,28 @@ const SplashScreen = () => {
         <div className={`flex items-center justify-center gap-10 transition-all duration-1000 ease-out transform ${showReload ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
           
           <div className="flex flex-col items-center gap-3">
-            <button onClick={() => window.location.reload()} className="w-12 h-12 text-white/40 hover:text-white bg-white/5 hover:bg-white/10 border border-white/5 rounded-full transition-all duration-300 active:scale-95 flex items-center justify-center" aria-label="Tentar Novamente">
+            <button 
+              onClick={() => window.location.reload()} 
+              className="w-12 h-12 text-white/40 hover:text-white bg-white/5 hover:bg-white/10 border border-white/5 rounded-full transition-all duration-300 active:scale-95 flex items-center justify-center" 
+              title="Tentar Novamente"
+            >
               <RefreshCw size={20} strokeWidth={1.5} />
             </button>
-            <span className="text-[9px] font-bold tracking-widest text-white/40 uppercase">
-              RECARREGAR
+            <span className="text-[9px] font-bold tracking-widest text-white/30 uppercase">
+              Recarregar
             </span>
           </div>
 
           <div className="flex flex-col items-center gap-3">
-            <button onClick={handleForceOffline} className="w-12 h-12 text-white/40 hover:text-white bg-white/5 hover:bg-white/10 border border-white/5 rounded-full transition-all duration-300 active:scale-95 flex items-center justify-center" aria-label="Usar sem internet">
-              <WifiOff size={20} strokeWidth={1.5} />
+            <button 
+              onClick={handleForceOffline} 
+              className="w-12 h-12 text-white/40 hover:text-white bg-white/5 hover:bg-white/10 border border-white/5 rounded-full transition-all duration-300 active:scale-95 flex items-center justify-center" 
+              title="Usar sem internet"
+            >
+              <Plane size={20} strokeWidth={1.5} />
             </button>
-            <span className="text-[9px] font-bold tracking-widest text-white/40 uppercase">
-              MODO OFFLINE
+            <span className="text-[9px] font-bold tracking-widest text-white/30 uppercase">
+              Modo Offline
             </span>
           </div>
 
@@ -101,24 +110,13 @@ const ProRoute = ({ children }) => {
 const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
   const { plan } = useAuth();
   const location = useLocation();
-  const isActive = (path) => location.pathname === path;
-
-  const isForcedOffline = sessionStorage.getItem('canta_force_offline') === 'true';
-
-  const handleReconnect = () => {
-    sessionStorage.removeItem('canta_force_offline');
-    window.location.reload();
-  };
+  const isActive = (path) => location.pathname === path || (path === '/' && location.pathname.startsWith('/setlists/'));
 
   return (
     <>
       <div className="bg-white border-b-4 border-black px-4 py-3 flex items-center justify-between sticky top-0 z-50 select-none grid grid-cols-3">
         <div className="flex items-center justify-start">
-          {isForcedOffline ? (
-            <button onClick={handleReconnect} className="bg-red-500 border-2 border-black text-white font-black text-[10px] px-3 py-1.5 rounded-lg uppercase tracking-wider flex items-center gap-1 hover:bg-red-600 transition-colors active:scale-95 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-              <Wifi size={12} strokeWidth={3} /> Reconectar
-            </button>
-          ) : plan !== 'pro' ? (
+          {plan !== 'pro' ? (
             <button onClick={onOpenPaywall} className="bg-yellow-400 border-2 border-black text-black font-black text-[10px] px-3 py-1.5 rounded-lg uppercase tracking-wider flex items-center gap-1 hover:bg-yellow-300 transition-colors active:scale-95 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
               <Zap size={10} fill="black" /> <span className="hidden xs:inline">Assine</span> Pro
             </button>
@@ -159,12 +157,9 @@ const AuthenticatedApp = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [hasAcceptedTerms, setHasAcceptedTerms] = useState(true);
   
-  // AUDITORIA FIX: Leitura robusta do tutorial com base no BD e Cache isolado
   useEffect(() => {
     if (isAuthenticated && user) {
-      // 1. Checa nos metadados do Supabase
       const hasSeenDB = user?.user_metadata?.has_seen_tutorial === true;
-      // 2. Checa no Cache Local
       const cacheKey = `canta_tutorial_${user.id}`;
       const hasSeenLocal = localStorage.getItem(cacheKey);
 

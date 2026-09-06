@@ -23,7 +23,6 @@ export default function TimecodeEditor() {
   const containerRef = useRef(null);
   const playIntervalRef = useRef(null);
   const startTimeRef = useRef(0);
-  const lastUpdateRef = useRef(0);
 
   useEffect(() => {
     loadSong();
@@ -32,7 +31,6 @@ export default function TimecodeEditor() {
   useEffect(() => {
     if (isPlaying) {
       startTimeRef.current = performance.now() - (currentTime * 1000);
-      lastUpdateRef.current = performance.now();
       
       playIntervalRef.current = setInterval(() => {
         const now = performance.now();
@@ -149,14 +147,11 @@ export default function TimecodeEditor() {
     setSaving(true);
     try {
       const { error } = await supabase.from('songs').update({ timecode_blocks: blocks }).eq('id', song.id);
-      
-      // Auditoria: O Throw garante que se a rede cair ou o servidor rejeitar, 
-      // o catch vai interceptar e não deixará o usuário voltar para a tela inicial perdendo o trabalho.
       if (error) throw error; 
       
       navigate('/songs');
     } catch (err) {
-      alert("Erro ao salvar sincronização: " + err.message + "\n\nSeu progresso foi mantido na tela.");
+      alert("Erro ao salvar sincronização: " + err.message);
       setSaving(false);
     }
   };

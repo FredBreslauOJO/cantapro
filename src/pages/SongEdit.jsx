@@ -13,8 +13,8 @@ export default function SongEdit() {
   const isNew = id === "new";
 
   const getInitialDraft = () => {
-    if (isNew && user) {
-      const draft = localStorage.getItem(`canta_song_draft_${user.id}`);
+    if (isNew) {
+      const draft = localStorage.getItem('canta_song_draft');
       if (draft) {
         try { return JSON.parse(draft); } catch(e){}
       }
@@ -24,7 +24,7 @@ export default function SongEdit() {
   const draft = getInitialDraft();
 
   const [editing, setEditing] = useState(isNew && isOnline);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   
@@ -40,7 +40,7 @@ export default function SongEdit() {
   const [durationSec, setDurationSec] = useState(draft?.durationSec || "0");
   const [lyrics, setLyrics] = useState(draft?.lyrics || "");
 
-  // AUDITORIA FIX: Trava de Segurança contra By-pass de URL no Plano Free
+  // AUDITORIA FIX: Trava contra By-pass de URL no Plano Free
   useEffect(() => {
     const checkPlanLimits = async () => {
       if (isNew && plan === 'free' && isOnline && user) {
@@ -59,12 +59,11 @@ export default function SongEdit() {
   }, [isNew, plan, isOnline, user, navigate]);
 
   useEffect(() => {
-    if (isNew && user) {
+    if (isNew) {
       const currentDraft = { title, artist, durationMin, durationSec, lyrics };
-      localStorage.setItem(`canta_song_draft_${user.id}`, JSON.stringify(currentDraft));
-      setLoading(false);
+      localStorage.setItem('canta_song_draft', JSON.stringify(currentDraft));
     }
-  }, [title, artist, durationMin, durationSec, lyrics, isNew, user]);
+  }, [title, artist, durationMin, durationSec, lyrics, isNew]);
 
   useEffect(() => {
     if (!isNew && user) {
@@ -73,7 +72,7 @@ export default function SongEdit() {
   }, [id, user]);
 
   const loadSong = async () => {
-    const cached = localStorage.getItem(`canta_song_single_${user.id}_${id}`);
+    const cached = localStorage.getItem(`canta_song_single_${id}`);
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
@@ -106,7 +105,7 @@ export default function SongEdit() {
         setDurationSec(String(totalSec % 60));
         setLyrics(data.lyrics_text || "");
         
-        localStorage.setItem(`canta_song_single_${user.id}_${id}`, JSON.stringify(data));
+        localStorage.setItem(`canta_song_single_${id}`, JSON.stringify(data));
       }
     } catch (err) {
       console.error("Offline: Usando a cópia local desta música.");
@@ -129,20 +128,16 @@ export default function SongEdit() {
 
     try {
       if (isNew) {
-        const { error } = await supabase.from('songs').insert([songData]);
-        if (error) throw error; 
-        
-        localStorage.removeItem(`canta_song_draft_${user.id}`); 
+        await supabase.from('songs').insert([songData]);
+        localStorage.removeItem('canta_song_draft'); 
         navigate("/songs");
       } else {
-        const { error } = await supabase.from('songs').update(songData).eq('id', id);
-        if (error) throw error;
-
-        localStorage.setItem(`canta_song_single_${user.id}_${id}`, JSON.stringify({ ...songData, id }));
+        await supabase.from('songs').update(songData).eq('id', id);
+        localStorage.setItem(`canta_song_single_${id}`, JSON.stringify({ ...songData, id }));
         setEditing(false);
       }
     } catch (err) {
-      alert("Erro ao salvar no servidor: " + err.message + "\n\nSeu rascunho foi mantido.");
+      alert("Erro ao salvar letra: " + err.message);
     } finally {
       setSaving(false);
     }
@@ -152,13 +147,10 @@ export default function SongEdit() {
     if (!isOnline) return;
     if (!window.confirm("Remover esta música?")) return;
     try {
-      const { error } = await supabase.from('songs').delete().eq('id', id);
-      if (error) throw error;
-      localStorage.removeItem(`canta_song_single_${user.id}_${id}`);
-      navigate("/songs");
-    } catch(e){
-      alert("Erro ao excluir: " + e.message);
-    }
+      await supabase.from('songs').delete().eq('id', id);
+      localStorage.removeItem(`canta_song_single_${id}`);
+    } catch(e){}
+    navigate("/songs");
   };
 
   const handleDownload = () => {
@@ -184,8 +176,7 @@ export default function SongEdit() {
 
   const handleBack = () => {
     if (isNew) {
-      if (!window.confirm("Descartar este rascunho e voltar?")) return;
-      localStorage.removeItem(`canta_song_draft_${user.id}`);
+      localStorage.removeItem('canta_song_draft');
     }
     navigate("/songs");
   };
@@ -204,7 +195,7 @@ export default function SongEdit() {
       )}
 
       <div className="flex items-center justify-between mb-4">
-        <button onClick={handleBack} aria-label="Voltar" className="w-12 h-12 flex items-center justify-center -ml-3 text-foreground hover:opacity-60 active:opacity-40 transition-opacity">
+        <button onClick={handleBack} className="w-12 h-12 flex items-center justify-center -ml-3 text-foreground hover:opacity-60 active:opacity-40 transition-opacity">
           <ArrowLeft size={22} className="pointer-events-none" />
         </button>
         <div className="flex items-center gap-3">
@@ -213,7 +204,6 @@ export default function SongEdit() {
               <button 
                 onClick={editing ? handleSave : () => setEditing(true)} 
                 disabled={saving || (editing && !title) || !isOnline}
-                aria-label={editing ? "Confirmar Edição" : "Editar Letra"}
                 className={`w-11 h-11 flex items-center justify-center rounded-xl transition-all active:scale-95 border border-black/10 shadow-sm
                   ${!isOnline ? "bg-gray-200 text-gray-400 cursor-not-allowed" : "bg-gray-100 text-black hover:opacity-80"}
                 `}
@@ -231,7 +221,6 @@ export default function SongEdit() {
               <button 
                 onClick={goToTimecode} 
                 disabled={!isOnline}
-                aria-label="Sincronizar Timecodes"
                 className={`w-11 h-11 flex items-center justify-center rounded-xl transition-opacity active:scale-95 border
                   ${!isOnline ? "bg-gray-200 border-gray-300 text-gray-400 cursor-not-allowed" : "bg-yellow-100 border-yellow-200 text-yellow-700 hover:opacity-80"}
                 `}
@@ -239,14 +228,13 @@ export default function SongEdit() {
                 <Clock size={20} className="pointer-events-none" />
               </button>
               
-              <button onClick={handleDownload} aria-label="Baixar TXT" className="w-11 h-11 flex items-center justify-center bg-gray-100 text-black rounded-xl hover:opacity-80 transition-opacity active:scale-95 border border-black/10">
+              <button onClick={handleDownload} className="w-11 h-11 flex items-center justify-center bg-gray-100 text-black rounded-xl hover:opacity-80 transition-opacity active:scale-95 border border-black/10">
                 <Download size={20} className="pointer-events-none" />
               </button>
               
               <button 
                 onClick={handleDelete} 
                 disabled={!isOnline}
-                aria-label="Excluir Música"
                 className={`w-11 h-11 flex items-center justify-center rounded-xl transition-opacity active:scale-95
                   ${!isOnline ? "text-gray-300 cursor-not-allowed" : "hover:bg-red-50 text-red-400"}
                 `}
@@ -264,26 +252,22 @@ export default function SongEdit() {
             <input
               type="text" value={title} onChange={e => setTitle(e.target.value)}
               placeholder="TÍTULO DA MÚSICA"
-              aria-label="Título da música"
               className="w-full text-xl font-black uppercase tracking-tight bg-transparent border-b-4 border-black py-1 outline-none placeholder-black/20"
             />
             <input
               type="text" value={artist} onChange={e => setArtist(e.target.value)}
               placeholder="NOME DO ARTISTA"
-              aria-label="Nome do Artista"
               className="w-full text-sm font-bold uppercase tracking-widest bg-transparent border-b-2 border-black/30 py-1 outline-none placeholder-black/20 focus:border-black"
             />
             <div className="flex items-center gap-2 pt-1">
               <span className="text-xs font-bold uppercase tracking-widest text-black/40">Duração:</span>
               <input
                 type="number" min="0" max="59" value={durationMin} onChange={e => setDurationMin(e.target.value)}
-                aria-label="Minutos"
                 className="w-14 text-sm font-bold text-center border-2 border-black/20 rounded-lg py-1 outline-none focus:border-black"
               />
               <span className="text-xs font-bold uppercase tracking-widest text-black/40">min</span>
               <input
                 type="number" min="0" max="59" value={durationSec} onChange={e => setDurationSec(e.target.value)}
-                aria-label="Segundos"
                 className="w-14 text-sm font-bold text-center border-2 border-black/20 rounded-lg py-1 outline-none focus:border-black"
               />
               <span className="text-xs font-bold uppercase tracking-widest text-black/40">seg</span>
@@ -307,7 +291,6 @@ export default function SongEdit() {
           <textarea
             value={lyrics} onChange={e => setLyrics(e.target.value)}
             placeholder="DIGITE OU COLE A LETRA AQUI"
-            aria-label="Campo de Letra"
             rows={18}
             className="w-full bg-transparent p-6 text-sm leading-8 outline-none resize-none placeholder-black/20 font-mono font-bold text-black"
             style={{ lineHeight: "32px" }}

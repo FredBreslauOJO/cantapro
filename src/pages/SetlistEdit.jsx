@@ -31,23 +31,23 @@ function SortableRow({ item, index, songCounter, onRemove, onUpdateDivider, isRe
     <div 
       ref={isReadOnly ? null : setNodeRef} 
       style={style}
-      className={`border-2 border-black rounded-xl flex items-center justify-between transition-colors ${
-        item.type === 'divider' ? "bg-black text-white p-2 sm:p-3 shadow-[4px_4px_0px_0px_rgba(234,179,8,1)]" : "bg-white p-2 sm:p-4 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+      className={`border-4 border-black rounded-2xl flex items-center justify-between transition-colors ${
+        item.type === 'divider' ? "bg-gray-100 p-2 sm:p-3" : "bg-white p-2 sm:p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
       } ${isDragging ? 'shadow-2xl border-dashed' : ''}`}
     >
       
       {item.type === 'divider' ? (
         <div className="flex items-center gap-2 sm:gap-3 w-full mr-2">
           {!isReadOnly && (
-            <div {...attributes} {...listeners} className="p-3 -ml-3 cursor-grab active:cursor-grabbing hover:bg-white/10 rounded-lg touch-none" aria-label="Arraste para reordenar">
-              <GripVertical size={20} className="text-white/40 flex-shrink-0" />
+            <div {...attributes} {...listeners} className="p-3 -ml-3 cursor-grab active:cursor-grabbing hover:bg-black/5 rounded-lg touch-none" aria-label="Arraste para reordenar">
+              <GripVertical size={20} className="text-black/30 flex-shrink-0" />
             </div>
           )}
           <input 
             type="text" value={item.content}
             onChange={(e) => onUpdateDivider(item.itemId, e.target.value)}
             disabled={isReadOnly}
-            className="bg-transparent font-black text-sm uppercase tracking-widest outline-none w-full placeholder-white/40 text-white disabled:opacity-80"
+            className="bg-transparent font-black text-sm uppercase tracking-widest outline-none w-full placeholder-black/30 text-black disabled:opacity-80"
             placeholder="DIGITE O NOME DO BLOCO"
             aria-label="Nome do Bloco"
           />
@@ -83,7 +83,7 @@ function SortableRow({ item, index, songCounter, onRemove, onUpdateDivider, isRe
             confirmDelete 
               ? 'bg-red-500 border-red-500 text-white scale-105' 
               : item.type === 'divider' 
-                ? 'border-white/20 text-white hover:bg-red-500 hover:border-red-500' 
+                ? 'border-transparent text-red-500 hover:bg-red-100' 
                 : 'border-transparent hover:border-black text-red-500 hover:bg-red-50'
           }`}
         >
@@ -201,11 +201,13 @@ export default function SetlistEdit() {
     try {
       const { error: err1 } = await supabase.from('setlist_items').delete().eq('setlist_id', id);
       if (err1) throw err1;
+      
       const { error: err2 } = await supabase.from('setlists').delete().eq('id', id);
       if (err2) throw err2;
+      
       navigate('/');
     } catch (err) {
-      alert("Falha de rede ao excluir. Tente novamente.");
+      alert("Falha ao excluir o repertório. Verifique sua conexão e tente novamente.");
       setLoading(false);
     }
   };
@@ -293,7 +295,6 @@ export default function SetlistEdit() {
     try {
       const updates = updatedItems.map((item, idx) => supabase.from('setlist_items').update({ order_index: idx }).eq('id', item.itemId));
       const results = await Promise.all(updates);
-      // Auditoria: Garante reversão caso uma das requisições de ordenação falhe
       results.forEach(res => { if (res.error) throw res.error; });
     } catch (err) { 
       alert("A conexão oscilou e a reordenação falhou. A página será recarregada.");
@@ -320,7 +321,7 @@ export default function SetlistEdit() {
 
       <div className="p-4 max-w-xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <button aria-label="Voltar" onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-black active:scale-95">
+          <button aria-label="Voltar" onClick={() => navigate('/')} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-black active:scale-95">
             <ArrowLeft size={28} strokeWidth={2.5} />
           </button>
           
@@ -328,9 +329,9 @@ export default function SetlistEdit() {
             <button 
               aria-label="Atualizar Dados"
               onClick={() => loadSetlistAndLibrary(true)}
-              className="p-2.5 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all text-black"
+              className="w-11 h-11 bg-white border-2 border-black rounded-xl hover:bg-gray-50 active:scale-95 transition-all text-black flex items-center justify-center"
             >
-              <RefreshCw size={18} strokeWidth={2.5} className={isRefreshing ? "animate-spin" : ""} />
+              <RefreshCw size={20} strokeWidth={2.5} className={isRefreshing ? "animate-spin" : ""} />
             </button>
 
             {plan === 'pro' ? (
@@ -348,28 +349,28 @@ export default function SetlistEdit() {
                   />
                 }
                 fileName={`${eventName || 'setlist'}.pdf`}
-                className="p-2.5 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center justify-center text-black"
+                className="w-11 h-11 bg-white border-2 border-black rounded-xl hover:bg-gray-50 active:scale-95 transition-all flex items-center justify-center text-black"
                 aria-label="Imprimir Repertório em PDF"
               >
-                {({ loading }) => (loading ? "..." : <Printer size={18} strokeWidth={2.5} />)}
+                {({ loading }) => (loading ? "..." : <Printer size={20} strokeWidth={2.5} />)}
               </PDFDownloadLink>
             ) : (
-              <button aria-label="Imprimir Repertório (Requer Pro)" onClick={() => setIsPaywallOpen(true)} className="p-2.5 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center justify-center text-black">
-                <Printer size={18} strokeWidth={2.5} />
+              <button aria-label="Imprimir Repertório (Requer Pro)" onClick={() => setIsPaywallOpen(true)} className="w-11 h-11 bg-white border-2 border-black rounded-xl hover:bg-gray-50 active:scale-95 transition-all flex items-center justify-center text-black">
+                <Printer size={20} strokeWidth={2.5} />
               </button>
             )}
 
-            <button aria-label="Compartilhar Convite" onClick={handleShare} className="p-2.5 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all text-black">
-              <Share2 size={18} strokeWidth={2.5} />
+            <button aria-label="Compartilhar Convite" onClick={handleShare} className="w-11 h-11 bg-white border-2 border-black rounded-xl hover:bg-gray-50 active:scale-95 transition-all flex items-center justify-center text-black">
+              <Share2 size={20} strokeWidth={2.5} />
             </button>
             
             {isGuest ? (
-               <button aria-label="Sair do Repertório Colaborativo" onClick={handleLeaveSetlist} className="p-2.5 bg-white border-2 border-orange-500 text-orange-500 rounded-xl shadow-[3px_3px_0px_0px_rgba(249,115,22,1)] hover:bg-orange-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all" title="Sair do Repertório">
-                 <LogOut size={18} strokeWidth={2.5} />
+               <button aria-label="Sair do Repertório Colaborativo" onClick={handleLeaveSetlist} className="w-11 h-11 bg-white border-2 border-orange-500 text-orange-500 rounded-xl hover:bg-orange-50 active:scale-95 transition-all flex items-center justify-center" title="Sair do Repertório">
+                 <LogOut size={20} strokeWidth={2.5} />
                </button>
             ) : (
-               <button aria-label="Excluir Repertório" onClick={handleDeleteSetlist} className="p-2.5 bg-white border-2 border-black text-red-500 rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-red-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all" title="Excluir Repertório">
-                 <Trash2 size={18} strokeWidth={2.5} />
+               <button aria-label="Excluir Repertório" onClick={handleDeleteSetlist} className="w-11 h-11 bg-white border-2 border-red-500 text-red-500 rounded-xl hover:bg-red-50 active:scale-95 transition-all flex items-center justify-center" title="Excluir Repertório">
+                 <Trash2 size={20} strokeWidth={2.5} />
                </button>
             )}
           </div>
@@ -383,8 +384,8 @@ export default function SetlistEdit() {
         </div>
         <div className="flex items-center gap-2 mb-6 text-xs font-black uppercase tracking-wider">
           <span>Data:</span>
-          <div className="relative inline-flex items-center bg-gray-50 border-2 border-black rounded-xl px-2 py-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-            <Calendar size={14} className="text-black/50 mr-1.5 pointer-events-none" />
+          <div className="relative inline-flex items-center bg-white border-2 border-black rounded-lg px-2 py-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+            <Calendar size={14} className="text-black mr-1.5 pointer-events-none" />
             <input type="date" aria-label="Data do Evento" value={date} onChange={(e) => { setDate(e.target.value); handleUpdateField('date', e.target.value); }} disabled={isReadOnly} className="bg-transparent font-bold text-black outline-none border-none cursor-pointer uppercase text-xs disabled:opacity-70" />
           </div>
         </div>
@@ -402,20 +403,20 @@ export default function SetlistEdit() {
                   value={searchQuery} 
                   onChange={(e) => setSearchQuery(e.target.value)} 
                   placeholder="Buscar música..." 
-                  className="w-full pl-9 pr-10 py-3 border-2 border-black rounded-xl text-sm font-bold bg-gray-50 focus:bg-white outline-none transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]" 
+                  className="w-full pl-9 pr-10 py-3 border-2 border-black rounded-xl text-sm font-bold bg-white focus:bg-white outline-none transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]" 
                 />
                 {searchQuery && (
                   <button 
                     aria-label="Limpar busca"
                     onClick={() => setSearchQuery("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 bg-black/10 hover:bg-black/20 rounded-full text-black/60 transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-red-500 transition-colors"
                   >
-                    <X size={14} strokeWidth={3} />
+                    <X size={18} strokeWidth={3} />
                   </button>
                 )}
               </div>
               
-              <button aria-label="Adicionar Novo Bloco Divisor" onClick={handleAddDivider} className="px-3 sm:px-4 bg-black text-white border-2 border-black rounded-xl text-[10px] font-black uppercase tracking-widest shadow-[3px_3px_0px_0px_rgba(0,0,0,0.2)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center gap-1.5">
+              <button aria-label="Adicionar Novo Bloco Divisor" onClick={handleAddDivider} className="px-3 sm:px-4 bg-black text-white border-2 border-black rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all flex items-center gap-1.5">
                 <AlignLeft size={14} /> <span className="hidden sm:inline">Divisor</span>
               </button>
             </div>
@@ -431,7 +432,7 @@ export default function SetlistEdit() {
                         <p className="font-black text-xs uppercase tracking-tight truncate">{song.title}</p>
                         <p className="text-[10px] font-bold text-gray-400 uppercase truncate">{song.artist || 'Sem artista'}</p>
                       </div>
-                      <button aria-label="Adicionar música ao repertório" onClick={() => handleAddSong(song)} className="p-1.5 bg-blue-600 text-white rounded-lg active:scale-95 transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] border-2 border-black flex-shrink-0">
+                      <button aria-label="Adicionar música ao repertório" onClick={() => handleAddSong(song)} className="w-8 h-8 flex items-center justify-center bg-blue-600 text-white rounded-lg active:scale-95 transition-all flex-shrink-0">
                         <Plus size={16} strokeWidth={3} />
                       </button>
                     </div>
@@ -483,11 +484,6 @@ export default function SetlistEdit() {
       </div>
 
       <PaywallModal isOpen={isPaywallOpen} onClose={() => setIsPaywallOpen(false)} currentPlan={plan} />
-
-      <nav className="fixed bottom-0 left-0 right-0 border-t-4 border-black bg-white px-4 py-3 flex gap-3 z-40">
-        <button onClick={() => navigate('/')} className="flex-1 py-3 bg-black text-white text-xs font-black uppercase tracking-widest rounded-xl active:scale-95 transition-all">Setlists</button>
-        <button onClick={() => navigate('/songs')} className="flex-1 py-3 bg-white border-2 border-black text-black text-xs font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:scale-95 transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"><Music size={14} /> Letras</button>
-      </nav>
     </div>
   );
 }
