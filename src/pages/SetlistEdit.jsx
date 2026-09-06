@@ -31,35 +31,34 @@ function SortableRow({ item, index, songCounter, onRemove, onUpdateDivider, isRe
     <div 
       ref={isReadOnly ? null : setNodeRef} 
       style={style}
-      className={`border-4 border-black rounded-2xl flex items-center justify-between transition-colors ${
-        item.type === 'divider' ? "bg-gray-100 p-2 sm:p-3" : "bg-white p-2 sm:p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+      className={`border-2 border-black rounded-xl flex items-center justify-between transition-colors ${
+        item.type === 'divider' ? "bg-black text-white p-2 sm:p-3 shadow-[4px_4px_0px_0px_rgba(234,179,8,1)]" : "bg-white p-2 sm:p-4 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
       } ${isDragging ? 'shadow-2xl border-dashed' : ''}`}
     >
       
       {item.type === 'divider' ? (
         <div className="flex items-center gap-2 sm:gap-3 w-full mr-2">
           {!isReadOnly && (
-            <div {...attributes} {...listeners} className="p-3 -ml-3 cursor-grab active:cursor-grabbing hover:bg-black/5 rounded-lg touch-none" aria-label="Arraste para reordenar">
-              <GripVertical size={20} className="text-black/30 flex-shrink-0" />
+            <div {...attributes} {...listeners} className="p-3 -ml-3 cursor-grab active:cursor-grabbing hover:bg-white/10 rounded-lg touch-none">
+              <GripVertical size={20} className="text-white/40 flex-shrink-0" />
             </div>
           )}
           <input 
             type="text" value={item.content}
             onChange={(e) => onUpdateDivider(item.itemId, e.target.value)}
             disabled={isReadOnly}
-            className="bg-transparent font-black text-sm uppercase tracking-widest outline-none w-full placeholder-black/30 text-black disabled:opacity-80"
+            className="bg-transparent font-black text-sm uppercase tracking-widest outline-none w-full placeholder-white/40 text-white disabled:opacity-80"
             placeholder="DIGITE O NOME DO BLOCO"
-            aria-label="Nome do Bloco"
           />
         </div>
       ) : (
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 mr-2">
           {!isReadOnly && (
-            <div {...attributes} {...listeners} className="p-3 -ml-3 cursor-grab active:cursor-grabbing hover:bg-gray-100 rounded-lg touch-none" aria-label="Arraste para reordenar">
+            <div {...attributes} {...listeners} className="p-3 -ml-3 cursor-grab active:cursor-grabbing hover:bg-gray-100 rounded-lg touch-none">
               <GripVertical size={20} className="text-black/30 flex-shrink-0" />
             </div>
           )}
-          <span className="font-mono text-xs font-black text-gray-400 w-5 flex-shrink-0 text-center" aria-hidden="true">
+          <span className="font-mono text-xs font-black text-gray-400 w-5 flex-shrink-0 text-center">
             {songCounter.toString().padStart(2, '0')}
           </span>
           <div className="truncate pl-1">
@@ -71,7 +70,6 @@ function SortableRow({ item, index, songCounter, onRemove, onUpdateDivider, isRe
 
       {!isReadOnly && (
         <button 
-          aria-label={confirmDelete ? "Confirmar exclusão" : "Remover item"}
           onClick={() => {
             if (confirmDelete) onRemove(item.itemId);
             else {
@@ -83,7 +81,7 @@ function SortableRow({ item, index, songCounter, onRemove, onUpdateDivider, isRe
             confirmDelete 
               ? 'bg-red-500 border-red-500 text-white scale-105' 
               : item.type === 'divider' 
-                ? 'border-transparent text-red-500 hover:bg-red-100' 
+                ? 'border-white/20 text-white hover:bg-red-500 hover:border-red-500' 
                 : 'border-transparent hover:border-black text-red-500 hover:bg-red-50'
           }`}
         >
@@ -98,7 +96,7 @@ function SortableRow({ item, index, songCounter, onRemove, onUpdateDivider, isRe
 export default function SetlistEdit() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { user, plan, isOnline } = useAuth();
+  const { user, plan } = useAuth();
 
   const [eventName, setEventName] = useState("");
   const [bandName, setBandName] = useState("");
@@ -113,7 +111,7 @@ export default function SetlistEdit() {
   const [librarySongs, setLibrarySongs] = useState([]); 
   const [setlistItems, setSetlistItems] = useState([]);
 
-  const isReadOnly = (isGuest && (plan || 'free') === 'free') || !isOnline;
+  const isReadOnly = isGuest && (plan || 'free') === 'free';
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -170,12 +168,7 @@ export default function SetlistEdit() {
 
   const handleUpdateField = async (field, value) => {
     if (isReadOnly) return;
-    try {
-      const { error } = await supabase.from('setlists').update({ [field]: value }).eq('id', id);
-      if (error) throw error;
-    } catch (err) {
-      console.error(`Erro ao atualizar ${field}:`, err.message);
-    }
+    await supabase.from('setlists').update({ [field]: value }).eq('id', id);
   };
 
   const handleShare = async () => {
@@ -198,45 +191,24 @@ export default function SetlistEdit() {
   const handleDeleteSetlist = async () => {
     if (!window.confirm("Excluir permanentemente este setlist?")) return;
     setLoading(true);
-    try {
-      const { error: err1 } = await supabase.from('setlist_items').delete().eq('setlist_id', id);
-      if (err1) throw err1;
-      
-      const { error: err2 } = await supabase.from('setlists').delete().eq('id', id);
-      if (err2) throw err2;
-      
-      navigate('/');
-    } catch (err) {
-      alert("Falha ao excluir o repertório. Verifique sua conexão e tente novamente.");
-      setLoading(false);
-    }
+    await supabase.from('setlist_items').delete().eq('setlist_id', id);
+    await supabase.from('setlists').delete().eq('id', id);
+    navigate('/');
   };
 
   const handleLeaveSetlist = async () => {
     if (!window.confirm("Sair deste repertório compartilhado?")) return;
     setLoading(true);
-    try {
-      const { error } = await supabase.from('setlist_members').delete().match({ setlist_id: id, member_email: user.email });
-      if (error) throw error;
-      navigate('/');
-    } catch (err) {
-      alert("Falha de rede ao sair do grupo. Tente novamente.");
-      setLoading(false);
-    }
+    await supabase.from('setlist_members').delete().match({ setlist_id: id, member_email: user.email });
+    navigate('/');
   };
 
   const handleAddSong = async (song) => {
     if (isReadOnly || setlistItems.some(item => item.type === 'song' && item.id === song.id)) return;
     setIsRefreshing(true);
-    try {
-      const { error } = await supabase.from('setlist_items').insert({ setlist_id: id, item_type: 'song', song_id: song.id, order_index: setlistItems.length });
-      if (error) throw error;
-      await loadSetlistItems();
-    } catch (err) {
-      alert("Não foi possível salvar a música no repertório (Sem conexão).");
-    } finally {
-      setIsRefreshing(false);
-    }
+    await supabase.from('setlist_items').insert({ setlist_id: id, item_type: 'song', song_id: song.id, order_index: setlistItems.length });
+    await loadSetlistItems();
+    setIsRefreshing(false);
   };
 
   const handleAddDivider = async () => {
@@ -245,61 +217,37 @@ export default function SetlistEdit() {
       return;
     }
     setIsRefreshing(true);
-    try {
-      const { error } = await supabase.from('setlist_items').insert({ setlist_id: id, item_type: 'divider', content: '— NOVO BLOCO —', order_index: setlistItems.length });
-      if (error) throw error;
-      await loadSetlistItems();
-    } catch (err) {
-      alert("Não foi possível criar o bloco (Sem conexão).");
-    } finally {
-      setIsRefreshing(false);
-    }
+    await supabase.from('setlist_items').insert({ setlist_id: id, item_type: 'divider', content: '— NOVO BLOCO —', order_index: setlistItems.length });
+    await loadSetlistItems();
+    setIsRefreshing(false);
   };
 
   const handleRemoveItem = async (itemId) => {
     if (isReadOnly) return;
     setIsRefreshing(true);
-    try {
-      const { error } = await supabase.from('setlist_items').delete().eq('id', itemId);
-      if (error) throw error;
-      await loadSetlistItems(); 
-    } catch (err) {
-      alert("Falha de rede ao remover item. Tente novamente.");
-    } finally {
-      setIsRefreshing(false);
-    }
+    await supabase.from('setlist_items').delete().eq('id', itemId);
+    await loadSetlistItems(); 
+    setIsRefreshing(false);
   };
 
   const handleUpdateDividerText = async (itemId, newText) => {
     if (isReadOnly) return;
     setSetlistItems(prev => prev.map(item => item.itemId === itemId ? { ...item, content: newText } : item));
-    try {
-      const { error } = await supabase.from('setlist_items').update({ content: newText }).eq('id', itemId);
-      if (error) throw error;
-    } catch (err) {
-      console.error("Falha ao atualizar divisor em background.", err);
-    }
+    await supabase.from('setlist_items').update({ content: newText }).eq('id', itemId);
   };
 
   const handleDragEnd = async (event) => {
     if (isReadOnly) return;
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    
     const oldIndex = setlistItems.findIndex((i) => i.itemId === active.id);
     const newIndex = setlistItems.findIndex((i) => i.itemId === over.id);
     const updatedItems = arrayMove(setlistItems, oldIndex, newIndex);
-    
     setSetlistItems(updatedItems);
-    
     try {
       const updates = updatedItems.map((item, idx) => supabase.from('setlist_items').update({ order_index: idx }).eq('id', item.itemId));
-      const results = await Promise.all(updates);
-      results.forEach(res => { if (res.error) throw res.error; });
-    } catch (err) { 
-      alert("A conexão oscilou e a reordenação falhou. A página será recarregada.");
-      await loadSetlistItems(); 
-    }
+      await Promise.all(updates);
+    } catch (err) { await loadSetlistItems(); }
   };
 
   const searchResults = librarySongs.filter(song => {
@@ -321,17 +269,16 @@ export default function SetlistEdit() {
 
       <div className="p-4 max-w-xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <button aria-label="Voltar" onClick={() => navigate('/')} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-black active:scale-95">
+          <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-black active:scale-95">
             <ArrowLeft size={28} strokeWidth={2.5} />
           </button>
           
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 pr-1">
             <button 
-              aria-label="Atualizar Dados"
               onClick={() => loadSetlistAndLibrary(true)}
-              className="w-11 h-11 bg-white border-2 border-black rounded-xl hover:bg-gray-50 active:scale-95 transition-all text-black flex items-center justify-center"
+              className="p-2.5 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all text-black"
             >
-              <RefreshCw size={20} strokeWidth={2.5} className={isRefreshing ? "animate-spin" : ""} />
+              <RefreshCw size={18} strokeWidth={2.5} className={isRefreshing ? "animate-spin" : ""} />
             </button>
 
             {plan === 'pro' ? (
@@ -349,44 +296,43 @@ export default function SetlistEdit() {
                   />
                 }
                 fileName={`${eventName || 'setlist'}.pdf`}
-                className="w-11 h-11 bg-white border-2 border-black rounded-xl hover:bg-gray-50 active:scale-95 transition-all flex items-center justify-center text-black"
-                aria-label="Imprimir Repertório em PDF"
+                className="p-2.5 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center justify-center text-black"
               >
-                {({ loading }) => (loading ? "..." : <Printer size={20} strokeWidth={2.5} />)}
+                {({ loading }) => (loading ? "..." : <Printer size={18} strokeWidth={2.5} />)}
               </PDFDownloadLink>
             ) : (
-              <button aria-label="Imprimir Repertório (Requer Pro)" onClick={() => setIsPaywallOpen(true)} className="w-11 h-11 bg-white border-2 border-black rounded-xl hover:bg-gray-50 active:scale-95 transition-all flex items-center justify-center text-black">
-                <Printer size={20} strokeWidth={2.5} />
+              <button onClick={() => setIsPaywallOpen(true)} className="p-2.5 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center justify-center text-black">
+                <Printer size={18} strokeWidth={2.5} />
               </button>
             )}
 
-            <button aria-label="Compartilhar Convite" onClick={handleShare} className="w-11 h-11 bg-white border-2 border-black rounded-xl hover:bg-gray-50 active:scale-95 transition-all flex items-center justify-center text-black">
-              <Share2 size={20} strokeWidth={2.5} />
+            <button onClick={handleShare} className="p-2.5 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all text-black">
+              <Share2 size={18} strokeWidth={2.5} />
             </button>
             
             {isGuest ? (
-               <button aria-label="Sair do Repertório Colaborativo" onClick={handleLeaveSetlist} className="w-11 h-11 bg-white border-2 border-orange-500 text-orange-500 rounded-xl hover:bg-orange-50 active:scale-95 transition-all flex items-center justify-center" title="Sair do Repertório">
-                 <LogOut size={20} strokeWidth={2.5} />
+               <button onClick={handleLeaveSetlist} className="p-2.5 bg-white border-2 border-orange-500 text-orange-500 rounded-xl shadow-[3px_3px_0px_0px_rgba(249,115,22,1)] hover:bg-orange-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all" title="Sair do Repertório">
+                 <LogOut size={18} strokeWidth={2.5} />
                </button>
             ) : (
-               <button aria-label="Excluir Repertório" onClick={handleDeleteSetlist} className="w-11 h-11 bg-white border-2 border-red-500 text-red-500 rounded-xl hover:bg-red-50 active:scale-95 transition-all flex items-center justify-center" title="Excluir Repertório">
-                 <Trash2 size={20} strokeWidth={2.5} />
+               <button onClick={handleDeleteSetlist} className="p-2.5 bg-white border-2 border-black text-red-500 rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-red-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all" title="Excluir Repertório">
+                 <Trash2 size={18} strokeWidth={2.5} />
                </button>
             )}
           </div>
         </div>
 
         <div className="mb-4">
-          <input type="text" aria-label="Nome do Evento" value={eventName} onChange={(e) => setEventName(e.target.value)} onBlur={() => handleUpdateField('event_name', eventName)} disabled={isReadOnly} className="w-full font-black text-2xl sm:text-3xl uppercase tracking-tighter outline-none border-b-4 border-black pb-1 placeholder-black/20 bg-transparent disabled:opacity-70" placeholder="NOME DO EVENTO" />
+          <input type="text" value={eventName} onChange={(e) => setEventName(e.target.value)} onBlur={() => handleUpdateField('event_name', eventName)} disabled={isReadOnly} className="w-full font-black text-2xl sm:text-3xl uppercase tracking-tighter outline-none border-b-4 border-black pb-1 placeholder-black/20 bg-transparent disabled:opacity-70" placeholder="NOME DO EVENTO" />
         </div>
         <div className="mb-4">
-          <input type="text" aria-label="Nome da Banda" value={bandName} onChange={(e) => setBandName(e.target.value)} onBlur={() => handleUpdateField('band_name', bandName)} disabled={isReadOnly} className="w-full px-3 py-2.5 font-bold uppercase tracking-wide text-sm bg-transparent border-2 border-gray-300 rounded-xl focus:border-black outline-none transition-colors disabled:opacity-70 disabled:bg-gray-100" placeholder="NOME DA BANDA" />
+          <input type="text" value={bandName} onChange={(e) => setBandName(e.target.value)} onBlur={() => handleUpdateField('band_name', bandName)} disabled={isReadOnly} className="w-full px-3 py-2.5 font-bold uppercase tracking-wide text-sm bg-transparent border-2 border-gray-300 rounded-xl focus:border-black outline-none transition-colors disabled:opacity-70 disabled:bg-gray-100" placeholder="NOME DA BANDA" />
         </div>
         <div className="flex items-center gap-2 mb-6 text-xs font-black uppercase tracking-wider">
           <span>Data:</span>
-          <div className="relative inline-flex items-center bg-white border-2 border-black rounded-lg px-2 py-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-            <Calendar size={14} className="text-black mr-1.5 pointer-events-none" />
-            <input type="date" aria-label="Data do Evento" value={date} onChange={(e) => { setDate(e.target.value); handleUpdateField('date', e.target.value); }} disabled={isReadOnly} className="bg-transparent font-bold text-black outline-none border-none cursor-pointer uppercase text-xs disabled:opacity-70" />
+          <div className="relative inline-flex items-center bg-gray-50 border-2 border-black rounded-xl px-2 py-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+            <Calendar size={14} className="text-black/50 mr-1.5 pointer-events-none" />
+            <input type="date" value={date} onChange={(e) => { setDate(e.target.value); handleUpdateField('date', e.target.value); }} disabled={isReadOnly} className="bg-transparent font-bold text-black outline-none border-none cursor-pointer uppercase text-xs disabled:opacity-70" />
           </div>
         </div>
 
@@ -399,24 +345,22 @@ export default function SetlistEdit() {
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40" />
                 <input 
                   type="text" 
-                  aria-label="Buscar música na biblioteca"
                   value={searchQuery} 
                   onChange={(e) => setSearchQuery(e.target.value)} 
                   placeholder="Buscar música..." 
-                  className="w-full pl-9 pr-10 py-3 border-2 border-black rounded-xl text-sm font-bold bg-white focus:bg-white outline-none transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]" 
+                  className="w-full pl-9 pr-10 py-3 border-2 border-black rounded-xl text-sm font-bold bg-gray-50 focus:bg-white outline-none transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]" 
                 />
                 {searchQuery && (
                   <button 
-                    aria-label="Limpar busca"
                     onClick={() => setSearchQuery("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-red-500 transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 bg-black/10 hover:bg-black/20 rounded-full text-black/60 transition-colors"
                   >
-                    <X size={18} strokeWidth={3} />
+                    <X size={14} strokeWidth={3} />
                   </button>
                 )}
               </div>
               
-              <button aria-label="Adicionar Novo Bloco Divisor" onClick={handleAddDivider} className="px-3 sm:px-4 bg-black text-white border-2 border-black rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all flex items-center gap-1.5">
+              <button onClick={handleAddDivider} className="px-3 sm:px-4 bg-black text-white border-2 border-black rounded-xl text-[10px] font-black uppercase tracking-widest shadow-[3px_3px_0px_0px_rgba(0,0,0,0.2)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center gap-1.5">
                 <AlignLeft size={14} /> <span className="hidden sm:inline">Divisor</span>
               </button>
             </div>
@@ -432,7 +376,7 @@ export default function SetlistEdit() {
                         <p className="font-black text-xs uppercase tracking-tight truncate">{song.title}</p>
                         <p className="text-[10px] font-bold text-gray-400 uppercase truncate">{song.artist || 'Sem artista'}</p>
                       </div>
-                      <button aria-label="Adicionar música ao repertório" onClick={() => handleAddSong(song)} className="w-8 h-8 flex items-center justify-center bg-blue-600 text-white rounded-lg active:scale-95 transition-all flex-shrink-0">
+                      <button onClick={() => handleAddSong(song)} className="p-1.5 bg-blue-600 text-white rounded-lg active:scale-95 transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] border-2 border-black flex-shrink-0">
                         <Plus size={16} strokeWidth={3} />
                       </button>
                     </div>
@@ -445,8 +389,8 @@ export default function SetlistEdit() {
 
         {isReadOnly && (
           <div className="mb-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-xl text-center">
-            <p className="text-xs font-bold text-blue-700 uppercase tracking-widest">{!isOnline ? "Modo Offline" : "Apenas Leitura"}</p>
-            <p className="text-[10px] text-blue-600 mt-1 font-medium">{!isOnline ? "Conecte-se à internet para editar." : "Faça upgrade para colaborar neste repertório."}</p>
+            <p className="text-xs font-bold text-blue-700 uppercase tracking-widest">Apenas Leitura (Convidado)</p>
+            <p className="text-[10px] text-blue-600 mt-1 font-medium">Faça upgrade para Base/Pro para colaborar neste repertório.</p>
           </div>
         )}
 
@@ -484,6 +428,11 @@ export default function SetlistEdit() {
       </div>
 
       <PaywallModal isOpen={isPaywallOpen} onClose={() => setIsPaywallOpen(false)} currentPlan={plan} />
+
+      <nav className="fixed bottom-0 left-0 right-0 border-t-4 border-black bg-white px-4 py-3 flex gap-3 z-40">
+        <button onClick={() => navigate('/')} className="flex-1 py-3 bg-black text-white text-xs font-black uppercase tracking-widest rounded-xl active:scale-95 transition-all">Setlists</button>
+        <button onClick={() => navigate('/songs')} className="flex-1 py-3 bg-white border-2 border-black text-black text-xs font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:scale-95 transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"><Music size={14} /> Letras</button>
+      </nav>
     </div>
   );
 }

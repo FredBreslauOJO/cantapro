@@ -12,6 +12,7 @@ export default function SongEdit() {
   const { user, plan, isOnline } = useAuth();
   const isNew = id === "new";
 
+  // CARREGAMENTO DO RASCUNHO (Síncrono para garantir que os dados apareçam na hora)
   const getInitialDraft = () => {
     if (isNew) {
       const draft = localStorage.getItem('canta_song_draft');
@@ -34,30 +35,14 @@ export default function SongEdit() {
     setTimeout(() => setToast({ show: false, message: "" }), 3000);
   };
 
+  // ESTADOS INICIAIS (Puxam o rascunho se for uma música nova)
   const [title, setTitle] = useState(draft?.title || "");
   const [artist, setArtist] = useState(draft?.artist || "");
   const [durationMin, setDurationMin] = useState(draft?.durationMin || "0");
   const [durationSec, setDurationSec] = useState(draft?.durationSec || "0");
   const [lyrics, setLyrics] = useState(draft?.lyrics || "");
 
-  // AUDITORIA FIX: Trava contra By-pass de URL no Plano Free
-  useEffect(() => {
-    const checkPlanLimits = async () => {
-      if (isNew && plan === 'free' && isOnline && user) {
-        const { count, error } = await supabase
-          .from('songs')
-          .select('*', { count: 'exact', head: true })
-          .eq('created_by', user.email);
-          
-        if (!error && count >= 10) {
-          alert("Limite do Plano Base atingido (10 músicas). Faça upgrade para adicionar mais letras.");
-          navigate('/songs', { replace: true });
-        }
-      }
-    };
-    checkPlanLimits();
-  }, [isNew, plan, isOnline, user, navigate]);
-
+  // SALVAMENTO AUTOMÁTICO DO RASCUNHO
   useEffect(() => {
     if (isNew) {
       const currentDraft = { title, artist, durationMin, durationSec, lyrics };
@@ -129,7 +114,7 @@ export default function SongEdit() {
     try {
       if (isNew) {
         await supabase.from('songs').insert([songData]);
-        localStorage.removeItem('canta_song_draft'); 
+        localStorage.removeItem('canta_song_draft'); // Limpa rascunho com sucesso
         navigate("/songs");
       } else {
         await supabase.from('songs').update(songData).eq('id', id);
@@ -174,6 +159,7 @@ export default function SongEdit() {
     navigate(`/songs/${id}/timecode`);
   };
 
+  // DESCARTAR RASCUNHO SE O USUÁRIO DESISTIR E CLICAR EM VOLTAR
   const handleBack = () => {
     if (isNew) {
       localStorage.removeItem('canta_song_draft');

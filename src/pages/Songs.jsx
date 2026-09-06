@@ -32,10 +32,7 @@ export default function Songs() {
   }, [user]);
 
   const loadSongs = async () => {
-    // AUDITORIA FIX: Isolar o cache por usuário
-    const cacheKey = `canta_songs_offline_${user.id}`;
-    const cached = localStorage.getItem(cacheKey);
-    
+    const cached = localStorage.getItem('canta_songs_offline');
     if (cached && songs.length === 0) {
       const parsed = JSON.parse(cached);
       setSongs(parsed);
@@ -58,7 +55,7 @@ export default function Songs() {
       
       if (!error && data) {
         setSongs(data);
-        localStorage.setItem(cacheKey, JSON.stringify(data));
+        localStorage.setItem('canta_songs_offline', JSON.stringify(data));
       }
     } catch (err) {
       console.error("Modo offline ativado na listagem de letras.", err);
@@ -129,11 +126,6 @@ export default function Songs() {
 
       if (error) throw error;
 
-      // AUDITORIA FIX: Varre as músicas excluídas e mata os "caches zumbis" que estavam acumulando memória no celular
-      selectedSongs.forEach(id => {
-        localStorage.removeItem(`canta_song_single_${user.id}_${id}`);
-      });
-
       setShowDeleteModal(false);
       cancelEditMode();
       loadSongs();
@@ -177,7 +169,6 @@ export default function Songs() {
                 navigate("/");
               }
             }} 
-            aria-label="Voltar"
             className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors text-black active:scale-95"
             title="Voltar"
           >
@@ -218,7 +209,6 @@ export default function Songs() {
               <button 
                 onClick={handleCreateNew} 
                 disabled={!isOnline}
-                aria-label="Nova Música"
                 className={`w-12 h-12 rounded-full flex items-center justify-center transition-opacity active:scale-95 shadow-[2px_2px_0px_0px_rgba(0,0,0,0.3)]
                   ${!isOnline ? "bg-gray-300 text-gray-500 opacity-50 cursor-not-allowed" : "bg-black text-white hover:opacity-80"}
                 `}
