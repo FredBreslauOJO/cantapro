@@ -12,6 +12,9 @@ alter table public.setlist_members add column if not exists user_id uuid referen
 alter table public.setlist_items add column if not exists performance_notes text;
 alter table public.profiles add column if not exists updated_at timestamptz default now();
 alter table public.user_subscriptions add column if not exists stripe_event_created bigint not null default 0;
+-- Production inspected on 2026-09-08 lacks these columns from the supplied schema.
+alter table public.user_subscriptions add column if not exists current_period_end timestamptz;
+alter table public.user_subscriptions add column if not exists updated_at timestamptz default now();
 
 update public.songs s set owner_id = u.id from auth.users u where s.owner_id is null and lower(s.created_by) = lower(u.email);
 update public.setlists s set owner_id = u.id from auth.users u where s.owner_id is null and lower(s.created_by) = lower(u.email);
@@ -27,7 +30,9 @@ alter table public.setlists alter column owner_id set not null;
 alter table public.setlist_members alter column user_id set not null;
 create index if not exists songs_owner_id_idx on public.songs(owner_id);
 create index if not exists setlists_owner_id_idx on public.setlists(owner_id);
-create unique index if not exists setlist_member_user_idx on public.setlist_members(setlist_id,user_id);
+-- Existing production contains duplicate memberships. Preserve records; acceptance
+-- is serialized per user and checks existing access before inserting.
+create index if not exists setlist_member_user_idx on public.setlist_members(setlist_id,user_id);
 create index if not exists setlist_members_user_idx on public.setlist_members(user_id);
 create index if not exists setlist_items_order_idx on public.setlist_items(setlist_id,order_index);
 create index if not exists setlist_items_song_idx on public.setlist_items(song_id);
@@ -116,7 +121,7 @@ begin
       if total >= 10 then raise exception 'O plano Free permite até 10 músicas.'; end if;
     else
       select (select count(*) from public.setlists where owner_id=new.owner_id)
-        + (select count(*) from public.setlist_members m join public.setlists s on s.id=m.setlist_id where m.user_id=new.owner_id and s.owner_id<>new.owner_id) into total;
+        + (select count(distinct m.setlist_id) from public.setlist_members m join public.setlists s on s.id=m.setlist_id where m.user_id=new.owner_id and s.owner_id<>new.owner_id) into total;
       if total >= 1 then raise exception 'O plano Free permite participar de 1 repertório.'; end if;
     end if;
   end if;
@@ -160,7 +165,7 @@ begin
   if private.reads_setlist(p_setlist_id) then return p_setlist_id; end if;
   if not private.paid(caller) then
     select (select count(*) from public.setlists where owner_id=caller)
-      + (select count(*) from public.setlist_members m join public.setlists s on s.id=m.setlist_id where m.user_id=caller and s.owner_id<>caller) into total;
+      + (select count(distinct m.setlist_id) from public.setlist_members m join public.setlists s on s.id=m.setlist_id where m.user_id=caller and s.owner_id<>caller) into total;
     if total >= 1 then raise exception 'O plano Free permite participar de 1 repertório.'; end if;
   end if;
   select u.email into email from auth.users u where u.id=caller;

@@ -3,10 +3,19 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 const A='00000000-0000-4000-8000-000000000001', B='00000000-0000-4000-8000-000000000002', C='00000000-0000-4000-8000-000000000003';
-test('database: quotas, RLS, invites, UUID ownership and Stripe idempotency', async () => {
+for (const productionShape of [false, true]) test(`database (${productionShape ? 'observed production' : 'supplied schema'}): quotas, RLS, invites, UUID ownership and Stripe idempotency`, async () => {
   const db = new PGlite();
   try {
     await db.exec(await fs.readFile(new URL('./schema.sql',import.meta.url),'utf8'));
+    if (productionShape) await db.exec(`
+      alter table user_subscriptions drop column current_period_end, drop column updated_at;
+      alter table user_subscriptions add column user_email text;
+      alter table setlists rename column created_at to created_date;
+      alter table setlist_members rename column added_at to created_date;
+      alter table profiles add column plan text;
+      alter table songs enable row level security;
+      create policy legacy_open_read on songs for select to authenticated using (true);
+    `);
     await db.exec(`insert into auth.users(id,email) values('${A}','a@test.invalid'),('${B}','b@test.invalid'),('${C}','c@test.invalid');`);
     await db.exec(await fs.readFile(new URL('../supabase/migrations/202609060001_audit_hardening.sql',import.meta.url),'utf8'));
     const asUser=async id=>db.exec(`reset role; set role authenticated; select set_config('request.jwt.claim.sub','${id}',false);`);
