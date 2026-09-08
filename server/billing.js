@@ -18,7 +18,7 @@ export async function authenticatedUser(req, db) {
   return data.user;
 }
 export function appUrl() {
-  const url = new URL(process.env.APP_URL || 'https://www.canta.pro');
+  const url = new URL(process.env.APP_URL || 'https://app.canta.pro');
   if (url.protocol !== 'https:' && url.hostname !== 'localhost') throw new Error('Invalid APP_URL');
   return url.origin;
 }
