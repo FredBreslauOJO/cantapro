@@ -1,4 +1,7 @@
-import React, { useState, useEffect } from "react";
+import { requireResult } from '../lib/data';
+import { userCache, readCache, invalidateContent } from '../lib/userCache';
+import { getOfflineSnapshot } from '../lib/offline';
+import { useState, useEffectEvent, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Pencil, Download, Trash2, Check, Clock } from "lucide-react";
 import { supabase } from "../lib/supabase";
@@ -15,9 +18,9 @@ export default function SongEdit() {
   // CARREGAMENTO DO RASCUNHO (Síncrono para garantir que os dados apareçam na hora)
   const getInitialDraft = () => {
     if (isNew) {
-      const draft = localStorage.getItem(`canta_song_draft_${user?.id}`);
+      const draft = userCache.getItem(user?.id, 'canta_song_draft');
       if (draft) {
-        try { return JSON.parse(draft); } catch(e){}
+        try { return JSON.parse(draft); } catch { /* Ignore corrupt legacy drafts. */ }
       }
     }
     return null;
@@ -43,22 +46,23 @@ export default function SongEdit() {
   const [lyrics, setLyrics] = useState(draft?.lyrics || "");
 
   // SALVAMENTO AUTOMÁTICO DO RASCUNHO
+  const loadForEffect = useEffectEvent(() => loadSong());
   useEffect(() => {
     if (isNew) {
       const currentDraft = { title, artist, durationMin, durationSec, lyrics };
-      localStorage.setItem(`canta_song_draft_${user?.id}`, JSON.stringify(currentDraft));
+      userCache.setItem(user?.id, 'canta_song_draft', JSON.stringify(currentDraft));
     }
-  }, [title, artist, durationMin, durationSec, lyrics, isNew, user]);
+  }, [title, artist, durationMin, durationSec, lyrics, isNew, user?.id]);
 
   useEffect(() => {
     if (!isNew && user) {
-      loadSong();
+      loadForEffect();
     }
-  }, [id, user]);
+  }, [id, user, isNew]);
 
   const loadSong = async () => {
-    const cached = localStorage.getItem(`canta_song_single_${user?.id}_${id}`);
-    if (cached) {
+    const cached = JSON.stringify(readCache(user.id, `canta_song_single_${id}`) || getOfflineSnapshot(user.id)?.songs.find(song => song.id === id) || readCache(user.id, 'canta_songs_offline', []).find(song => song.id === id));
+    if (cached && cached !== 'null') {
       try {
         const parsed = JSON.parse(cached);
         setTitle(parsed.title || "");
@@ -90,9 +94,9 @@ export default function SongEdit() {
         setDurationSec(String(totalSec % 60));
         setLyrics(data.lyrics_text || "");
         
-        localStorage.setItem(`canta_song_single_${user?.id}_${id}`, JSON.stringify(data));
+        userCache.setItem(user?.id, `canta_song_single_${id}`, JSON.stringify(data));
       }
-    } catch (err) {
+    } catch {
       console.error("Offline: Usando a cópia local desta música.");
     } finally {
       setLoading(false);
@@ -108,25 +112,28 @@ export default function SongEdit() {
       artist, 
       duration_seconds: totalSec, 
       lyrics_text: lyrics,
-      created_by: user.email 
+      ...(isNew ? { owner_id: user.id, created_by: user.email } : {}) 
     };
 
     try {
       if (isNew) {
-        const { error } = await supabase.from('songs').insert([songData]);
-        if (error) throw error; // ADICIONE ESTA LINHA: Garante que caia no catch em caso de erro
-
-        localStorage.removeItem(`canta_song_draft_${user?.id}`); // Agora só limpa se a linha acima não falhar
+        if (plan === 'free') {
+          const { count, error } = await supabase.from('songs').select('id', { count: 'exact', head: true }).eq('owner_id', user.id);
+          if (error) throw error;
+          if (count >= 10) { setIsPaywallOpen(true); return; }
+        }
+        await requireResult(supabase.from('songs').insert([songData]).select('id').single());
+        invalidateContent(user.id);
+        userCache.removeItem(user?.id, 'canta_song_draft'); // Limpa rascunho com sucesso
         navigate("/songs");
       } else {
-        const { error } = await supabase.from('songs').update(songData).eq('id', id);
-        if (error) throw error; // ADICIONE ESTA LINHA
-
-        localStorage.setItem(`canta_song_single_${user?.id}_${id}`, JSON.stringify({ ...songData, id }));
+        const saved = await requireResult(supabase.from('songs').update(songData).eq('id', id).select('*').single());
+        invalidateContent(user.id, [id]);
+        userCache.setItem(user?.id, `canta_song_single_${id}`, JSON.stringify(saved));
         setEditing(false);
       }
     } catch (err) {
-      alert("Erro ao salvar: " + err.message + "\n\nSeu rascunho está a salvo.");
+      alert("Erro ao salvar letra: " + err.message);
     } finally {
       setSaving(false);
     }
@@ -136,9 +143,10 @@ export default function SongEdit() {
     if (!isOnline) return;
     if (!window.confirm("Remover esta música?")) return;
     try {
-      await supabase.from('songs').delete().eq('id', id);
-      localStorage.removeItem(`canta_song_single_${user?.id}_${id}`);
-    } catch(e){}
+      await requireResult(supabase.from('songs').delete().eq('id', id).select('id').single());
+      invalidateContent(user.id, [id]);
+      userCache.removeItem(user?.id, `canta_song_single_${id}`);
+    } catch (error) { alert(error.message); return; }
     navigate("/songs");
   };
 
@@ -163,11 +171,9 @@ export default function SongEdit() {
     navigate(`/songs/${id}/timecode`);
   };
 
-  // DESCARTAR RASCUNHO SE O USUÁRIO DESISTIR E CLICAR EM VOLTAR
+  // Keep new drafts when navigating back.
   const handleBack = () => {
-    if (isNew) {
-      localStorage.removeItem(`canta_song_draft_${user?.id}`);
-    }
+    if (editing && !isNew && !window.confirm('Sair sem salvar as alterações?')) return;
     navigate("/songs");
   };
 
@@ -185,13 +191,13 @@ export default function SongEdit() {
       )}
 
       <div className="flex items-center justify-between mb-4">
-        <button onClick={handleBack} className="w-12 h-12 flex items-center justify-center -ml-3 text-foreground hover:opacity-60 active:opacity-40 transition-opacity">
+        <button aria-label="Voltar" onClick={handleBack} className="w-12 h-12 flex items-center justify-center -ml-3 text-foreground hover:opacity-60 active:opacity-40 transition-opacity">
           <ArrowLeft size={22} className="pointer-events-none" />
         </button>
         <div className="flex items-center gap-3">
           {!isNew && (
             <>
-              <button 
+              <button aria-label={editing ? 'Salvar alterações' : 'Editar letra'} 
                 onClick={editing ? handleSave : () => setEditing(true)} 
                 disabled={saving || (editing && !title) || !isOnline}
                 className={`w-11 h-11 flex items-center justify-center rounded-xl transition-all active:scale-95 border border-black/10 shadow-sm
@@ -208,7 +214,7 @@ export default function SongEdit() {
                 )}
               </button>
               
-              <button 
+              <button aria-label="Editar timecodes" 
                 onClick={goToTimecode} 
                 disabled={!isOnline}
                 className={`w-11 h-11 flex items-center justify-center rounded-xl transition-opacity active:scale-95 border
@@ -218,11 +224,11 @@ export default function SongEdit() {
                 <Clock size={20} className="pointer-events-none" />
               </button>
               
-              <button onClick={handleDownload} className="w-11 h-11 flex items-center justify-center bg-gray-100 text-black rounded-xl hover:opacity-80 transition-opacity active:scale-95 border border-black/10">
+              <button aria-label="Baixar letra" onClick={handleDownload} className="w-11 h-11 flex items-center justify-center bg-gray-100 text-black rounded-xl hover:opacity-80 transition-opacity active:scale-95 border border-black/10">
                 <Download size={20} className="pointer-events-none" />
               </button>
               
-              <button 
+              <button aria-label="Excluir" 
                 onClick={handleDelete} 
                 disabled={!isOnline}
                 className={`w-11 h-11 flex items-center justify-center rounded-xl transition-opacity active:scale-95

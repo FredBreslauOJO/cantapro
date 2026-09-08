@@ -1,10 +1,16 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useAuth } from '../lib/AuthContext';
+import { requireResult } from '../lib/data';
+import { invalidateContent } from '../lib/userCache';
+import { validTimecodes } from '../lib/timecodes';
+import { useState, useEffectEvent, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Plus, Trash2, Play, Square, MessageSquareText } from "lucide-react";
 import { supabase } from "../lib/supabase";
 
 export default function TimecodeEditor() {
   const { id } = useParams();
+  const { user } = useAuth();
+  const [loadError, setLoadError] = useState('');
   const navigate = useNavigate();
   const [song, setSong] = useState(null);
   const [blocks, setBlocks] = useState([]);
@@ -15,12 +21,14 @@ export default function TimecodeEditor() {
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const previewTimer = useRef(null);
 
+  const loadForEffect = useEffectEvent(() => loadSong());
   useEffect(() => {
-    loadSong();
+    loadForEffect();
   }, [id]);
 
   const loadSong = async () => {
     const { data, error } = await supabase.from('songs').select('*').eq('id', id).single();
+    if (error || !data) { setLoadError('Não foi possível abrir a música. Verifique a conexão e o acesso.'); return; }
     if (data && !error) {
       setSong(data);
       setBlocks(data.timecode_blocks || []);
@@ -98,7 +106,7 @@ export default function TimecodeEditor() {
   };
 
   const handleSave = async () => {
-    if (overlapError) return;
+    if (blocks.length && !validTimecodes(blocks).length) { setOverlapError('Defina início e fim válidos, sem sobreposição, para todos os blocos.'); return; }
     setSaving(true);
     // GARANTIA: Mapeia o comentário para salvar no Supabase
     const cleanBlocks = blocks.map((b, i) => ({
@@ -110,10 +118,11 @@ export default function TimecodeEditor() {
       order_index: i,
     }));
     
-    await supabase.from('songs').update({ timecode_blocks: cleanBlocks }).eq('id', id);
-    
-    setSaving(false);
-    navigate(`/songs/${id}`);
+    try {
+      await requireResult(supabase.from('songs').update({ timecode_blocks: cleanBlocks }).eq('id', id).select('id').single());
+      invalidateContent(user.id, [id]);
+      navigate(`/songs/${id}`);
+    } catch (error) { alert(error.message); } finally { setSaving(false); }
   };
 
   const stopPreview = () => {
@@ -151,6 +160,7 @@ export default function TimecodeEditor() {
     setIsPreviewPlaying(true);
   };
 
+  if (loadError) return <div role="alert" className="p-6">{loadError}<button onClick={() => navigate('/songs')}>Voltar às letras</button></div>;
   if (!song) return (
     <div className="flex justify-center py-20">
       <div className="w-6 h-6 border-2 border-gray-200 border-t-black rounded-full animate-spin" />
@@ -162,7 +172,7 @@ export default function TimecodeEditor() {
       <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 lg:px-6 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate(-1)} className="w-12 h-12 flex items-center justify-center -ml-2 hover:opacity-60 active:opacity-40 transition-opacity">
+            <button aria-label="Voltar" onClick={() => navigate(-1)} className="w-12 h-12 flex items-center justify-center -ml-2 hover:opacity-60 active:opacity-40 transition-opacity">
               <ArrowLeft size={20} className="pointer-events-none" />
             </button>
             <div>
@@ -238,7 +248,7 @@ export default function TimecodeEditor() {
               <p className="text-xs font-black uppercase tracking-widest text-black">Preview Visual</p>
               <p className="text-[10px] font-bold text-gray-500 mt-0.5">Selecione texto para criar bloco</p>
             </div>
-            <button
+            <button aria-label="Selecionar"
               onClick={isPreviewPlaying ? stopPreview : startPreview}
               className="w-9 h-9 bg-black rounded-full flex items-center justify-center text-white hover:opacity-80 transition-opacity"
             >
@@ -310,7 +320,7 @@ function BlockCard({ block, index, onUpdate, onDelete, formatTime }) {
               placeholder="0:00"
             />
           </div>
-          <button onClick={() => onDelete(block.block_id)} className="text-gray-400 hover:text-red-500 transition-colors p-0.5 ml-1">
+          <button aria-label="Excluir" onClick={() => onDelete(block.block_id)} className="text-gray-400 hover:text-red-500 transition-colors p-0.5 ml-1">
             <Trash2 size={14} />
           </button>
         </div>

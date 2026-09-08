@@ -1,4 +1,3 @@
-import React from 'react';
 import { X, AlertTriangle, ShieldAlert } from 'lucide-react';
 
 export default function TermsOfServiceModal({ isOpen, onClose }) {
@@ -11,7 +10,7 @@ export default function TermsOfServiceModal({ isOpen, onClose }) {
         <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-black truncate">
           Termos de Serviço e Uso
         </h2>
-        <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors active:scale-95 text-black shrink-0">
+        <button aria-label="Fechar" onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors active:scale-95 text-black shrink-0">
           <X size={24} />
         </button>
       </div>

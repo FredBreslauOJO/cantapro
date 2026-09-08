@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import { userCache } from './lib/userCache';
+import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import Login from './pages/Login';
@@ -54,7 +55,7 @@ const SplashScreen = () => {
         <div className={`flex items-center justify-center gap-10 transition-all duration-1000 ease-out transform ${showReload ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
           
           <div className="flex flex-col items-center gap-3">
-            <button onClick={() => window.location.reload()} className="w-12 h-12 text-white/40 hover:text-white bg-white/5 hover:bg-white/10 border border-white/5 rounded-full transition-all duration-300 active:scale-95 flex items-center justify-center" title="Tentar Novamente">
+            <button aria-label="Tentar Novamente" onClick={() => window.location.reload()} className="w-12 h-12 text-white/40 hover:text-white bg-white/5 hover:bg-white/10 border border-white/5 rounded-full transition-all duration-300 active:scale-95 flex items-center justify-center" title="Tentar Novamente">
               <RefreshCw size={20} strokeWidth={1.5} />
             </button>
             <span className="text-[9px] font-bold tracking-widest text-white/40 uppercase">
@@ -87,7 +88,10 @@ const ProtectedRoute = ({ children }) => {
 const PublicRoute = ({ children }) => {
   const { isAuthenticated, isLoadingAuth } = useAuth();
   if (isLoadingAuth) return <SplashScreen />;
-  if (isAuthenticated) return <Navigate to="/" replace />;
+  if (isAuthenticated) {
+    const invite = sessionStorage.getItem('canta_invite_redirect');
+    return <Navigate to={invite?.startsWith('/join/') ? invite : '/'} replace />;
+  }
   return children;
 };
 
@@ -135,7 +139,7 @@ const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
         
         <div className="flex items-center justify-end gap-3">
           <SyncStatus />
-          <button onClick={onOpenSettings} className="w-9 h-9 border-2 border-black rounded-lg flex items-center justify-center text-black hover:bg-gray-50 active:scale-95 transition-transform">
+          <button aria-label="Abrir menu" onClick={onOpenSettings} className="w-9 h-9 border-2 border-black rounded-lg flex items-center justify-center text-black hover:bg-gray-50 active:scale-95 transition-transform">
             <Menu size={16} />
           </button>
         </div>
@@ -154,29 +158,22 @@ const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
 };
 
 const AuthenticatedApp = () => {
-  const { isAuthenticated, plan, profile, user } = useAuth();
+  const { isAuthenticated, plan, profile, user, isRecovery } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [hasAcceptedTerms, setHasAcceptedTerms] = useState(true);
+  const [acceptedVersion, setAcceptedVersion] = useState(null);
+  const hasAcceptedTerms = !isAuthenticated || !profile || profile.accepted_terms_version === CURRENT_TERMS_VERSION || acceptedVersion === CURRENT_TERMS_VERSION;
   
   useEffect(() => {
-    const hasSeen = localStorage.getItem('hasSeenTutorial');
-    if (isAuthenticated && !hasSeen && location.pathname !== '/tutorial') {
-      navigate('/tutorial');
+    const hasSeen = userCache.getItem(user?.id, 'hasSeenTutorial');
+    if (isAuthenticated && !isRecovery && !hasSeen && !['/tutorial', '/update-password', '/sucesso', '/login', '/register'].includes(location.pathname) && !location.pathname.startsWith('/join/')) {
+      navigate('/tutorial', { state: { returnTo: location.pathname + location.search } });
     }
-  }, [isAuthenticated, location.pathname, navigate]);
+  }, [isAuthenticated, isRecovery, user?.id, location.pathname, location.search, navigate]);
 
-  useEffect(() => {
-    if (isAuthenticated && profile && profile.accepted_terms_version !== CURRENT_TERMS_VERSION) {
-      setHasAcceptedTerms(false);
-    } else {
-      setHasAcceptedTerms(true);
-    }
-  }, [isAuthenticated, profile]);
-  
   const path = location.pathname.toLowerCase().replace(/\/$/, '');
   const hideNavigation = 
     path.startsWith('/login') ||
@@ -187,8 +184,8 @@ const AuthenticatedApp = () => {
     path.includes('/timecode') ||
     path.includes('/join/');
 
-  if (!hasAcceptedTerms) {
-    return <ForceTerms user={user} onAccepted={() => setHasAcceptedTerms(true)} />;
+  if (!hasAcceptedTerms && !isRecovery && path !== '/update-password') {
+    return <ForceTerms user={user} onAccepted={() => setAcceptedVersion(CURRENT_TERMS_VERSION)} />;
   }
 
   return (
@@ -203,7 +200,7 @@ const AuthenticatedApp = () => {
           
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-         <Route path="/update-password" element={<UpdatePassword />} />
+          <Route path="/update-password" element={<UpdatePassword />} />
           
           <Route path="/sucesso" element={<Success />} />
           
@@ -225,11 +222,16 @@ const AuthenticatedApp = () => {
   );
 };
 
+function AccountApp() {
+  const { user } = useAuth();
+  return <AuthenticatedApp key={user?.id || 'guest'} />;
+}
+
 function App() {
   return (
     <AuthProvider>
       <Router>
-        <AuthenticatedApp />
+        <AccountApp />
       </Router>
     </AuthProvider>
   );

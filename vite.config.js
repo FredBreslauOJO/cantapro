@@ -7,9 +7,9 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate', 
+      registerType: 'prompt', 
       injectRegister: 'auto',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'safari-pinned-tab.svg'],
+      includeAssets: ['favicon.svg', 'icon-192x192.png', 'icon-512x512.png'],
       manifest: {
         name: 'CANTA.PRO',
         short_name: 'CANTA.PRO',
@@ -17,7 +17,7 @@ export default defineConfig({
         theme_color: '#000000',
         background_color: '#000000',
         display: 'standalone', 
-        orientation: 'portrait',
+        orientation: 'any',
         icons: [
           {
             src: '/icon-192x192.png',
@@ -34,7 +34,7 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,webm,jpg,jpeg,gif}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,jpg,jpeg,gif}'],
         cleanupOutdatedCaches: true,
         navigateFallback: '/index.html',
         navigateFallbackAllowlist: [/^(?!\/__).*/],

@@ -1,4 +1,3 @@
-import React from 'react';
 
 export default function Logo({ className = "w-28", iconOnly = false }) {
   if (iconOnly) {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Lock, Mail, Loader2, ArrowLeft, CheckCircle2 } from 'lucide-react';
@@ -79,7 +79,7 @@ export default function Register() {
         ) : (
           <div className="animate-fadeIn">
             <div className="flex items-center justify-between mb-6">
-              <button onClick={() => navigate('/login')} className="p-1.5 -ml-1.5 hover:bg-gray-100 rounded-full transition-colors active:scale-95">
+              <button aria-label="Voltar" onClick={() => navigate('/login')} className="p-1.5 -ml-1.5 hover:bg-gray-100 rounded-full transition-colors active:scale-95">
                 <ArrowLeft size={18} strokeWidth={2.5} />
               </button>
               <img src="/CantaProLogo.svg" alt="CANTA.PRO" className="h-6 sm:h-7" />

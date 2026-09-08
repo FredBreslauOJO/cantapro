@@ -1,0 +1,14 @@
+create role anon;
+create role authenticated;
+create role service_role bypassrls;
+create schema auth;
+create table auth.users(id uuid primary key,email text unique,raw_user_meta_data jsonb default '{}');
+create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
+grant usage on schema auth to authenticated,anon,service_role;
+grant execute on function auth.uid() to authenticated,anon,service_role;
+create table public.profiles(id uuid references auth.users primary key,email text unique not null,full_name text,accepted_terms_version text,created_at timestamptz default now());
+create table public.user_subscriptions(id uuid primary key default gen_random_uuid(),user_id uuid not null unique references auth.users,stripe_customer_id text,stripe_subscription_id text,plan_type text default 'free',status text,current_period_end timestamptz,created_at timestamptz default now(),updated_at timestamptz default now());
+create table public.songs(id uuid primary key default gen_random_uuid(),created_by text not null,title text not null,artist text,lyrics_text text,duration_seconds integer default 0,timecode_blocks jsonb,created_date timestamptz default now());
+create table public.setlists(id uuid primary key default gen_random_uuid(),created_by text not null,event_name text not null,band_name text,date date,archived boolean default false,created_at timestamptz default now());
+create table public.setlist_items(id uuid primary key default gen_random_uuid(),setlist_id uuid references public.setlists on delete cascade,item_type text not null,song_id uuid references public.songs on delete cascade,content text,order_index integer not null);
+create table public.setlist_members(id uuid primary key default gen_random_uuid(),setlist_id uuid references public.setlists on delete cascade,member_email text not null,added_at timestamptz default now(),unique(setlist_id,member_email));

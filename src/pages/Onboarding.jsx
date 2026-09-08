@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../lib/AuthContext';
+import { userCache } from '../lib/userCache';
+import { useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Music, Globe, Clock, ListMusic, Share2, Zap, ChevronRight, X, Play, CheckCircle2, Sparkles } from 'lucide-react';
 
 const STEPS = [
@@ -57,12 +59,14 @@ const STEPS = [
 ];
 
 export default function Onboarding() {
+  const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleFinish = () => {
-    localStorage.setItem('hasSeenTutorial', 'true');
-    navigate('/');
+    userCache.setItem(user?.id, 'hasSeenTutorial', 'true');
+    navigate(location.state?.returnTo?.startsWith('/') && !location.state.returnTo.startsWith('//') ? location.state.returnTo : '/');
   };
 
   const nextStep = () => {
@@ -128,7 +132,7 @@ export default function Onboarding() {
             </button>
           </div>
         ) : (
-          <button 
+          <button aria-label="Próximo" 
             onClick={nextStep}
             className="w-full py-5 bg-white text-black rounded-2xl font-black uppercase tracking-[0.2em] text-xs sm:text-sm flex items-center justify-center gap-2 hover:bg-gray-200 transition-all shadow-[0_6px_0_0_#a3a3a3] active:translate-y-1.5 active:shadow-none"
           >

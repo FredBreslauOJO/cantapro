@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from "react";
+import { userCache, readCache, invalidateContent } from '../lib/userCache';
+import { getOfflineSnapshot } from '../lib/offline';
+import { useState, useEffectEvent, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Settings, Play, Archive, ArchiveRestore, Users } from "lucide-react";
 import { supabase } from "../lib/supabase";
@@ -7,11 +9,11 @@ import PaywallModal from "../components/PaywallModal";
 import LoadingScreen from "../components/LoadingScreen";
 import HomeNotices from "../components/HomeNotices";
 
-let globalSetlistsCache = null;
+
 
 export default function Setlists() {
-  const [setlists, setSetlists] = useState(globalSetlistsCache || []);
-  const [loading, setLoading] = useState(!globalSetlistsCache);
+  const [setlists, setSetlists] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   
@@ -19,8 +21,9 @@ export default function Setlists() {
   // EXTRAÍMOS O isOnline AQUI
   const { user, plan, isOnline } = useAuth();
 
+  const loadForEffect = useEffectEvent(() => loadSetlists());
   useEffect(() => {
-    if (user) loadSetlists();
+    if (user) loadForEffect();
   }, [user]);
 
   const formatTotalDuration = (totalSeconds) => {
@@ -37,20 +40,22 @@ export default function Setlists() {
       return;
     }
     const { data, error } = await supabase.from('setlists').insert([{ 
-      event_name: "NOVO SETLIST", band_name: "", created_by: user.email, archived: false
+      event_name: "NOVO SETLIST", band_name: "", owner_id: user.id, created_by: user.email, archived: false
     }]).select().single();
 
-    if (!error) navigate(`/setlists/${data.id}/edit`);
+    if (error) { alert(error.message); return; }
+    invalidateContent(user.id);
+    navigate(`/setlists/${data.id}/edit`);
   };
 
   const loadSetlists = async () => {
-    const cachedData = localStorage.getItem(`canta_setlists_offline_${user?.id}`);
-    if (cachedData && !globalSetlistsCache) {
+    const cachedData = JSON.stringify(getOfflineSnapshot(user.id)?.setlists || readCache(user.id, 'canta_setlists_offline'));
+    if (cachedData && cachedData !== 'null') {
       const parsed = JSON.parse(cachedData);
       setSetlists(parsed);
-      globalSetlistsCache = parsed;
+
       setLoading(false); 
-    } else if (!globalSetlistsCache) {
+    } else {
       setLoading(true);
     }
 
@@ -61,14 +66,14 @@ export default function Setlists() {
     }
 
     try {
-      const { data: memberData } = await supabase.from('setlist_members').select('setlist_id').eq('member_email', user.email);
+      const { data: memberData } = await supabase.from('setlist_members').select('setlist_id').eq('user_id', user.id);
       const sharedIds = memberData ? memberData.map(m => m.setlist_id) : [];
 
       let query = supabase.from('setlists').select('*');
       if (sharedIds.length > 0) {
-        query = query.or(`created_by.eq.${user.email},id.in.(${sharedIds.join(',')})`);
+        query = query.or(`owner_id.eq.${user.id},id.in.(${sharedIds.join(',')})`);
       } else {
-        query = query.eq('created_by', user.email);
+        query = query.eq('owner_id', user.id);
       }
 
       const { data: allSetlists, error } = await query;
@@ -87,13 +92,13 @@ export default function Setlists() {
             ...sl, 
             songCount: myItems.length, 
             totalDurationSeconds: myItems.reduce((acc, curr) => acc + (curr.songs?.duration_seconds || 0), 0),
-            isShared: sl.created_by !== user.email
+            isShared: sl.owner_id !== user.id
           };
         });
 
-        globalSetlistsCache = enriched; 
+ 
         setSetlists(enriched);
-        localStorage.setItem(`canta_setlists_offline_${user?.id}`, JSON.stringify(enriched));
+        userCache.setItem(user?.id, 'canta_setlists_offline', JSON.stringify(enriched));
       }
     } catch (err) {
       console.warn("Falha silenciosa de rede evitada.", err);
@@ -106,8 +111,10 @@ export default function Setlists() {
     e.stopPropagation();
     if (!isOnline) return; // Não deixa arquivar offline
     const newStatus = !currentStatus;
-    setSetlists(prev => prev.map(sl => sl.id === id ? { ...sl, archived: newStatus } : sl));
-    await supabase.from('setlists').update({ archived: newStatus }).eq('id', id);
+    const { error } = await supabase.from('setlists').update({ archived: newStatus }).eq('id', id);
+    if (error) { alert(error.message); return; }
+    invalidateContent(user.id);
+    await loadSetlists();
   };
 
   const visibleSetlists = setlists.filter(sl => showArchived ? sl.archived === true : !sl.archived);
@@ -115,14 +122,14 @@ export default function Setlists() {
   const SetlistCard = ({ sl }) => (
     <div className={`bg-white border-2 border-black rounded-3xl p-4 flex flex-col justify-between min-h-[150px] group relative shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${sl.archived ? 'opacity-60 grayscale' : ''}`}>
       <div className="absolute top-2 right-2 flex items-center z-10">
-        <button 
+        <button aria-label={sl.archived ? 'Restaurar repertório' : 'Arquivar repertório'} 
           onClick={(e) => toggleArchive(e, sl.id, sl.archived)} 
           disabled={!isOnline}
           className={`w-12 h-12 flex items-center justify-center transition-colors active:scale-95 ${!isOnline ? 'text-gray-200 cursor-not-allowed' : 'text-black/30 hover:text-black'}`}
         >
           {sl.archived ? <ArchiveRestore size={22} className="pointer-events-none" /> : <Archive size={22} className="pointer-events-none" />}
         </button>
-        <button 
+        <button aria-label="Configurações" 
           onClick={(e) => { e.stopPropagation(); if (isOnline) navigate(`/setlists/${sl.id}/edit`); }} 
           disabled={!isOnline}
           className={`w-12 h-12 flex items-center justify-center transition-colors active:scale-95 ${!isOnline ? 'text-gray-200 cursor-not-allowed' : 'text-black/30 hover:text-black'}`}
@@ -146,7 +153,7 @@ export default function Setlists() {
             {sl.songCount || 0} Músicas • {formatTotalDuration(sl.totalDurationSeconds)}
             {sl.isShared && <Users size={12} className="text-green-600 ml-1" title="Compartilhado" />}
           </span>
-          <button onClick={(e) => { e.stopPropagation(); navigate(`/setlists/${sl.id}/play/0`); }} className="w-11 h-11 bg-black rounded-full flex items-center justify-center text-white hover:opacity-80 active:scale-95">
+          <button aria-label="Reproduzir" onClick={(e) => { e.stopPropagation(); navigate(`/setlists/${sl.id}/play/0`); }} className="w-11 h-11 bg-black rounded-full flex items-center justify-center text-white hover:opacity-80 active:scale-95">
             <Play size={13} fill="white" className="pointer-events-none" />
           </button>
         </div>
@@ -162,7 +169,7 @@ export default function Setlists() {
           <h1 className="text-2xl font-black tracking-tight uppercase text-foreground">Setlists</h1>
         </div>
         <div className="flex items-center gap-2 mt-1">
-          <button 
+          <button aria-label="Criar repertório" 
             onClick={handleCreateNew} 
             disabled={!isOnline}
             className={`w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,0.3)]

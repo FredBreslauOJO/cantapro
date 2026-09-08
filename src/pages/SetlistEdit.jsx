@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { requireResult } from '../lib/data';
+import { invalidateContent } from '../lib/userCache';
+import { useState, useEffectEvent, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { 
   ArrowLeft, Printer, Share2, Trash2, Search, 
@@ -15,7 +17,7 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-function SortableRow({ item, index, songCounter, onRemove, onUpdateDivider, isReadOnly }) {
+function SortableRow({ item, songCounter, onRemove, onUpdateDivider, onSaveDivider, isReadOnly }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.itemId });
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -46,6 +48,7 @@ function SortableRow({ item, index, songCounter, onRemove, onUpdateDivider, isRe
           <input 
             type="text" value={item.content}
             onChange={(e) => onUpdateDivider(item.itemId, e.target.value)}
+            onBlur={(e) => onSaveDivider(item.itemId, e.target.value)}
             disabled={isReadOnly}
             className="bg-transparent font-black text-sm uppercase tracking-widest outline-none w-full placeholder-white/40 text-white disabled:opacity-80"
             placeholder="DIGITE O NOME DO BLOCO"
@@ -69,7 +72,7 @@ function SortableRow({ item, index, songCounter, onRemove, onUpdateDivider, isRe
       )}
 
       {!isReadOnly && (
-        <button 
+        <button aria-label="Excluir" 
           onClick={() => {
             if (confirmDelete) onRemove(item.itemId);
             else {
@@ -96,7 +99,7 @@ function SortableRow({ item, index, songCounter, onRemove, onUpdateDivider, isRe
 export default function SetlistEdit() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { user, plan } = useAuth();
+  const { user, plan, isOnline } = useAuth();
 
   const [eventName, setEventName] = useState("");
   const [bandName, setBandName] = useState("");
@@ -111,15 +114,16 @@ export default function SetlistEdit() {
   const [librarySongs, setLibrarySongs] = useState([]); 
   const [setlistItems, setSetlistItems] = useState([]);
 
-  const isReadOnly = isGuest && (plan || 'free') === 'free';
+  const isReadOnly = !isOnline || (isGuest && (plan || 'free') === 'free');
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
+  const loadForEffect = useEffectEvent(() => loadSetlistAndLibrary());
   useEffect(() => {
-    if (user && id) loadSetlistAndLibrary();
+    if (user && id) loadForEffect();
   }, [user, id]);
 
   const loadSetlistAndLibrary = async (silentRefresh = false) => {
@@ -132,10 +136,10 @@ export default function SetlistEdit() {
         setEventName(setlist.event_name || "");
         setBandName(setlist.band_name || "");
         setDate(setlist.date || ""); 
-        setIsGuest(setlist.created_by !== user.email);
+        setIsGuest(setlist.owner_id !== user.id);
       }
 
-      const { data: songsData } = await supabase.from('songs').select('*').eq('created_by', user.email).order('title', { ascending: true });
+      const { data: songsData } = await supabase.from('songs').select('*').eq('owner_id', user.id).order('title', { ascending: true });
       if (songsData) setLibrarySongs(songsData);
 
       await loadSetlistItems();
@@ -168,45 +172,48 @@ export default function SetlistEdit() {
 
   const handleUpdateField = async (field, value) => {
     if (isReadOnly) return;
-    await supabase.from('setlists').update({ [field]: value }).eq('id', id);
+    try { await requireResult(supabase.from('setlists').update({ [field]: value }).eq('id', id)); invalidateContent(user.id); } catch (error) { alert(error.message); setLoading(false); setIsRefreshing(false); return; }
   };
 
   const handleShare = async () => {
-    if ((plan || 'free') === 'free') {
+    if (isGuest || (plan || 'free') === 'free') {
       setIsPaywallOpen(true);
       return;
     }
     try {
       const safeName = encodeURIComponent(eventName || 'ROTEIRO DO SHOW');
       const safeOwner = encodeURIComponent(user?.email ? user.email.split('@')[0].toUpperCase() : 'BANDA');
-      const shareUrl = `${window.location.origin}/join/${id}?n=${safeName}&by=${safeOwner}`;
+      const token = await requireResult(supabase.rpc('create_setlist_invite', { p_setlist_id: id }));
+      const shareUrl = `${window.location.origin}/join/${id}?token=${encodeURIComponent(token)}`;
       const shareMessage = `🎤 *${decodeURIComponent(safeOwner)}* compartilhou o setlist *${decodeURIComponent(safeName)}* com você!\n\n👉 Clique no link para aceitar o convite e acessar o Teleprompter:\n${shareUrl}\n\n🎸 Já tem o APP *CANTA.PRO*? Crie sua conta grátis para salvar na sua biblioteca!`;
       await navigator.clipboard.writeText(shareMessage);
       alert("Mensagem de convite copiada! Pronto para colar no WhatsApp da banda.");
     } catch (err) { 
-      alert("Não foi possível copiar a mensagem automaticamente."); 
+      alert("Não foi possível gerar o convite: " + err.message); 
     }
   };
 
   const handleDeleteSetlist = async () => {
     if (!window.confirm("Excluir permanentemente este setlist?")) return;
     setLoading(true);
-    await supabase.from('setlist_items').delete().eq('setlist_id', id);
-    await supabase.from('setlists').delete().eq('id', id);
+    try {
+      await requireResult(supabase.from('setlists').delete().eq('id', id).select('id').single());
+      invalidateContent(user.id);
+    } catch (error) { alert(error.message); setLoading(false); return; }
     navigate('/');
   };
 
   const handleLeaveSetlist = async () => {
     if (!window.confirm("Sair deste repertório compartilhado?")) return;
     setLoading(true);
-    await supabase.from('setlist_members').delete().match({ setlist_id: id, member_email: user.email });
+    try { await requireResult(supabase.from('setlist_members').delete().match({ setlist_id: id, user_id: user.id })); invalidateContent(user.id); } catch (error) { alert(error.message); setLoading(false); setIsRefreshing(false); return; }
     navigate('/');
   };
 
   const handleAddSong = async (song) => {
     if (isReadOnly || setlistItems.some(item => item.type === 'song' && item.id === song.id)) return;
     setIsRefreshing(true);
-    await supabase.from('setlist_items').insert({ setlist_id: id, item_type: 'song', song_id: song.id, order_index: setlistItems.length });
+    try { await requireResult(supabase.from('setlist_items').insert({ setlist_id: id, item_type: 'song', song_id: song.id, order_index: setlistItems.length })); invalidateContent(user.id); } catch (error) { alert(error.message); setLoading(false); setIsRefreshing(false); return; }
     await loadSetlistItems();
     setIsRefreshing(false);
   };
@@ -217,7 +224,7 @@ export default function SetlistEdit() {
       return;
     }
     setIsRefreshing(true);
-    await supabase.from('setlist_items').insert({ setlist_id: id, item_type: 'divider', content: '— NOVO BLOCO —', order_index: setlistItems.length });
+    try { await requireResult(supabase.from('setlist_items').insert({ setlist_id: id, item_type: 'divider', content: '— NOVO BLOCO —', order_index: setlistItems.length })); invalidateContent(user.id); } catch (error) { alert(error.message); setLoading(false); setIsRefreshing(false); return; }
     await loadSetlistItems();
     setIsRefreshing(false);
   };
@@ -225,15 +232,18 @@ export default function SetlistEdit() {
   const handleRemoveItem = async (itemId) => {
     if (isReadOnly) return;
     setIsRefreshing(true);
-    await supabase.from('setlist_items').delete().eq('id', itemId);
+    try { await requireResult(supabase.from('setlist_items').delete().eq('id', itemId)); invalidateContent(user.id); } catch (error) { alert(error.message); setLoading(false); setIsRefreshing(false); return; }
     await loadSetlistItems(); 
     setIsRefreshing(false);
   };
 
-  const handleUpdateDividerText = async (itemId, newText) => {
+  const handleUpdateDividerText = (itemId, newText) => {
     if (isReadOnly) return;
     setSetlistItems(prev => prev.map(item => item.itemId === itemId ? { ...item, content: newText } : item));
-    await supabase.from('setlist_items').update({ content: newText }).eq('id', itemId);
+  };
+  const handleSaveDivider = async (itemId, newText) => {
+    if (isReadOnly) return;
+    try { await requireResult(supabase.from('setlist_items').update({ content: newText }).eq('id', itemId)); invalidateContent(user.id); } catch (error) { alert(error.message); setLoading(false); setIsRefreshing(false); return; }
   };
 
   const handleDragEnd = async (event) => {
@@ -245,9 +255,9 @@ export default function SetlistEdit() {
     const updatedItems = arrayMove(setlistItems, oldIndex, newIndex);
     setSetlistItems(updatedItems);
     try {
-      const updates = updatedItems.map((item, idx) => supabase.from('setlist_items').update({ order_index: idx }).eq('id', item.itemId));
-      await Promise.all(updates);
-    } catch (err) { await loadSetlistItems(); }
+      await requireResult(supabase.rpc('reorder_setlist', { p_setlist_id: id, p_item_ids: updatedItems.map(item => item.itemId) }));
+      invalidateContent(user.id);
+    } catch (err) { alert(err.message); await loadSetlistItems(); }
   };
 
   const searchResults = librarySongs.filter(song => {
@@ -269,12 +279,12 @@ export default function SetlistEdit() {
 
       <div className="p-4 max-w-xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-black active:scale-95">
+          <button aria-label="Voltar" onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-black active:scale-95">
             <ArrowLeft size={28} strokeWidth={2.5} />
           </button>
           
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 pr-1">
-            <button 
+            <button aria-label="Atualizar" 
               onClick={() => loadSetlistAndLibrary(true)}
               className="p-2.5 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all text-black"
             >
@@ -301,12 +311,12 @@ export default function SetlistEdit() {
                 {({ loading }) => (loading ? "..." : <Printer size={18} strokeWidth={2.5} />)}
               </PDFDownloadLink>
             ) : (
-              <button onClick={() => setIsPaywallOpen(true)} className="p-2.5 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center justify-center text-black">
+              <button aria-label="Baixar repertório em PDF" onClick={() => setIsPaywallOpen(true)} className="p-2.5 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center justify-center text-black">
                 <Printer size={18} strokeWidth={2.5} />
               </button>
             )}
 
-            <button onClick={handleShare} className="p-2.5 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all text-black">
+            <button aria-label="Compartilhar repertório" onClick={handleShare} className="p-2.5 bg-white border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all text-black">
               <Share2 size={18} strokeWidth={2.5} />
             </button>
             
@@ -315,7 +325,7 @@ export default function SetlistEdit() {
                  <LogOut size={18} strokeWidth={2.5} />
                </button>
             ) : (
-               <button onClick={handleDeleteSetlist} className="p-2.5 bg-white border-2 border-black text-red-500 rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-red-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all" title="Excluir Repertório">
+               <button aria-label="Excluir Repertório" onClick={handleDeleteSetlist} className="p-2.5 bg-white border-2 border-black text-red-500 rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:bg-red-50 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all" title="Excluir Repertório">
                  <Trash2 size={18} strokeWidth={2.5} />
                </button>
             )}
@@ -351,7 +361,7 @@ export default function SetlistEdit() {
                   className="w-full pl-9 pr-10 py-3 border-2 border-black rounded-xl text-sm font-bold bg-gray-50 focus:bg-white outline-none transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]" 
                 />
                 {searchQuery && (
-                  <button 
+                  <button aria-label="Limpar busca" 
                     onClick={() => setSearchQuery("")}
                     className="absolute right-3 top-1/2 -translate-y-1/2 p-1 bg-black/10 hover:bg-black/20 rounded-full text-black/60 transition-colors"
                   >
@@ -376,7 +386,7 @@ export default function SetlistEdit() {
                         <p className="font-black text-xs uppercase tracking-tight truncate">{song.title}</p>
                         <p className="text-[10px] font-bold text-gray-400 uppercase truncate">{song.artist || 'Sem artista'}</p>
                       </div>
-                      <button onClick={() => handleAddSong(song)} className="p-1.5 bg-blue-600 text-white rounded-lg active:scale-95 transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] border-2 border-black flex-shrink-0">
+                      <button aria-label="Adicionar" onClick={() => handleAddSong(song)} className="p-1.5 bg-blue-600 text-white rounded-lg active:scale-95 transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] border-2 border-black flex-shrink-0">
                         <Plus size={16} strokeWidth={3} />
                       </button>
                     </div>
@@ -416,6 +426,7 @@ export default function SetlistEdit() {
                       songCounter={songCounter} 
                       onRemove={handleRemoveItem} 
                       onUpdateDivider={handleUpdateDividerText}
+                      onSaveDivider={handleSaveDivider}
                       isReadOnly={isReadOnly}
                     />
                   );

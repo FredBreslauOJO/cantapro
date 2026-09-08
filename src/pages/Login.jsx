@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Lock, Mail, Loader2, Music, ArrowLeft, Send } from 'lucide-react';
@@ -34,8 +34,8 @@ export default function Login() {
       if (error) throw error;
       
       if (data?.user) {
-        const redirectUrl = localStorage.getItem('canta_invite_redirect');
-        if (redirectUrl) {
+        const redirectUrl = sessionStorage.getItem('canta_invite_redirect');
+        if (redirectUrl?.startsWith('/join/')) {
           navigate(redirectUrl);
         } else {
           navigate('/');
@@ -192,7 +192,7 @@ export default function Login() {
         ) : (
           <div className="animate-fadeIn">
             <div className="flex items-center mb-6">
-              <button onClick={() => setView('login')} className="p-1.5 -ml-1.5 hover:bg-gray-100 rounded-full transition-colors active:scale-95">
+              <button aria-label="Voltar" onClick={() => setView('login')} className="p-1.5 -ml-1.5 hover:bg-gray-100 rounded-full transition-colors active:scale-95">
                 <ArrowLeft size={18} strokeWidth={2.5} />
               </button>
               <div className="flex-1 text-center pr-6">

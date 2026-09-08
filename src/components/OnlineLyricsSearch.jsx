@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Search, Eye, X, Sparkles, Loader2, User, Music } from 'lucide-react';
 
 export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onUpgradeClick }) {
@@ -22,7 +22,7 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onUpgradeCl
         </div>
         <h3 className="font-black text-lg uppercase tracking-tight mb-2">Buscar letras na Web</h3>
         <p className="text-xs font-bold text-black/70 mb-6 leading-relaxed">
-          A busca automatizada de repertório e importação com timecodes é exclusiva para assinantes dos planos **BASE** e **PRO**.
+          A busca automatizada de repertório e importação com timecodes é exclusiva para assinantes dos planos BASE e PRO.
         </p>
         <button onClick={onUpgradeClick} className="w-full py-3 bg-black text-white text-xs font-black uppercase tracking-widest rounded-xl hover:opacity-80 active:scale-95 transition-all">
           Fazer Upgrade Agora
@@ -50,10 +50,12 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onUpgradeCl
       }
 
       const response = await fetch(url);
+      if (!response.ok) throw new Error('Busca indisponível. Tente novamente.');
       const data = await response.json();
+      if (!Array.isArray(data)) throw new Error('Resposta inválida da busca.');
       setResults(data || []);
     } catch (err) {
-      console.error('Erro ao buscar letras:', err);
+      alert(err.message || 'Não foi possível buscar letras.');
     } finally {
       setLoading(false);
     }
@@ -111,20 +113,8 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onUpgradeCl
           });
         }
       }
-    } else {
-      const lines = rawText.split('\n');
-      lines.forEach((line) => {
-        if (line.trim()) {
-          generatedBlocks.push({
-            block_id: `block_${Date.now()}_${generatedBlocks.length}`,
-            text_content: line.trim(),
-            start_time: 0,
-            end_time: 0,
-            order_index: generatedBlocks.length
-          });
-        }
-      });
     }
+
 
     try {
       await onSaveLyrics({
@@ -132,7 +122,7 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onUpgradeCl
         artist: track.artistName.toUpperCase(),
         duration: track.duration,
         blocks: generatedBlocks,
-        raw_text: track.plainLyrics 
+        raw_text: track.plainLyrics || generatedBlocks.map(block => block.text_content).join('\n') 
       });
       setSelectedTrack(null);
     } catch (err) {
@@ -233,7 +223,7 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onUpgradeCl
                 </p>
               </div>
 
-              <button 
+              <button aria-label="Visualizar letra" 
                 onClick={() => {
                   setSelectedTrack(track);
                   setActivePreviewTab(track.syncedLyrics ? 'synced' : 'plain');
@@ -254,7 +244,7 @@ export default function OnlineLyricsSearch({ userPlan, onSaveLyrics, onUpgradeCl
             
             <div className="p-4 border-b-2 border-gray-200 flex items-center justify-between">
               <h3 className="font-black text-base uppercase text-black">Prévia</h3>
-              <button onClick={() => !isSaving && setSelectedTrack(null)} disabled={isSaving} className="p-1 hover:bg-gray-100 rounded-full">
+              <button aria-label="Fechar" onClick={() => !isSaving && setSelectedTrack(null)} disabled={isSaving} className="p-1 hover:bg-gray-100 rounded-full">
                 <X size={20} />
               </button>
             </div>

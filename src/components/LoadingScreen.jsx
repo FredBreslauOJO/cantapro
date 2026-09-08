@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Loader2, CloudOff, RefreshCw } from 'lucide-react';
 
 export default function LoadingScreen({ message = "Carregando..." }) {

@@ -1,13 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Play, Pause, ChevronLeft, ChevronRight, X, Settings, ListMusic, Type, Timer, FastForward, MessageSquareText } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { validTimecodes } from '../lib/timecodes';
 import { useAuth } from '../lib/AuthContext';
+import { userCache, readCache } from '../lib/userCache';
+import { getOfflineSnapshot } from '../lib/offline';
+import { useState, useEffectEvent, useEffect, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Play, Pause, ChevronLeft, ChevronRight, X, Settings, ListMusic, Type, FastForward, MessageSquareText } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 export default function PlaySong() {
+  const { user } = useAuth();
   const { id, songIndex } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
   
   const [songs, setSongs] = useState([]);
   const [setlistName, setSetlistName] = useState("");
@@ -20,20 +23,20 @@ export default function PlaySong() {
   const [countdown, setCountdown] = useState(null);
   
   const [fontSize, setFontSize] = useState(() => {
-    const saved = localStorage.getItem('cantapro_fontSize');
+    const saved = userCache.getItem(user?.id, 'cantapro_fontSize');
     return saved ? parseInt(saved, 10) : 24;
   });
 
   const [autoSkip, setAutoSkip] = useState(() => {
-    return localStorage.getItem('cantapro_autoSkip') !== 'false'; 
+    return userCache.getItem(user?.id, 'cantapro_autoSkip') === 'true'; 
   });
 
   const [showComments, setShowComments] = useState(() => {
-    return localStorage.getItem('cantapro_showComments') !== 'false'; 
+    return userCache.getItem(user?.id, 'cantapro_showComments') !== 'false'; 
   });
 
   const [playbackSpeed, setPlaybackSpeed] = useState(() => {
-    const saved = localStorage.getItem('cantapro_speed');
+    const saved = userCache.getItem(user?.id, 'cantapro_speed');
     return saved ? parseFloat(saved) : 1.0;
   });
   
@@ -68,8 +71,7 @@ export default function PlaySong() {
     return () => clearTimeout(timer);
   }, [countdown, id, navigate]);
 
-  useEffect(() => {
-    const handleKeyDown = (e) => {
+  const handleKeyDown = useEffectEvent((e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
       if (e.code === 'Space' || e.code === 'Enter') {
@@ -94,16 +96,17 @@ export default function PlaySong() {
           navigate(`/setlists/${id}/play/${currentIndexRef.current - 1}`);
         }
       }
-    };
+  });
+  useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [id, navigate]);
+  }, []);
 
   useEffect(() => {
     const requestWakeLock = async () => {
       try {
         if ('wakeLock' in navigator) wakeLockRef.current = await navigator.wakeLock.request('screen');
-      } catch (err) { console.warn(`Wake Lock ignorado`); }
+      } catch { console.warn(`Wake Lock ignorado`); }
     };
     requestWakeLock();
     const handleVisibilityChange = () => { if (document.visibilityState === 'visible') requestWakeLock(); };
@@ -127,37 +130,39 @@ export default function PlaySong() {
     window.scrollTo(0, 0);
   }, [currentIndex]);
 
+  // 🔥 A GRANDE CORREÇÃO: LÓGICA DE CARREGAMENTO OFFLINE 🔥
   useEffect(() => {
     const loadSetlistAndSongs = async () => {
       if (!id) return;
       
       const isOnline = navigator.onLine && sessionStorage.getItem('canta_force_offline') !== 'true';
 
-      const cachedData = localStorage.getItem(`canta_play_offline_${user?.id}_${id}`);
-      let hasLoadedFromCache = false;
+      // 1. TENTA LER O CACHE PRIMEIRO
+      const cachedData = JSON.stringify(getOfflineSnapshot(user.id)?.shows[id] || readCache(user.id, `canta_play_offline_${id}`));
 
-      if (cachedData) {
+      if (cachedData && cachedData !== 'null') {
         try {
           const parsed = JSON.parse(cachedData);
           setSetlistName(parsed.setlistName);
           setSongs(parsed.songs);
-          hasLoadedFromCache = true;
-          setLoading(false); 
-        } catch(e) {
+          setLoading(false); // Já libera a tela na hora!
+        } catch {
           console.error("Erro ao ler cache offline");
         }
       } else if (!isOnline) {
          setLoading(false);
-         return; 
+         return; // Se não tem cache e tá offline, desiste
       } else {
-         setLoading(true); 
+         setLoading(true); // Só bloqueia a tela se não tiver cache E tiver online
       }
 
+      // 2. SE ESTIVER OFFLINE, NÃO FAZ REQUISIÇÃO (Evita o erro de rede)
       if (!isOnline) return;
 
       try {
+        // 3. SE ESTIVER ONLINE, BUSCA DADOS NOVOS E ATUALIZA O CACHE
         const { data: setlistData } = await supabase.from('setlists').select('event_name').eq('id', id).maybeSingle();
-        const currentName = setlistData ? setlistData.event_name : (setlistName || "");
+        const currentName = setlistData?.event_name || "";
         if (setlistData) setSetlistName(currentName);
 
         const { data: pivotData } = await supabase
@@ -179,7 +184,8 @@ export default function PlaySong() {
           
           setSongs(formattedItems);
           
-          localStorage.setItem(`canta_play_offline_${user?.id}_${id}`, JSON.stringify({
+          // Salva o roteiro do show inteiro no cache do celular!
+          userCache.setItem(user?.id, `canta_play_offline_${id}`, JSON.stringify({
             setlistName: currentName,
             songs: formattedItems
           }));
@@ -192,20 +198,17 @@ export default function PlaySong() {
     };
 
     loadSetlistAndSongs();
-  }, [id, user]);
+  }, [id, user.id]);
+  // 🔥 FIM DA CORREÇÃO OFFLINE 🔥
 
   const togglePlay = () => {
     if (isPlaying) { stopAutoScroll(); setIsPlaying(false); } 
     else { startAutoScroll(); setIsPlaying(true); }
   };
 
-  const getParsedTimecodes = (song) => {
+  function getParsedTimecodes(song) {
     if (!song) return [];
-    const raw = song.timecodes || song.blocks || song.timecode_blocks || song.sync_data;
-    if (typeof raw === 'string') {
-      try { return JSON.parse(raw); } catch(e) { return []; }
-    }
-    return Array.isArray(raw) ? raw : [];
+    return validTimecodes(song.timecode_blocks || song.timecodes || song.blocks || song.sync_data);
   };
 
   const extractBlockText = (block) => {
@@ -255,7 +258,7 @@ export default function PlaySong() {
     }
   };
 
-  const handleSongEnd = () => {
+  function handleSongEnd() {
     stopAutoScroll(); 
     setIsPlaying(false);
     
@@ -264,16 +267,12 @@ export default function PlaySong() {
     }
   };
 
-  const startAutoScroll = () => {
+  function startAutoScroll() {
     const currentSong = songs[currentIndex];
     if (!currentSong) return;
 
     const timecodes = getParsedTimecodes(currentSong);
-    const hasTimecodes = timecodes.length > 0 && timecodes.some(tc => {
-      const start = tc.start_time ?? tc.startTime ?? tc.start ?? tc.time ?? tc.timecode ?? 0;
-      const end = tc.end_time ?? tc.endTime ?? tc.end ?? 0;
-      return parseFloat(start) > 0 || parseFloat(end) > 0;
-    });
+    const hasTimecodes = timecodes.length > 0;
 
     playbackRef.current.playing = true;
     playbackRef.current.lastFrameTime = Date.now();
@@ -344,7 +343,7 @@ export default function PlaySong() {
           window.scrollTo(0, targetScrollPos);
         }
 
-        if (elapsed < durationMs && (Math.ceil(window.innerHeight + window.scrollY) < document.documentElement.scrollHeight)) {
+        if (elapsed < durationMs) {
           playbackRef.current.animationId = requestAnimationFrame(loop);
         } else {
           handleSongEnd();
@@ -354,7 +353,7 @@ export default function PlaySong() {
     playbackRef.current.animationId = requestAnimationFrame(loop);
   };
 
-  const stopAutoScroll = () => {
+  function stopAutoScroll() {
     playbackRef.current.playing = false;
     if (playbackRef.current.animationId) cancelAnimationFrame(playbackRef.current.animationId);
   };
@@ -368,25 +367,20 @@ export default function PlaySong() {
   const changeFontSize = (delta) => {
     setFontSize(prev => {
       const newSize = Math.max(9, Math.min(100, prev + delta));
-      localStorage.setItem('cantapro_fontSize', newSize);
+      userCache.setItem(user?.id, 'cantapro_fontSize', newSize);
       return newSize;
     });
   };
 
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><div className="w-8 h-8 border-4 border-white/20 border-t-white rounded-full animate-spin" /></div>;
-  if (songs.length === 0) return <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center"><p className="mb-6 font-bold text-white/50 uppercase tracking-widest text-sm">Nenhum conteúdo carregado.</p><button onClick={() => navigate('/setlists')} className="px-6 py-3 bg-white text-black font-black uppercase rounded-xl">Voltar</button></div>;
+  if (songs.length === 0 || !songs[currentIndex]) return <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center"><p className="mb-6 font-bold text-white/50 uppercase tracking-widest text-sm">Nenhum conteúdo carregado.</p><button onClick={() => navigate('/')} className="px-6 py-3 bg-white text-black font-black uppercase rounded-xl">Voltar</button></div>;
 
   const currentSong = songs[currentIndex];
   const prevSong = songs[currentIndex - 1];
   const nextSong = songs[currentIndex + 1];
   
   const timecodes = getParsedTimecodes(currentSong);
-  const hasTimecodes = timecodes.length > 0 && timecodes.some(tc => {
-    const start = tc.start_time ?? tc.startTime ?? tc.start ?? tc.time ?? tc.timecode ?? 0;
-    const end = tc.end_time ?? tc.endTime ?? tc.end ?? 0;
-    return parseFloat(start) > 0 || parseFloat(end) > 0;
-  });
-  
+  const hasTimecodes = timecodes.length > 0;
   const songText = currentSong?.lyrics_text || currentSong?.lyrics || currentSong?.content || currentSong?.text || currentSong?.body;
 
   const isStarted = isPlaying || activeBlockIndex !== -1;
@@ -404,13 +398,13 @@ export default function PlaySong() {
         </div>
         
         <div className="flex gap-2 pointer-events-auto shrink-0">
-          <button onClick={() => setIsSetlistOpen(true)} className="w-10 h-10 bg-white text-black rounded-full flex items-center justify-center border border-transparent hover:bg-gray-200 shadow-[0_0_15px_rgba(255,255,255,0.2)]">
+          <button aria-label="Abrir repertório" onClick={() => setIsSetlistOpen(true)} className="w-10 h-10 bg-white text-black rounded-full flex items-center justify-center border border-transparent hover:bg-gray-200 shadow-[0_0_15px_rgba(255,255,255,0.2)]">
             <ListMusic size={18} className="ml-0.5" />
           </button>
-          <button onClick={() => setIsMenuOpen(true)} className="w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 text-white/60 hover:text-white">
+          <button aria-label="Configurações" onClick={() => setIsMenuOpen(true)} className="w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 text-white/60 hover:text-white">
             <Settings size={18} />
           </button>
-          <button onClick={() => navigate('/setlists')} className="w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 text-white/60 hover:text-white">
+          <button aria-label="Fechar" onClick={() => navigate('/')} className="w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 text-white/60 hover:text-white">
             <X size={20} />
           </button>
         </div>
@@ -439,7 +433,7 @@ export default function PlaySong() {
               <h2 className="text-2xl font-black uppercase tracking-widest text-white leading-none">Repertório</h2>
               <p className="text-xs font-bold uppercase tracking-widest text-white/50 mt-1 truncate">{setlistName}</p>
             </div>
-            <button onClick={() => setIsSetlistOpen(false)} className="w-12 h-12 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 text-white shrink-0">
+            <button aria-label="Fechar" onClick={() => setIsSetlistOpen(false)} className="w-12 h-12 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 text-white shrink-0">
               <X size={24} />
             </button>
           </div>
@@ -472,7 +466,7 @@ export default function PlaySong() {
           <div className="w-[85%] max-w-sm bg-neutral-900 h-full border-l border-white/10 p-6 flex flex-col overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-8 pb-4 border-b border-white/10">
               <h3 className="font-black uppercase tracking-widest text-lg">Opções de Palco</h3>
-              <button onClick={() => setIsMenuOpen(false)} className="text-white/50 hover:text-white p-2 bg-white/5 rounded-full"><X size={20}/></button>
+              <button aria-label="Fechar" onClick={() => setIsMenuOpen(false)} className="text-white/50 hover:text-white p-2 bg-white/5 rounded-full"><X size={20}/></button>
             </div>
             
             <div className="mb-10">
@@ -488,13 +482,13 @@ export default function PlaySong() {
               <p className="text-xs font-bold uppercase tracking-widest text-white/50 mb-4 flex items-center gap-2">Pular Automático</p>
               <div className="flex bg-black/30 rounded-2xl p-2">
                 <button 
-                  onClick={() => { setAutoSkip(false); localStorage.setItem('cantapro_autoSkip', 'false'); }}
+                  onClick={() => { setAutoSkip(false); userCache.setItem(user?.id, 'cantapro_autoSkip', 'false'); }}
                   className={`flex-1 py-4 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${!autoSkip ? 'bg-white text-black shadow-lg' : 'text-white/40 hover:bg-white/5'}`}
                 >
                   Desligado
                 </button>
                 <button 
-                  onClick={() => { setAutoSkip(true); localStorage.setItem('cantapro_autoSkip', 'true'); }}
+                  onClick={() => { setAutoSkip(true); userCache.setItem(user?.id, 'cantapro_autoSkip', 'true'); }}
                   className={`flex-1 py-4 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${autoSkip ? 'bg-white text-black shadow-lg' : 'text-white/40 hover:bg-white/5'}`}
                 >
                   Ligado
@@ -515,7 +509,7 @@ export default function PlaySong() {
                   onChange={(e) => {
                     const val = parseFloat(e.target.value);
                     setPlaybackSpeed(val);
-                    localStorage.setItem('cantapro_speed', val);
+                    userCache.setItem(user?.id, 'cantapro_speed', val);
                   }}
                   className="w-full accent-white h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer"
                 />
@@ -532,13 +526,13 @@ export default function PlaySong() {
               <p className="text-xs font-bold uppercase tracking-widest text-white/50 mb-4 flex items-center gap-2"><MessageSquareText size={16}/> Comentários de Palco</p>
               <div className="flex bg-black/30 rounded-2xl p-2">
                 <button 
-                  onClick={() => { setShowComments(false); localStorage.setItem('cantapro_showComments', 'false'); }}
+                  onClick={() => { setShowComments(false); userCache.setItem(user?.id, 'cantapro_showComments', 'false'); }}
                   className={`flex-1 py-4 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${!showComments ? 'bg-white text-black shadow-lg' : 'text-white/40 hover:bg-white/5'}`}
                 >
                   Ocultos
                 </button>
                 <button 
-                  onClick={() => { setShowComments(true); localStorage.setItem('cantapro_showComments', 'true'); }}
+                  onClick={() => { setShowComments(true); userCache.setItem(user?.id, 'cantapro_showComments', 'true'); }}
                   className={`flex-1 py-4 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${showComments ? 'bg-white text-black shadow-lg' : 'text-white/40 hover:bg-white/5'}`}
                 >
                   Visíveis
@@ -610,18 +604,18 @@ export default function PlaySong() {
       <div className="fixed bottom-0 left-0 right-0 bg-[#0a0a0a] border-t border-white/10 p-3 pb-6 sm:pb-3 flex items-center justify-between gap-3 z-30">
         <div className="flex-1 w-1/3">
           {prevSong ? (
-            <button onClick={() => handleNavigate(currentIndex - 1)} className="w-full h-14 bg-[#1a1a1a] text-white/50 hover:text-white hover:bg-[#2a2a2a] rounded-xl flex items-center justify-center gap-1 sm:gap-2 font-black text-sm sm:text-base tracking-widest uppercase border border-white/5">
-              <ChevronLeft size={18} className="shrink-0" /> <span className="truncate">{prevSong.title?.substring(0, 6)}..</span>
+            <button aria-label="Anterior" onClick={() => handleNavigate(currentIndex - 1)} className="w-full h-14 bg-[#1a1a1a] text-white/50 hover:text-white hover:bg-[#2a2a2a] rounded-xl flex items-center justify-center gap-1 sm:gap-2 font-black text-sm sm:text-base tracking-widest uppercase border border-white/5">
+              <ChevronLeft size={18} className="shrink-0" /> <span className="truncate">{prevSong.title}</span>
             </button>
           ) : (
-            <button onClick={() => navigate('/setlists')} className="w-full h-14 text-white/20 hover:text-white/50 flex items-center justify-center gap-2 font-black text-xs tracking-widest uppercase">
+            <button onClick={() => navigate('/')} className="w-full h-14 text-white/20 hover:text-white/50 flex items-center justify-center gap-2 font-black text-xs tracking-widest uppercase">
               <X size={16} /> SAIR
             </button>
           )}
         </div>
         
         {!currentSong.isSeparator ? (
-          <button onClick={togglePlay} className="w-24 h-14 bg-red-600 text-white rounded-xl flex items-center justify-center hover:bg-red-500 shadow-[0_0_20px_rgba(220,38,38,0.2)] active:scale-95 flex-shrink-0">
+          <button aria-label={isPlaying ? 'Pausar rolagem' : 'Iniciar rolagem'} onClick={togglePlay} className="w-24 h-14 bg-red-600 text-white rounded-xl flex items-center justify-center hover:bg-red-500 shadow-[0_0_20px_rgba(220,38,38,0.2)] active:scale-95 flex-shrink-0">
             {isPlaying ? <Pause size={26} fill="currentColor" /> : <Play size={26} fill="currentColor" className="ml-1" />}
           </button>
         ) : (
@@ -631,10 +625,10 @@ export default function PlaySong() {
         <div className="flex-1 w-1/3">
           {nextSong ? (
             <button onClick={() => handleNavigate(currentIndex + 1)} className="w-full h-14 bg-[#1a1a1a] text-white/50 hover:text-white hover:bg-[#2a2a2a] rounded-xl flex items-center justify-center gap-1 sm:gap-2 font-black text-sm sm:text-base tracking-widest uppercase border border-white/5">
-              <span className="truncate">{nextSong.title?.substring(0, 6)}..</span> <ChevronRight size={18} className="shrink-0" />
+              <span className="truncate">{nextSong.title}..</span> <ChevronRight size={18} className="shrink-0" />
             </button>
           ) : (
-            <button onClick={() => navigate('/setlists')} className="w-full h-14 text-white/20 hover:text-white/50 flex items-center justify-center gap-2 font-black text-xs tracking-widest uppercase">
+            <button onClick={() => navigate('/')} className="w-full h-14 text-white/20 hover:text-white/50 flex items-center justify-center gap-2 font-black text-xs tracking-widest uppercase">
               FIM <X size={16} />
             </button>
           )}

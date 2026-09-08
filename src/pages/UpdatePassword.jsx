@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import { useAuth } from '../lib/AuthContext';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
@@ -8,14 +9,16 @@ export default function UpdatePassword() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const navigate = useNavigate();
+  const { user, finishRecovery } = useAuth();
 
   useEffect(() => {
     // Ouve se há uma sessão de recuperação ativa ao carregar a página
-    supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
         setMessage('Sessão de recuperação validada. Digite sua nova senha.');
       }
     });
+    return () => subscription.unsubscribe();
   }, []);
 
   const handleUpdate = async (e) => {
@@ -28,6 +31,7 @@ export default function UpdatePassword() {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
       
+      finishRecovery();
       setMessage('Senha atualizada com sucesso!');
       setTimeout(() => navigate('/'), 2000); // Vai para o app após 2 segundos
     } catch (err) {
@@ -57,6 +61,7 @@ export default function UpdatePassword() {
           </div>
         )}
 
+        {!user && <p role="alert">Abra o link de recuperação enviado ao seu e-mail.</p>}
         <form onSubmit={handleUpdate} className="space-y-4">
           <div>
             <label className="block text-[10px] font-black uppercase tracking-widest text-black mb-1">Nova Senha</label>
@@ -72,7 +77,7 @@ export default function UpdatePassword() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !user}
             className="w-full py-4 mt-2 bg-black text-white text-sm font-black uppercase tracking-widest rounded-xl hover:opacity-80 transition-opacity disabled:opacity-40 active:scale-95 transition-transform"
           >
             {loading ? 'Salvando...' : 'Atualizar Senha'}

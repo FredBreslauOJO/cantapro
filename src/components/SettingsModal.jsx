@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { openBilling } from '../lib/billing';
+import { useState, useEffect } from 'react';
 import { X, LogOut, RefreshCw, Zap, CreditCard, Check, Loader2, Download, Plus, ArrowLeft, Settings, Mail, Lock, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
@@ -7,7 +7,6 @@ import Logo from './Logo';
 import TermsOfServiceModal from './TermsOfServiceModal';
 
 export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
-  const navigate = useNavigate();
   const [render, setRender] = useState(isOpen);
   const [animate, setAnimate] = useState(false);
   const [view, setView] = useState('main'); 
@@ -41,7 +40,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
 
   useEffect(() => {
     if (profile?.full_name && !name) setName(profile.full_name);
-  }, [profile]);
+  }, [profile, name]);
 
   if (!render) return null;
 
@@ -80,7 +79,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
       if (error) throw error;
       setEmailMessage('Verifique o link enviado para seu e-mail atual e para o novo.');
       setNewEmail('');
-    } catch (err) {
+    } catch {
       setEmailMessage('Erro ao atualizar e-mail. Tente novamente.');
     } finally {
       setIsUpdatingEmail(false);
@@ -97,7 +96,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
       });
       if (error) throw error;
       setPwdMessage('Link enviado para seu e-mail!');
-    } catch (err) {
+    } catch {
       setPwdMessage('Erro ao enviar link.');
     } finally {
       setIsResettingPwd(false);
@@ -115,7 +114,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
               <div className="animate-fadeIn flex flex-col h-full">
                 <div className="flex items-center justify-between mb-5 mt-2">
                   <Logo className="h-5 text-black" />
-                  <button onClick={onClose} className="p-1 text-black/40 hover:text-black transition-colors active:scale-95"><X size={20} /></button>
+                  <button aria-label="Fechar" onClick={onClose} className="p-1 text-black/40 hover:text-black transition-colors active:scale-95"><X size={20} /></button>
                 </div>
 
                 <div className="flex items-center gap-3 mb-5">
@@ -147,9 +146,9 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
                     </button>
                   )}
                   {plan !== 'free' && (
-                    <a href="https://billing.stripe.com/p/login/bJe28r4VTboafjVeP567S00?locale=pt-BR" target="_blank" rel="noopener noreferrer" className="w-full py-3 bg-yellow-400 border-2 border-black text-black text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-xl hover:bg-yellow-300 transition-all flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:scale-95">
+                    <button onClick={async () => { try { await openBilling('billing-portal'); } catch (error) { alert(error.message); } }} className="w-full py-3 bg-yellow-400 rounded-xl">
                       <CreditCard size={14} /> Gerenciar Assinatura
-                    </a>
+                    </button>
                   )}
                   
                   {/* 👇 MUDANÇA: Link para o site do Tutorial */}
@@ -181,7 +180,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
             ) : (
               <div className="animate-fadeIn">
                 <div className="flex items-center mb-6 mt-2">
-                  <button onClick={() => setView('main')} className="p-1.5 -ml-1.5 hover:bg-gray-100 rounded-full transition-colors active:scale-95">
+                  <button aria-label="Voltar" onClick={() => setView('main')} className="p-1.5 -ml-1.5 hover:bg-gray-100 rounded-full transition-colors active:scale-95">
                     <ArrowLeft size={20} strokeWidth={2.5} />
                   </button>
                   <div className="flex-1 text-center pr-6">
@@ -256,7 +255,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
                   <Settings size={14} /> Gerenciar
                 </button>
                 
-                <button onClick={() => { logout(); onClose(); }} className="flex-1 py-2 text-[10px] font-bold text-red-500/70 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all flex items-center justify-center gap-1.5 uppercase tracking-widest">
+                <button onClick={async () => { try { await logout(); onClose(); } catch (error) { alert(error.message); } }} className="flex-1 py-2 text-[10px] font-bold text-red-500/70 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all flex items-center justify-center gap-1.5 uppercase tracking-widest">
                   <LogOut size={14} /> Sair
                 </button>
               </div>

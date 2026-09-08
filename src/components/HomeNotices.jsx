@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 // ============================================================================
 // ÁREA ADMINISTRATIVA DE AVISOS E DICAS (MODIFIQUE APENAS AQUI!)

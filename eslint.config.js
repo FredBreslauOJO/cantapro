@@ -10,12 +10,23 @@ export default defineConfig([
     files: ['**/*.{js,jsx}'],
     extends: [
       js.configs.recommended,
-      reactHooks.configs.flat.recommended,
       reactRefresh.configs.vite,
     ],
+    plugins: { 'react-hooks': reactHooks },
+    rules: {
+      // React Compiler is not enabled in this application. Enforce runtime hook
+      // correctness without treating compiler optimization advice as errors.
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
+      'react-refresh/only-export-components': ['error', { allowConstantExport: true, allowExportNames: ['useAuth'] }],
+    },
     languageOptions: {
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
+  },
+  {
+    files: ['api/**/*.js', 'server/**/*.js', 'tests/**/*.js', '*.config.js'],
+    languageOptions: { globals: globals.node },
   },
 ])

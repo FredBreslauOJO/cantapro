@@ -1,141 +1,87 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import { createContext, useState, useEffect, useContext, useRef, useCallback } from 'react';
 import { supabase } from './supabase';
-
+import { userCache, readCache, clearUserCache, purgeLegacyCache, activateUserCache, migrateOwnDraft } from './userCache';
 const AuthContext = createContext({});
-
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [subscription, setSubscription] = useState(null);
   const [loading, setLoading] = useState(true);
-  
-  const [isOnline, setIsOnline] = useState(
-    navigator.onLine && sessionStorage.getItem('canta_force_offline') !== 'true'
-  );
-
-  useEffect(() => {
-    const handleConnectionChange = () => {
-      const forceOffline = sessionStorage.getItem('canta_force_offline') === 'true';
-      setIsOnline(navigator.onLine && !forceOffline);
-    };
-
-    window.addEventListener('online', handleConnectionChange);
-    window.addEventListener('offline', handleConnectionChange);
-    
-    handleConnectionChange();
-
-    return () => {
-      window.removeEventListener('online', handleConnectionChange);
-      window.removeEventListener('offline', handleConnectionChange);
-    };
+  const [isRecovery, setIsRecovery] = useState(false);
+  const currentUser = useRef(null);
+  const generation = useRef(0);
+  const [isOnline, setIsOnline] = useState(navigator.onLine && sessionStorage.getItem('canta_force_offline') !== 'true');
+  const refreshUserData = useCallback(async () => {
+    const account = currentUser.current;
+    if (!account || !navigator.onLine || sessionStorage.getItem('canta_force_offline') === 'true') return;
+    const request = ++generation.current;
+    const results = await Promise.allSettled([
+      supabase.from('profiles').select('*').eq('id', account.id).maybeSingle(),
+      supabase.from('user_subscriptions').select('*').eq('user_id', account.id).maybeSingle(),
+    ]);
+    const [prof, sub] = results.map(result => result.status === 'fulfilled' ? result.value : { error: result.reason || true });
+    if (generation.current !== request || currentUser.current?.id !== account.id) return;
+    if (!prof.error) {
+      setProfile(prof.data);
+      try { userCache.setItem(account.id, 'profile', JSON.stringify(prof.data)); } catch { /* Online data remains usable. */ }
+    }
+    if (!sub.error) {
+      const value = sub.data || { plan_type: 'free' };
+      setSubscription(value);
+      try { userCache.setItem(account.id, 'subscription', JSON.stringify(value)); } catch { /* Online data remains usable. */ }
+    }
   }, []);
-
   useEffect(() => {
+    const update = () => {
+      setIsOnline(navigator.onLine && sessionStorage.getItem('canta_force_offline') !== 'true');
+      if (navigator.onLine) void refreshUserData();
+    };
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => { window.removeEventListener('online', update); window.removeEventListener('offline', update); };
+  }, [refreshUserData]);
+  useEffect(() => {
+    const requestGeneration = generation;
     let mounted = true;
-
-    const initAuth = async () => {
-      try {
-        // Lê a sessão do armazenamento local do celular primeiro
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (mounted) {
-          setUser(session?.user ?? null);
-          if (session?.user) {
-            await fetchUserData(session.user.id);
-          } else {
-            setLoading(false);
-          }
-        }
-      } catch (error) {
-        if (mounted) setLoading(false);
+    let receivedEvent = false;
+    const acceptSession = (session, event) => {
+      if (!mounted) return;
+      const next = session?.user ?? null;
+      const previous = currentUser.current;
+      if (previous?.id !== next?.id) {
+        generation.current++;
+        if (previous) clearUserCache(previous.id);
+        setProfile(next ? readCache(next.id, 'profile') : null);
+        setSubscription(next ? readCache(next.id, 'subscription') : null);
       }
-    };
-
-    initAuth();
-
-    const { data: { subscription: authListener } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        // BLINDAGEM: Se a internet cair, o Supabase tenta atualizar o token, falha e dispara "SIGNED_OUT".
-        // Aqui nós ignoramos esse deslogamento se o celular estiver offline.
-        if (!navigator.onLine && event === 'SIGNED_OUT') return;
-
-        if (mounted) {
-          setUser(session?.user ?? null);
-          if (session?.user) {
-            await fetchUserData(session.user.id);
-          } else {
-            setProfile(null);
-            setSubscription(null);
-            setLoading(false);
-          }
-        }
-      }
-    );
-
-    return () => {
-      mounted = false;
-      authListener.unsubscribe();
-    };
-  }, []);
-
-  const fetchUserData = async (userId) => {
-    const cachedProfile = localStorage.getItem(`canta_profile_${userId}`);
-    const cachedSub = localStorage.getItem(`canta_sub_${userId}`);
-
-    if (cachedProfile) setProfile(JSON.parse(cachedProfile));
-    if (cachedSub) setSubscription(JSON.parse(cachedSub));
-
-    // Se temos dados cacheados, liberamos o Loading imediatamente (sem tela de carregamento infinita)
-    if (cachedProfile || cachedSub) {
-      setLoading(false); 
-    }
-
-    // Se estivermos offline, matamos o processo de rede aqui.
-    if (!navigator.onLine || sessionStorage.getItem('canta_force_offline') === 'true') {
+      currentUser.current = next;
+      activateUserCache(next?.id);
+      try { migrateOwnDraft(next?.id); } catch { /* Storage can be disabled or a legacy draft corrupt. */ }
+      try { purgeLegacyCache(); } catch { /* Storage can be disabled. */ }
+      setUser(next);
+      if (event === 'PASSWORD_RECOVERY') setIsRecovery(true);
+      if (!next) setIsRecovery(false);
       setLoading(false);
-      return;
-    }
-
-    // Atualização de dados em background (Online)
-    try {
-      const { data: prof, error: profError } = await supabase.from('profiles').select('*').eq('id', userId).single();
-      if (prof && !profError) {
-        setProfile(prof);
-        localStorage.setItem(`canta_profile_${userId}`, JSON.stringify(prof));
-      }
-
-      const { data: sub, error: subError } = await supabase.from('user_subscriptions').select('*').eq('user_id', userId).single();
-      if (sub && !subError) {
-        setSubscription(sub);
-        localStorage.setItem(`canta_sub_${userId}`, JSON.stringify(sub));
-      } else if (!sub && !cachedSub) {
-        setSubscription({ plan_type: 'free' });
-      }
-    } catch (error) {
-      console.warn("Modo Offline ativado na Autenticação.", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+      // Avoid waiting for Supabase calls inside its auth event lock.
+      if (next) setTimeout(() => { if (mounted) void refreshUserData(); }, 0);
+    };
+    const { data: { subscription: listener } } = supabase.auth.onAuthStateChange((event, session) => {
+      receivedEvent = true;
+      acceptSession(session, event);
+    });
+    supabase.auth.getSession().then(({ data }) => {
+      if (!receivedEvent) acceptSession(data.session, 'INITIAL_SESSION');
+    }).catch(() => { if (mounted) setLoading(false); });
+    return () => { mounted = false; requestGeneration.current++; listener.unsubscribe(); activateUserCache(null); };
+  }, [refreshUserData]);
   const logout = async () => {
-    await supabase.auth.signOut();
+    const account = currentUser.current;
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
+    if (error) throw error;
+    if (account) clearUserCache(account.id);
   };
-
-  return (
-    <AuthContext.Provider value={{ 
-      user, 
-      profile, 
-      subscription, 
-      isAuthenticated: !!user,
-      plan: subscription?.plan_type || 'free',
-      isLoadingAuth: loading,
-      isOnline,
-      logout 
-    }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={{ user, profile, subscription, isAuthenticated: !!user,
+    plan: subscription?.plan_type || 'free', isLoadingAuth: loading, isOnline, isRecovery,
+    finishRecovery: () => setIsRecovery(false), refreshUserData, logout }}>{children}</AuthContext.Provider>;
 };
-
 export const useAuth = () => useContext(AuthContext);
