@@ -23,7 +23,7 @@ export default function Songs() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const navigate = useNavigate();
-  const { user, plan, isOnline } = useAuth(); 
+  const { user, plan, isOnline, contentVersion } = useAuth();
 
   const loadForEffect = useEffectEvent(() => loadSongs());
   useEffect(() => {
@@ -32,9 +32,11 @@ export default function Songs() {
     } else {
       setLoading(false); 
     }
-  }, [user]);
+  }, [user, isOnline, contentVersion]);
 
   const loadSongs = async () => {
+    const snapshot = getOfflineSnapshot(user.id);
+    if (snapshot) { setSongs(snapshot.songs); setLoading(false); return; }
     const cached = JSON.stringify(getOfflineSnapshot(user.id)?.songs || readCache(user.id, 'canta_songs_offline'));
     if (cached && cached !== 'null' && songs.length === 0) {
       const parsed = JSON.parse(cached);
@@ -44,7 +46,7 @@ export default function Songs() {
       setLoading(true);
     }
 
-    if (!navigator.onLine || sessionStorage.getItem('canta_force_offline') === 'true') {
+    if (!isOnline) {
       setLoading(false);
       return; 
     }
@@ -77,7 +79,8 @@ export default function Songs() {
   };
 
   const handleSaveLyricsFromWeb = async (songData) => {
-      const { error } = await supabase
+      if (!isOnline) throw new Error('Conecte-se para importar uma letra.');
+      const { data, error } = await supabase
         .from('songs')
         .insert({
           owner_id: user.id, created_by: user.email, 
@@ -86,11 +89,11 @@ export default function Songs() {
           duration_seconds: Math.round(songData.duration) || 0,
           lyrics_text: songData.raw_text || "",     
           timecode_blocks: songData.blocks 
-        });
+        }).select('*').single();
 
       if (error) throw error;
 
-      invalidateContent(user.id);
+      invalidateContent(user.id, [], { song: data });
       setShowOnlineSearch(false);
       loadSongs();
   };
@@ -126,7 +129,7 @@ export default function Songs() {
 
       if (error) throw error;
 
-      invalidateContent(user.id, selectedSongs);
+      invalidateContent(user.id, selectedSongs, { deletedSongIds: selectedSongs });
       setShowDeleteModal(false);
       cancelEditMode();
       loadSongs();

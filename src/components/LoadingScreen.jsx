@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Loader2, CloudOff, RefreshCw } from 'lucide-react';
+import { Loader2, RefreshCw } from 'lucide-react';
 
 export default function LoadingScreen({ message = "Carregando..." }) {
   const [showEmergency, setShowEmergency] = useState(false);
@@ -13,13 +13,6 @@ export default function LoadingScreen({ message = "Carregando..." }) {
     // Se o componente carregar antes de 4s, ele se autodestrói e limpa o timer
     return () => clearTimeout(timer);
   }, []);
-
-  const handleEmergencyClick = () => {
-    // 1. Grava na sessão que o usuário exigiu o modo offline
-    sessionStorage.setItem('canta_force_offline', 'true');
-    // 2. Recarrega a página para o app nascer já sabendo dessa regra
-    window.location.reload();
-  };
 
   const handleReload = () => {
     window.location.reload();
@@ -49,16 +42,10 @@ export default function LoadingScreen({ message = "Carregando..." }) {
               <RefreshCw size={16} /> Recarregar
             </button>
 
-            <button
-              onClick={handleEmergencyClick}
-              className="w-full py-4 bg-neutral-800 text-white rounded-xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2"
-            >
-              <CloudOff size={16} /> Forçar Modo Offline
-            </button>
           </div>
 
           <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest text-center mt-5">
-            Demorando muito para carregar?
+            O conteúdo salvo abre automaticamente, mesmo sem conexão.
           </p>
         </div>
 

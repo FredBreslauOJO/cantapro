@@ -1,5 +1,6 @@
 import { requireResult } from '../lib/data';
 import { invalidateContent } from '../lib/userCache';
+import { getOfflineSnapshot, formatPlayItems } from '../lib/offline';
 import { useState, useEffectEvent, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { 
@@ -99,7 +100,7 @@ function SortableRow({ item, songCounter, onRemove, onUpdateDivider, onSaveDivid
 export default function SetlistEdit() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { user, plan, isOnline } = useAuth();
+  const { user, plan, isOnline, contentVersion } = useAuth();
 
   const [eventName, setEventName] = useState("");
   const [bandName, setBandName] = useState("");
@@ -107,6 +108,7 @@ export default function SetlistEdit() {
   const [isGuest, setIsGuest] = useState(false); 
   
   const [loading, setLoading] = useState(true);
+  const [unavailable, setUnavailable] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
 
@@ -125,24 +127,42 @@ export default function SetlistEdit() {
   useEffect(() => {
     if (user && id) loadForEffect();
   }, [user, id]);
+  const retryMissing = useEffectEvent(() => { if (unavailable) void loadSetlistAndLibrary(); });
+  useEffect(() => { retryMissing(); }, [isOnline, contentVersion]);
 
   const loadSetlistAndLibrary = async (silentRefresh = false) => {
+    const snapshot = getOfflineSnapshot(user.id);
+    const saved = snapshot?.setlists.find(show => show.id === id);
+    if (saved) {
+      setUnavailable(false);
+      setEventName(saved.event_name || ''); setBandName(saved.band_name || ''); setDate(saved.date || '');
+      setIsGuest(saved.owner_id !== user.id); setLibrarySongs(snapshot.songs);
+      const show = snapshot.shows[id];
+      const items = show?.items || show?.songs.map((song, index) => ({ id: song.id, songs: song, order_index: index,
+        item_type: song.isSeparator ? 'divider' : 'song', content: song.isSeparator ? song.title : '' })) || [];
+      setSetlistItems(items.map(item => ({ itemId: item.id, type: item.item_type === 'divider' ? 'divider' : 'song',
+        content: item.content || '', orderIndex: item.order_index, ...(item.songs || {}) })));
+      setLoading(false);
+      if (!isOnline || (!silentRefresh && show?.items)) return;
+    }
+    if (!isOnline) { setUnavailable(!saved); setLoading(false); return; }
     try {
       if (silentRefresh) setIsRefreshing(true);
       else setLoading(true);
 
       const { data: setlist } = await supabase.from('setlists').select('*').eq('id', id).single();
       if (setlist) {
+        setUnavailable(false);
         setEventName(setlist.event_name || "");
         setBandName(setlist.band_name || "");
         setDate(setlist.date || ""); 
         setIsGuest(setlist.owner_id !== user.id);
-      }
+      } else { setUnavailable(!saved); return; }
 
       const { data: songsData } = await supabase.from('songs').select('*').eq('owner_id', user.id).order('title', { ascending: true });
       if (songsData) setLibrarySongs(songsData);
 
-      await loadSetlistItems();
+      await loadSetlistItems(setlist.event_name);
     } catch (err) {
       console.error("Erro ao carregar edição:", err.message);
       await loadSetlistItems();
@@ -152,9 +172,9 @@ export default function SetlistEdit() {
     }
   };
 
-  const loadSetlistItems = async () => {
+  const loadSetlistItems = async (currentName = eventName) => {
     try {
-      const { data: items } = await supabase.from('setlist_items').select('id, song_id, order_index, item_type, content, songs(*)').eq('setlist_id', id).order('order_index', { ascending: true });
+      const { data: items } = await supabase.from('setlist_items').select('id, song_id, order_index, item_type, content, performance_notes, songs(*)').eq('setlist_id', id).order('order_index', { ascending: true });
       if (items) {
         const formatted = items.map(item => ({
           itemId: item.id,
@@ -164,6 +184,7 @@ export default function SetlistEdit() {
           ...(item.songs || {})
         }));
         setSetlistItems(formatted);
+        invalidateContent(user.id, [], { show: { id, value: { setlistName: currentName, items, songs: formatPlayItems(items) } } });
       }
     } catch (e) {
       console.error(e);
@@ -172,7 +193,7 @@ export default function SetlistEdit() {
 
   const handleUpdateField = async (field, value) => {
     if (isReadOnly) return;
-    try { await requireResult(supabase.from('setlists').update({ [field]: value }).eq('id', id)); invalidateContent(user.id); } catch (error) { alert(error.message); setLoading(false); setIsRefreshing(false); return; }
+    try { await requireResult(supabase.from('setlists').update({ [field]: value }).eq('id', id)); invalidateContent(user.id, [], { setlist: { id, [field]: value } }); } catch (error) { alert(error.message); setLoading(false); setIsRefreshing(false); return; }
   };
 
   const handleShare = async () => {
@@ -198,7 +219,7 @@ export default function SetlistEdit() {
     setLoading(true);
     try {
       await requireResult(supabase.from('setlists').delete().eq('id', id).select('id').single());
-      invalidateContent(user.id);
+      invalidateContent(user.id, [], { deletedSetlistIds: [id] });
     } catch (error) { alert(error.message); setLoading(false); return; }
     navigate('/');
   };
@@ -206,7 +227,7 @@ export default function SetlistEdit() {
   const handleLeaveSetlist = async () => {
     if (!window.confirm("Sair deste repertório compartilhado?")) return;
     setLoading(true);
-    try { await requireResult(supabase.from('setlist_members').delete().match({ setlist_id: id, user_id: user.id })); invalidateContent(user.id); } catch (error) { alert(error.message); setLoading(false); setIsRefreshing(false); return; }
+    try { await requireResult(supabase.from('setlist_members').delete().match({ setlist_id: id, user_id: user.id })); invalidateContent(user.id, [], { deletedSetlistIds: [id] }); } catch (error) { alert(error.message); setLoading(false); setIsRefreshing(false); return; }
     navigate('/');
   };
 
@@ -269,6 +290,7 @@ export default function SetlistEdit() {
   let songCounter = 0;
 
   if (loading) return <LoadingScreen message="Carregando painel..." />;
+  if (unavailable) return <div className="p-8 text-center"><p>Este repertório ainda não está disponível neste aparelho. Conecte-se para baixá-lo.</p><button className="underline p-4" onClick={() => navigate('/setlists')}>Voltar aos repertórios</button></div>;
 
   return (
     <div className="min-h-screen bg-white pb-24 font-sans select-none text-black relative">

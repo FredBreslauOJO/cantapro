@@ -19,12 +19,12 @@ export default function Setlists() {
   
   const navigate = useNavigate();
   // EXTRAÍMOS O isOnline AQUI
-  const { user, plan, isOnline } = useAuth();
+  const { user, plan, isOnline, contentVersion } = useAuth();
 
   const loadForEffect = useEffectEvent(() => loadSetlists());
   useEffect(() => {
     if (user) loadForEffect();
-  }, [user]);
+  }, [user, isOnline, contentVersion]);
 
   const formatTotalDuration = (totalSeconds) => {
     if (!totalSeconds) return "0m";
@@ -44,11 +44,13 @@ export default function Setlists() {
     }]).select().single();
 
     if (error) { alert(error.message); return; }
-    invalidateContent(user.id);
+    invalidateContent(user.id, [], { setlist: data });
     navigate(`/setlists/${data.id}/edit`);
   };
 
   const loadSetlists = async () => {
+    const snapshot = getOfflineSnapshot(user.id);
+    if (snapshot) { setSetlists(snapshot.setlists); setLoading(false); return; }
     const cachedData = JSON.stringify(getOfflineSnapshot(user.id)?.setlists || readCache(user.id, 'canta_setlists_offline'));
     if (cachedData && cachedData !== 'null') {
       const parsed = JSON.parse(cachedData);
@@ -59,7 +61,7 @@ export default function Setlists() {
       setLoading(true);
     }
 
-    if (!navigator.onLine || sessionStorage.getItem('canta_force_offline') === 'true') {
+    if (!isOnline) {
       console.log("Aplicativo rodando 100% Offline via Cache.");
       setLoading(false);
       return; 
@@ -113,7 +115,7 @@ export default function Setlists() {
     const newStatus = !currentStatus;
     const { error } = await supabase.from('setlists').update({ archived: newStatus }).eq('id', id);
     if (error) { alert(error.message); return; }
-    invalidateContent(user.id);
+    invalidateContent(user.id, [], { setlist: { id, archived: newStatus } });
     await loadSetlists();
   };
 

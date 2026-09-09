@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { supabase, beginSignIn } from '../lib/supabase';
 import { Lock, Mail, Loader2, Music, ArrowLeft, Send } from 'lucide-react';
 
 export default function Login() {
@@ -26,6 +26,7 @@ export default function Login() {
     setErrorMessage('');
 
     try {
+      await beginSignIn();
       const { error, data } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password: password,
@@ -75,6 +76,7 @@ export default function Login() {
   const handleOAuthLogin = async (provider) => {
     try {
       setErrorMessage('');
+      await beginSignIn();
       const { error } = await supabase.auth.signInWithOAuth({
         provider: provider,
         options: {

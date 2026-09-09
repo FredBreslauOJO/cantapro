@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { userCache, readCache } from '../lib/userCache';
 import TermsOfServiceModal from './TermsOfServiceModal';
 
 // ATUALIZAÇÃO DA VERSÃO: 18 de Julho de 2026
@@ -23,6 +24,7 @@ export default function ForceTerms({ user, onAccepted }) {
       .eq('id', user.id);
     
     if (!error) {
+      userCache.setItem(user.id, 'profile', JSON.stringify({ ...readCache(user.id, 'profile', {}), accepted_terms_version: CURRENT_TERMS_VERSION }));
       onAccepted(); 
     } else {
       console.error("Erro ao aceitar termos:", error);

@@ -12,7 +12,7 @@ import LoadingScreen from "../components/LoadingScreen";
 export default function SongEdit() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, plan, isOnline } = useAuth();
+  const { user, plan, isOnline, contentVersion } = useAuth();
   const isNew = id === "new";
 
   // CARREGAMENTO DO RASCUNHO (Síncrono para garantir que os dados apareçam na hora)
@@ -46,7 +46,7 @@ export default function SongEdit() {
   const [lyrics, setLyrics] = useState(draft?.lyrics || "");
 
   // SALVAMENTO AUTOMÁTICO DO RASCUNHO
-  const loadForEffect = useEffectEvent(() => loadSong());
+  const loadForEffect = useEffectEvent(() => { if (!editing) void loadSong(); });
   useEffect(() => {
     if (isNew) {
       const currentDraft = { title, artist, durationMin, durationSec, lyrics };
@@ -58,10 +58,12 @@ export default function SongEdit() {
     if (!isNew && user) {
       loadForEffect();
     }
-  }, [id, user, isNew]);
+  }, [id, user, isNew, isOnline, contentVersion]);
 
   const loadSong = async () => {
-    const cached = JSON.stringify(readCache(user.id, `canta_song_single_${id}`) || getOfflineSnapshot(user.id)?.songs.find(song => song.id === id) || readCache(user.id, 'canta_songs_offline', []).find(song => song.id === id));
+    const snapshot = getOfflineSnapshot(user.id);
+    const cached = JSON.stringify(snapshot ? snapshot.songs.find(song => song.id === id) :
+      readCache(user.id, `canta_song_single_${id}`) || readCache(user.id, 'canta_songs_offline', []).find(song => song.id === id));
     if (cached && cached !== 'null') {
       try {
         const parsed = JSON.parse(cached);
@@ -72,6 +74,7 @@ export default function SongEdit() {
         setDurationSec(String(totalSec % 60));
         setLyrics(parsed.lyrics_text || "");
         setLoading(false); 
+        return;
       } catch (e) {
         console.error(e);
       }
@@ -79,7 +82,7 @@ export default function SongEdit() {
       setLoading(true);
     }
 
-    if (!navigator.onLine || sessionStorage.getItem('canta_force_offline') === 'true') {
+    if (!isOnline) {
       setLoading(false);
       return; 
     }
@@ -122,13 +125,13 @@ export default function SongEdit() {
           if (error) throw error;
           if (count >= 10) { setIsPaywallOpen(true); return; }
         }
-        await requireResult(supabase.from('songs').insert([songData]).select('id').single());
-        invalidateContent(user.id);
+        const saved = await requireResult(supabase.from('songs').insert([songData]).select('*').single());
+        invalidateContent(user.id, [], { song: saved });
         userCache.removeItem(user?.id, 'canta_song_draft'); // Limpa rascunho com sucesso
         navigate("/songs");
       } else {
         const saved = await requireResult(supabase.from('songs').update(songData).eq('id', id).select('*').single());
-        invalidateContent(user.id, [id]);
+        invalidateContent(user.id, [id], { song: saved });
         userCache.setItem(user?.id, `canta_song_single_${id}`, JSON.stringify(saved));
         setEditing(false);
       }
@@ -144,7 +147,7 @@ export default function SongEdit() {
     if (!window.confirm("Remover esta música?")) return;
     try {
       await requireResult(supabase.from('songs').delete().eq('id', id).select('id').single());
-      invalidateContent(user.id, [id]);
+      invalidateContent(user.id, [id], { deletedSongIds: [id] });
       userCache.removeItem(user?.id, `canta_song_single_${id}`);
     } catch (error) { alert(error.message); return; }
     navigate("/songs");

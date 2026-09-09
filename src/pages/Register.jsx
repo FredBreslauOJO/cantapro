@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { supabase, beginSignIn } from '../lib/supabase';
 import { Lock, Mail, Loader2, ArrowLeft, CheckCircle2 } from 'lucide-react';
 
 export default function Register() {
@@ -31,6 +31,7 @@ export default function Register() {
     setErrorMessage('');
 
     try {
+      await beginSignIn();
       const { error } = await supabase.auth.signUp({
         email: email.trim(),
         password: password,

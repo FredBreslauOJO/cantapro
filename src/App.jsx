@@ -13,14 +13,14 @@ import PlaySong from './pages/PlaySong';
 import TimecodeEditor from './pages/TimecodeEditor';
 import JoinSetlist from './pages/JoinSetlist';
 import Onboarding from './pages/Onboarding'; 
-import { Music, List, Menu, Zap, RefreshCw, WifiOff, Wifi } from 'lucide-react';
+import { Music, List, Menu, Zap, RefreshCw, Wifi } from 'lucide-react';
 
 import PaywallModal from './components/PaywallModal';
 import SettingsModal from './components/SettingsModal';
 import Logo from './components/Logo';
 import Success from './pages/Success';
 import ForceTerms, { CURRENT_TERMS_VERSION } from './components/ForceTerms';
-import SyncStatus from './components/SyncStatus';
+import SyncStatus from './components/OfflineStatus';
 
 const SplashScreen = () => {
   const [showReload, setShowReload] = useState(false);
@@ -30,11 +30,6 @@ const SplashScreen = () => {
     const timer = setTimeout(() => setShowReload(true), 4000);
     return () => clearTimeout(timer);
   }, []);
-
-  const handleForceOffline = () => {
-    sessionStorage.setItem('canta_force_offline', 'true');
-    window.location.reload();
-  };
 
   return (
     <div className="fixed inset-0 min-h-screen bg-black flex flex-col items-center justify-center z-[100] select-none">
@@ -60,15 +55,6 @@ const SplashScreen = () => {
             </button>
             <span className="text-[9px] font-bold tracking-widest text-white/40 uppercase">
               RECARREGAR
-            </span>
-          </div>
-
-          <div className="flex flex-col items-center gap-3">
-            <button onClick={handleForceOffline} className="w-12 h-12 text-white/40 hover:text-white bg-white/5 hover:bg-white/10 border border-white/5 rounded-full transition-all duration-300 active:scale-95 flex items-center justify-center" title="Usar sem internet">
-              <WifiOff size={20} strokeWidth={1.5} />
-            </button>
-            <span className="text-[9px] font-bold tracking-widest text-white/40 uppercase">
-              MODO OFFLINE
             </span>
           </div>
 
@@ -104,16 +90,16 @@ const ProRoute = ({ children }) => {
 };
 
 const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
-  const { plan } = useAuth();
+  const { plan, isOnline } = useAuth();
   const location = useLocation();
   const isActive = (path) => location.pathname === path;
 
   // Verifica se o usuário forçou o modo offline
-  const isForcedOffline = sessionStorage.getItem('canta_force_offline') === 'true';
+  const isForcedOffline = !isOnline;
 
   const handleReconnect = () => {
-    sessionStorage.removeItem('canta_force_offline');
-    window.location.reload();
+    window.dispatchEvent(new Event('online'));
+    window.dispatchEvent(new Event('canta-sync-requested'));
   };
 
   return (
@@ -138,11 +124,11 @@ const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
         </div>
         
         <div className="flex items-center justify-end gap-3">
-          <SyncStatus />
           <button aria-label="Abrir menu" onClick={onOpenSettings} className="w-9 h-9 border-2 border-black rounded-lg flex items-center justify-center text-black hover:bg-gray-50 active:scale-95 transition-transform">
             <Menu size={16} />
           </button>
         </div>
+        <div className="col-span-3 flex justify-end pt-1"><SyncStatus /></div>
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t-4 border-black p-3 flex gap-3 z-40 select-none max-w-xl mx-auto sm:rounded-t-2xl sm:border-x-4">
@@ -158,7 +144,7 @@ const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
 };
 
 const AuthenticatedApp = () => {
-  const { isAuthenticated, plan, profile, user, isRecovery } = useAuth();
+  const { isAuthenticated, plan, profile, user, isRecovery, isOnline } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -169,10 +155,10 @@ const AuthenticatedApp = () => {
   
   useEffect(() => {
     const hasSeen = userCache.getItem(user?.id, 'hasSeenTutorial');
-    if (isAuthenticated && !isRecovery && !hasSeen && !['/tutorial', '/update-password', '/sucesso', '/login', '/register'].includes(location.pathname) && !location.pathname.startsWith('/join/')) {
+    if (isAuthenticated && isOnline && !isRecovery && !hasSeen && !['/tutorial', '/update-password', '/sucesso', '/login', '/register'].includes(location.pathname) && !location.pathname.startsWith('/join/') && !location.pathname.includes('/play/')) {
       navigate('/tutorial', { state: { returnTo: location.pathname + location.search } });
     }
-  }, [isAuthenticated, isRecovery, user?.id, location.pathname, location.search, navigate]);
+  }, [isAuthenticated, isOnline, isRecovery, user?.id, location.pathname, location.search, navigate]);
 
   const path = location.pathname.toLowerCase().replace(/\/$/, '');
   const hideNavigation = 
@@ -184,7 +170,7 @@ const AuthenticatedApp = () => {
     path.includes('/timecode') ||
     path.includes('/join/');
 
-  if (!hasAcceptedTerms && !isRecovery && path !== '/update-password') {
+  if (!hasAcceptedTerms && isOnline && !isRecovery && path !== '/update-password' && !path.includes('/play/')) {
     return <ForceTerms user={user} onAccepted={() => setAcceptedVersion(CURRENT_TERMS_VERSION)} />;
   }
 

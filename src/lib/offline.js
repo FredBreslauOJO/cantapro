@@ -1,5 +1,6 @@
 import { fetchAll } from './data.js';
-import { readCache, userCache } from './userCache.js';
+import { readCache, userCache, removeLegacyContentCopies } from './userCache.js';
+import { flushOfflineStore, supportsOfflineStore } from './offlineStore.js';
 export function formatPlayItems(items) {
   return items.map(item => {
     if (item.item_type === 'divider') return { id: item.id, title: item.content || 'PAUSA', isSeparator: true,
@@ -8,7 +9,10 @@ export function formatPlayItems(items) {
     return item.songs;
   });
 }
-export function getOfflineSnapshot(userId) { return readCache(userId, 'offline_snapshot'); }
+export function getOfflineSnapshot(userId) {
+  const value = readCache(userId, 'offline_snapshot');
+  return value && Array.isArray(value.songs) && Array.isArray(value.setlists) && value.shows && typeof value.shows === 'object' ? value : null;
+}
 export async function prepareOffline(client, user, isCurrent = () => true) {
   const songs = await fetchAll(() => client.from('songs').select('*').eq('owner_id', user.id).order('id'));
   const members = await fetchAll(() => client.from('setlist_members').select('setlist_id').eq('user_id', user.id).order('setlist_id'));
@@ -25,7 +29,8 @@ export async function prepareOffline(client, user, isCurrent = () => true) {
   for (const setlist of setlistMap.values()) {
     const items = await fetchAll(() => client.from('setlist_items').select('id,setlist_id,item_type,content,performance_notes,order_index,songs(*)')
       .eq('setlist_id', setlist.id).order('order_index').order('id'));
-    shows[setlist.id] = { setlistName: setlist.event_name, songs: formatPlayItems(items) };
+    if (!isCurrent()) throw new Error('A sessão ou o conteúdo mudou.');
+    shows[setlist.id] = { setlistName: setlist.event_name, songs: formatPlayItems(items), items };
     const tracks = items.filter(item => item.item_type === 'song');
     setlists.push({ ...setlist, isShared: setlist.owner_id !== user.id, songCount: tracks.length,
       totalDurationSeconds: tracks.reduce((total, item) => total + (item.songs?.duration_seconds || 0), 0) });
@@ -34,5 +39,9 @@ export async function prepareOffline(client, user, isCurrent = () => true) {
   if (!isCurrent()) throw new Error('A sessão ou o conteúdo mudou. Prepare o show novamente.');
   // Atomic write: partial downloads cannot replace the previous complete copy.
   if (!userCache.setItem(user.id, 'offline_snapshot', JSON.stringify(snapshot))) throw new Error('A sessão mudou.');
+  await flushOfflineStore();
+  if (!isCurrent()) throw new Error('A sessão ou o conteúdo mudou.');
+  if (supportsOfflineStore()) removeLegacyContentCopies(user.id);
+  window.dispatchEvent(new CustomEvent('canta-snapshot-ready'));
   return snapshot;
 }

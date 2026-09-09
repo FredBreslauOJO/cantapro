@@ -2,6 +2,8 @@ import { useAuth } from '../lib/AuthContext';
 import { requireResult } from '../lib/data';
 import { invalidateContent } from '../lib/userCache';
 import { validTimecodes } from '../lib/timecodes';
+import { getOfflineSnapshot } from '../lib/offline';
+import { readCache } from '../lib/userCache';
 import { useState, useEffectEvent, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Plus, Trash2, Play, Square, MessageSquareText } from "lucide-react";
@@ -9,7 +11,7 @@ import { supabase } from "../lib/supabase";
 
 export default function TimecodeEditor() {
   const { id } = useParams();
-  const { user } = useAuth();
+  const { user, isOnline } = useAuth();
   const [loadError, setLoadError] = useState('');
   const navigate = useNavigate();
   const [song, setSong] = useState(null);
@@ -27,6 +29,10 @@ export default function TimecodeEditor() {
   }, [id]);
 
   const loadSong = async () => {
+    const snapshot = getOfflineSnapshot(user.id);
+    const cached = snapshot ? snapshot.songs.find(row => row.id === id) : readCache(user.id, `canta_song_single_${id}`);
+    if (cached) { setSong(cached); setBlocks(cached.timecode_blocks || []); return; }
+    if (!isOnline) { setLoadError('Esta música ainda não foi salva neste aparelho. Conecte para baixá-la.'); return; }
     const { data, error } = await supabase.from('songs').select('*').eq('id', id).single();
     if (error || !data) { setLoadError('Não foi possível abrir a música. Verifique a conexão e o acesso.'); return; }
     if (data && !error) {
@@ -106,6 +112,7 @@ export default function TimecodeEditor() {
   };
 
   const handleSave = async () => {
+    if (!isOnline) { alert('A leitura está disponível offline. Conecte para salvar alterações.'); return; }
     if (blocks.length && !validTimecodes(blocks).length) { setOverlapError('Defina início e fim válidos, sem sobreposição, para todos os blocos.'); return; }
     setSaving(true);
     // GARANTIA: Mapeia o comentário para salvar no Supabase
@@ -120,7 +127,7 @@ export default function TimecodeEditor() {
     
     try {
       await requireResult(supabase.from('songs').update({ timecode_blocks: cleanBlocks }).eq('id', id).select('id').single());
-      invalidateContent(user.id, [id]);
+      invalidateContent(user.id, [id], { song: { id, timecode_blocks: cleanBlocks } });
       navigate(`/songs/${id}`);
     } catch (error) { alert(error.message); } finally { setSaving(false); }
   };

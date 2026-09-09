@@ -8,7 +8,8 @@ import { Play, Pause, ChevronLeft, ChevronRight, X, Settings, ListMusic, Type, F
 import { supabase } from '../lib/supabase';
 
 export default function PlaySong() {
-  const { user } = useAuth();
+  const { user, isOnline, contentVersion } = useAuth();
+  const loadedShow = useRef(null);
   const { id, songIndex } = useParams();
   const navigate = useNavigate();
   
@@ -132,13 +133,17 @@ export default function PlaySong() {
 
   // 🔥 A GRANDE CORREÇÃO: LÓGICA DE CARREGAMENTO OFFLINE 🔥
   useEffect(() => {
+    let cancelled = false;
     const loadSetlistAndSongs = async () => {
       if (!id) return;
-      
-      const isOnline = navigator.onLine && sessionStorage.getItem('canta_force_offline') !== 'true';
+      const identity = `${user.id}:${id}`;
+      if (loadedShow.current === identity) return;
+      setSongs([]);
+      setSetlistName('');
 
       // 1. TENTA LER O CACHE PRIMEIRO
-      const cachedData = JSON.stringify(getOfflineSnapshot(user.id)?.shows[id] || readCache(user.id, `canta_play_offline_${id}`));
+      const snapshot = getOfflineSnapshot(user.id);
+      const cachedData = JSON.stringify(snapshot ? snapshot.shows[id] : readCache(user.id, `canta_play_offline_${id}`));
 
       if (cachedData && cachedData !== 'null') {
         try {
@@ -146,6 +151,8 @@ export default function PlaySong() {
           setSetlistName(parsed.setlistName);
           setSongs(parsed.songs);
           setLoading(false); // Já libera a tela na hora!
+          loadedShow.current = identity;
+          return; // Pin this show version for the entire performance.
         } catch {
           console.error("Erro ao ler cache offline");
         }
@@ -162,6 +169,7 @@ export default function PlaySong() {
       try {
         // 3. SE ESTIVER ONLINE, BUSCA DADOS NOVOS E ATUALIZA O CACHE
         const { data: setlistData } = await supabase.from('setlists').select('event_name').eq('id', id).maybeSingle();
+        if (cancelled || !setlistData) return;
         const currentName = setlistData?.event_name || "";
         if (setlistData) setSetlistName(currentName);
 
@@ -171,7 +179,7 @@ export default function PlaySong() {
           .eq('setlist_id', id)
           .order('order_index', { ascending: true });
 
-        if (pivotData) {
+        if (!cancelled && pivotData && pivotData.every(item => item.item_type === 'divider' || item.songs)) {
           const formattedItems = pivotData.map(item => {
             if (item.item_type === 'divider') {
               let dividerText = item.content || 'PAUSA';
@@ -183,6 +191,7 @@ export default function PlaySong() {
           }).filter(Boolean);
           
           setSongs(formattedItems);
+          loadedShow.current = identity;
           
           // Salva o roteiro do show inteiro no cache do celular!
           userCache.setItem(user?.id, `canta_play_offline_${id}`, JSON.stringify({
@@ -193,12 +202,13 @@ export default function PlaySong() {
       } catch (error) { 
         console.error("Falha ao atualizar dados online no Teleprompter.", error); 
       } finally { 
-        setLoading(false); 
+        if (!cancelled) setLoading(false);
       }
     };
 
     loadSetlistAndSongs();
-  }, [id, user.id]);
+    return () => { cancelled = true; };
+  }, [id, user.id, isOnline, contentVersion]);
   // 🔥 FIM DA CORREÇÃO OFFLINE 🔥
 
   const togglePlay = () => {
@@ -373,7 +383,7 @@ export default function PlaySong() {
   };
 
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><div className="w-8 h-8 border-4 border-white/20 border-t-white rounded-full animate-spin" /></div>;
-  if (songs.length === 0 || !songs[currentIndex]) return <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center"><p className="mb-6 font-bold text-white/50 uppercase tracking-widest text-sm">Nenhum conteúdo carregado.</p><button onClick={() => navigate('/')} className="px-6 py-3 bg-white text-black font-black uppercase rounded-xl">Voltar</button></div>;
+  if (songs.length === 0 || !songs[currentIndex]) return <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center"><p className="mb-6 font-bold text-white/50 text-sm">Este repertório está vazio ou ainda não foi baixado. Conecte-se e use “Verificar offline” antes do show.</p><button onClick={() => navigate('/')} className="px-6 py-3 bg-white text-black font-black uppercase rounded-xl">Voltar</button></div>;
 
   const currentSong = songs[currentIndex];
   const prevSong = songs[currentIndex - 1];
