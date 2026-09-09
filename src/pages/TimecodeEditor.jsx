@@ -11,7 +11,7 @@ import { supabase } from "../lib/supabase";
 
 export default function TimecodeEditor() {
   const { id } = useParams();
-  const { user, isOnline } = useAuth();
+  const { user, isOnline, contentVersion } = useAuth();
   const [loadError, setLoadError] = useState('');
   const navigate = useNavigate();
   const [song, setSong] = useState(null);
@@ -23,19 +23,21 @@ export default function TimecodeEditor() {
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const previewTimer = useRef(null);
 
-  const loadForEffect = useEffectEvent(() => loadSong());
+  const loadForEffect = useEffectEvent(() => { if (song?.id !== id) void loadSong(); });
   useEffect(() => {
     loadForEffect();
-  }, [id]);
+  }, [id, isOnline, contentVersion]);
 
   const loadSong = async () => {
     const snapshot = getOfflineSnapshot(user.id);
     const cached = snapshot ? snapshot.songs.find(row => row.id === id) : readCache(user.id, `canta_song_single_${id}`);
-    if (cached) { setSong(cached); setBlocks(cached.timecode_blocks || []); return; }
+    if (cached) { setLoadError(''); setSong(cached); setBlocks(cached.timecode_blocks || []); return; }
     if (!isOnline) { setLoadError('Esta música ainda não foi salva neste aparelho. Conecte para baixá-la.'); return; }
-    const { data, error } = await supabase.from('songs').select('*').eq('id', id).single();
+    const { data, error } = await supabase.from('songs').select('*').eq('id', id).single()
+      .then(result => result, error => ({ data: null, error }));
     if (error || !data) { setLoadError('Não foi possível abrir a música. Verifique a conexão e o acesso.'); return; }
     if (data && !error) {
+      setLoadError('');
       setSong(data);
       setBlocks(data.timecode_blocks || []);
     }
