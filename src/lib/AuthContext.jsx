@@ -1,6 +1,6 @@
 import { createContext, useState, useEffect, useContext, useRef, useCallback } from 'react';
 import { supabase } from './supabase';
-import { userCache, readCache, clearUserCache, purgeLegacyCache, activateUserCache, migrateOwnDraft } from './userCache';
+import { userCache, readCache, clearUserCache, purgeLegacyCache, activateUserCache, migrateOwnDraft, readStoredAuthSession } from './userCache';
 const AuthContext = createContext({});
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -69,10 +69,17 @@ export const AuthProvider = ({ children }) => {
       receivedEvent = true;
       acceptSession(session, event);
     });
+    const recoverLocalSession = () => {
+      const localSession = readStoredAuthSession();
+      if (localSession?.user?.id) acceptSession(localSession, 'LOCAL_SESSION');
+      else setLoading(false);
+    };
+    const timeout = setTimeout(() => { if (mounted && !receivedEvent) recoverLocalSession(); }, 1500);
     supabase.auth.getSession().then(({ data }) => {
+      clearTimeout(timeout);
       if (!receivedEvent) acceptSession(data.session, 'INITIAL_SESSION');
-    }).catch(() => { if (mounted) setLoading(false); });
-    return () => { mounted = false; requestGeneration.current++; listener.unsubscribe(); activateUserCache(null); };
+    }).catch(() => { clearTimeout(timeout); if (mounted && !receivedEvent) recoverLocalSession(); });
+    return () => { clearTimeout(timeout); mounted = false; requestGeneration.current++; listener.unsubscribe(); activateUserCache(null); };
   }, [refreshUserData]);
   const logout = async () => {
     const account = currentUser.current;

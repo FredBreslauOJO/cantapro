@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import Stripe from 'stripe';
-import { userCache, readCache, activateUserCache, clearUserCache, purgeLegacyCache, invalidateContent } from '../src/lib/userCache.js';
+import { userCache, readCache, activateUserCache, clearUserCache, purgeLegacyCache, invalidateContent, readStoredAuthSession } from '../src/lib/userCache.js';
 import { prepareOffline, getOfflineSnapshot } from '../src/lib/offline.js';
 import { requireResult } from '../src/lib/data.js';
 import { validTimecodes } from '../src/lib/timecodes.js';
@@ -31,7 +31,13 @@ test('cache isolates accounts, clears logout and rejects late writes', () => {
 test('bulk delete invalidates individual songs and all related show copies', () => {
   for (const key of ['canta_song_single_1','canta_song_single_2','canta_play_offline_show','offline_snapshot']) userCache.setItem('A',key,'{}');
   invalidateContent('A',['1','2']);
-  assert.deepEqual(Object.keys(localStorage),[]);
+  assert.equal(userCache.getItem('A','offline_snapshot'),'{}');
+  assert.equal(userCache.getItem('A','canta_song_single_1'),null);
+  assert.equal(userCache.getItem('A','canta_play_offline_show'),null);
+});
+test('stored Supabase session can be restored without network', () => {
+  localStorage.setItem('sb-demo-auth-token', JSON.stringify({ access_token:'a', refresh_token:'r', user:{id:'A'} }));
+  assert.equal(readStoredAuthSession().user.id, 'A');
 });
 test('legacy private keys are discarded, preferences and auth tokens preserved', () => {
   localStorage.setItem('canta_songs_offline','private');

@@ -1,5 +1,17 @@
 const PREFIX = 'canta:v2:';
 let activeUser = null;
+export function readStoredAuthSession() {
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (!/^(sb-[^:]+-auth-token|supabase\.auth\.token)$/.test(key)) continue;
+      const raw = localStorage.getItem(key);
+      const value = raw ? JSON.parse(raw) : null;
+      const session = value?.currentSession || value;
+      if (session?.user?.id && session.access_token && session.refresh_token) return session;
+    }
+  } catch { /* Storage can be unavailable or contain an incomplete legacy value. */ }
+  return null;
+}
 export function activateUserCache(userId) { activeUser = userId || null; }
 export function cacheKey(userId, key) {
   if (!userId) throw new Error('Uma conta é necessária para acessar dados locais.');
@@ -49,6 +61,7 @@ export function invalidateContent(userId, songIds = []) {
   for (const id of songIds) userCache.removeItem(userId, `canta_song_single_${id}`);
   const prefix = cacheKey(userId, 'canta_play_offline_');
   for (const key of Object.keys(localStorage)) if (key.startsWith(prefix)) localStorage.removeItem(key);
-  for (const key of ['canta_songs_offline', 'canta_setlists_offline', 'offline_snapshot']) userCache.removeItem(userId, key);
+  // Preserve the last complete show snapshot; online sync replaces it atomically.
+  for (const key of ['canta_songs_offline', 'canta_setlists_offline']) userCache.removeItem(userId, key);
   window.dispatchEvent(new CustomEvent('canta-content-changed'));
 }
