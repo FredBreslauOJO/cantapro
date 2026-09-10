@@ -29,7 +29,7 @@ export default function PlaySong() {
   });
 
   const [autoSkip, setAutoSkip] = useState(() => {
-    return userCache.getItem(user?.id, 'cantapro_autoSkip') === 'true'; 
+    return userCache.getItem(user?.id, 'cantapro_autoSkip') !== 'false'; 
   });
 
   const [showComments, setShowComments] = useState(() => {
@@ -635,7 +635,7 @@ export default function PlaySong() {
         <div className="flex-1 w-1/3">
           {nextSong ? (
             <button onClick={() => handleNavigate(currentIndex + 1)} className="w-full h-14 bg-[#1a1a1a] text-white/50 hover:text-white hover:bg-[#2a2a2a] rounded-xl flex items-center justify-center gap-1 sm:gap-2 font-black text-sm sm:text-base tracking-widest uppercase border border-white/5">
-              <span className="truncate">{nextSong.title}..</span> <ChevronRight size={18} className="shrink-0" />
+              <span className="truncate">{nextSong.title}</span> <ChevronRight size={18} className="shrink-0" />
             </button>
           ) : (
             <button onClick={() => navigate('/')} className="w-full h-14 text-white/20 hover:text-white/50 flex items-center justify-center gap-2 font-black text-xs tracking-widest uppercase">

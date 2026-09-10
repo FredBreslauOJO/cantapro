@@ -124,11 +124,11 @@ const Navigation = ({ onOpenSettings, onOpenPaywall }) => {
         </div>
         
         <div className="flex items-center justify-end gap-3">
+          <SyncStatus />
           <button aria-label="Abrir menu" onClick={onOpenSettings} className="w-9 h-9 border-2 border-black rounded-lg flex items-center justify-center text-black hover:bg-gray-50 active:scale-95 transition-transform">
             <Menu size={16} />
           </button>
         </div>
-        <div className="col-span-3 flex justify-end pt-1"><SyncStatus /></div>
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t-4 border-black p-3 flex gap-3 z-40 select-none max-w-xl mx-auto sm:rounded-t-2xl sm:border-x-4">

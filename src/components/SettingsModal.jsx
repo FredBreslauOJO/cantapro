@@ -146,7 +146,7 @@ export default function SettingsModal({ isOpen, onClose, onOpenPaywall }) {
                     </button>
                   )}
                   {plan !== 'free' && (
-                    <button onClick={async () => { try { await openBilling('billing-portal'); } catch (error) { alert(error.message); } }} className="w-full py-3 bg-yellow-400 rounded-xl">
+                    <button onClick={async () => { try { await openBilling('billing-portal'); } catch (error) { alert(error.message); } }} className="w-full py-3 bg-yellow-400 border-2 border-black text-black text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-xl hover:bg-yellow-300 transition-all flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:scale-95">
                       <CreditCard size={14} /> Gerenciar Assinatura
                     </button>
                   )}
