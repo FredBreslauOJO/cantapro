@@ -1,6 +1,4 @@
-import { userCache, readCache, invalidateContent } from '../lib/userCache';
-import { getOfflineSnapshot } from '../lib/offline';
-import { useState, useEffectEvent, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Pencil, Search, ArrowLeft, Globe, CheckSquare, Square, Trash2, AlertTriangle, Loader2 } from "lucide-react";
 import { supabase } from "../lib/supabase";
@@ -23,22 +21,20 @@ export default function Songs() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const navigate = useNavigate();
-  const { user, plan, isOnline, contentVersion } = useAuth();
+  const { user, plan, isOnline } = useAuth(); 
 
-  const loadForEffect = useEffectEvent(() => loadSongs());
   useEffect(() => {
     if (user) {
-      loadForEffect();
+      loadSongs();
     } else {
       setLoading(false); 
     }
-  }, [user, isOnline, contentVersion]);
+  }, [user]);
 
   const loadSongs = async () => {
-    const snapshot = getOfflineSnapshot(user.id);
-    if (snapshot) { setSongs(snapshot.songs); setLoading(false); return; }
-    const cached = JSON.stringify(getOfflineSnapshot(user.id)?.songs || readCache(user.id, 'canta_songs_offline'));
-    if (cached && cached !== 'null' && songs.length === 0) {
+    // CHAVE DE CACHE ORIGINAL RESTAURADA PARA OS DADOS VOLTAREM A APARECER
+    const cached = localStorage.getItem('canta_songs_offline');
+    if (cached && songs.length === 0) {
       const parsed = JSON.parse(cached);
       setSongs(parsed);
       setLoading(false); 
@@ -46,7 +42,7 @@ export default function Songs() {
       setLoading(true);
     }
 
-    if (!isOnline) {
+    if (!navigator.onLine || sessionStorage.getItem('canta_force_offline') === 'true') {
       setLoading(false);
       return; 
     }
@@ -55,12 +51,12 @@ export default function Songs() {
       const { data, error } = await supabase
         .from('songs')
         .select('*')
-        .eq('owner_id', user.id)
+        .eq('created_by', user.email)
         .order('created_date', { ascending: false });
       
       if (!error && data) {
         setSongs(data);
-        userCache.setItem(user?.id, 'canta_songs_offline', JSON.stringify(data));
+        localStorage.setItem('canta_songs_offline', JSON.stringify(data));
       }
     } catch (err) {
       console.error("Modo offline ativado na listagem de letras.", err);
@@ -79,23 +75,25 @@ export default function Songs() {
   };
 
   const handleSaveLyricsFromWeb = async (songData) => {
-      if (!isOnline) throw new Error('Conecte-se para importar uma letra.');
-      const { data, error } = await supabase
+    try {
+      const { error } = await supabase
         .from('songs')
         .insert({
-          owner_id: user.id, created_by: user.email, 
+          created_by: user.email, 
           title: songData.title,
           artist: songData.artist,
           duration_seconds: Math.round(songData.duration) || 0,
           lyrics_text: songData.raw_text || "",     
           timecode_blocks: songData.blocks 
-        }).select('*').single();
+        });
 
       if (error) throw error;
 
-      invalidateContent(user.id, [], { song: data });
       setShowOnlineSearch(false);
       loadSongs();
+    } catch (err) {
+      alert(`Erro ao importar letra: ${err.message}`);
+    }
   };
 
   const toggleSongSelection = (songId) => {
@@ -129,13 +127,11 @@ export default function Songs() {
 
       if (error) throw error;
 
-      invalidateContent(user.id, selectedSongs, { deletedSongIds: selectedSongs });
       setShowDeleteModal(false);
       cancelEditMode();
       loadSongs();
     } catch (err) {
       alert("Ocorreu um erro ao excluir as músicas: " + err.message);
-    } finally {
       setIsDeleting(false);
     }
   };
@@ -164,7 +160,7 @@ export default function Songs() {
       
       <div className="mb-4">
         <div className="flex items-center justify-between mb-4">
-          <button aria-label="Voltar" 
+          <button 
             onClick={() => {
               if (showOnlineSearch) {
                 setShowOnlineSearch(false);
@@ -211,7 +207,7 @@ export default function Songs() {
                 {selectedSongs.length === filtered.length ? "Desmarcar Todos" : "Marcar Todos"}
               </button>
             ) : (
-              <button aria-label="Criar música" 
+              <button 
                 onClick={handleCreateNew} 
                 disabled={!isOnline}
                 className={`w-12 h-12 rounded-full flex items-center justify-center transition-opacity active:scale-95 shadow-[2px_2px_0px_0px_rgba(0,0,0,0.3)]
@@ -319,7 +315,7 @@ export default function Songs() {
                       .map(song => {
                         const isSelected = selectedSongs.includes(song.id);
                         return (
-                          <button aria-label="Alterar seleção"
+                          <button
                             key={song.id}
                             onClick={() => isEditingMode ? toggleSongSelection(song.id) : navigate(`/songs/${song.id}`)}
                             className={`w-full flex items-center px-3 min-h-[52px] border-b-2 transition-colors rounded-lg text-left active:scale-[0.99] group
